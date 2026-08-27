@@ -10,6 +10,7 @@ struct InterfaceBinding {
 
 enum NetworkSupportError: LocalizedError {
   case noIPv4Address(interface: String)
+  case noTailscaleIPv4Address
   case noNetworkInterface(interface: String)
   case interfaceLookupTimedOut(interface: String)
   case invalidIPv4Address(String)
@@ -18,6 +19,8 @@ enum NetworkSupportError: LocalizedError {
     switch self {
     case .noIPv4Address(let interface):
       return "Interface \(interface) has no usable IPv4 address."
+    case .noTailscaleIPv4Address:
+      return "No usable Tailscale IPv4 address was found on this Mac."
     case .noNetworkInterface(let interface):
       return "Network.framework could not resolve interface \(interface)."
     case .interfaceLookupTimedOut(let interface):
@@ -33,6 +36,40 @@ enum NetworkSupport {
     let address = try ipv4Address(for: name)
     let networkInterface = try networkInterface(named: name)
     return InterfaceBinding(name: name, ipv4Address: address, networkInterface: networkInterface)
+  }
+
+  static func resolveTailscaleInterface() throws -> InterfaceBinding {
+    var firstAddress: UnsafeMutablePointer<ifaddrs>?
+    guard getifaddrs(&firstAddress) == 0 else {
+      throw NetworkSupportError.noTailscaleIPv4Address
+    }
+    defer { freeifaddrs(firstAddress) }
+
+    var current = firstAddress
+    while let address = current {
+      let entry = address.pointee
+      current = entry.ifa_next
+
+      guard let namePointer = entry.ifa_name,
+        let socketAddress = entry.ifa_addr,
+        socketAddress.pointee.sa_family == sa_family_t(AF_INET),
+        (entry.ifa_flags & UInt32(IFF_UP)) != 0,
+        let interfaceName = String(validatingCString: namePointer),
+        let ipv4Address = numericIPv4Address(for: socketAddress),
+        isAllowedTailscaleIPv4(ipv4Address)
+      else {
+        continue
+      }
+
+      let networkInterface = try networkInterface(named: interfaceName)
+      return InterfaceBinding(
+        name: interfaceName,
+        ipv4Address: ipv4Address,
+        networkInterface: networkInterface
+      )
+    }
+
+    throw NetworkSupportError.noTailscaleIPv4Address
   }
 
   static func ipv4Address(for interfaceName: String) throws -> String {
@@ -56,19 +93,8 @@ enum NetworkSupport {
         continue
       }
 
-      var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-      let result = getnameinfo(
-        socketAddress,
-        socklen_t(socketAddress.pointee.sa_len),
-        &host,
-        socklen_t(host.count),
-        nil,
-        0,
-        NI_NUMERICHOST
-      )
-
-      if result == 0 {
-        return String(cString: host)
+      if let address = numericIPv4Address(for: socketAddress) {
+        return address
       }
     }
 
@@ -97,6 +123,22 @@ enum NetworkSupport {
     guard octets.count == 4, octets.allSatisfy({ $0 <= 255 }) else { return nil }
 
     return (octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]
+  }
+
+  private static func numericIPv4Address(
+    for socketAddress: UnsafeMutablePointer<sockaddr>
+  ) -> String? {
+    var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+    let result = getnameinfo(
+      socketAddress,
+      socklen_t(socketAddress.pointee.sa_len),
+      &host,
+      socklen_t(host.count),
+      nil,
+      0,
+      NI_NUMERICHOST
+    )
+    return result == 0 ? String(cString: host) : nil
   }
 
   private static func networkInterface(named name: String) throws -> NWInterface {

@@ -56,6 +56,32 @@ nuticast-poc --interface en1 --peer radeks-macbook-pro-1 --remote-port 49152
 The relay still binds to that interface's resolved IPv4 address rather than
 `0.0.0.0`.
 
+## Peer-side forwarder
+
+When the iPhone is attached to a different Mac, run the forwarder on the
+iPhone's MacBook first. It captures the local `_remotepairing._tcp` SRV
+endpoint, binds TCP and UDP on the MacBook's Tailscale IPv4 address, and only
+accepts the selected Mac mini's Tailscale IP:
+
+```sh
+nuticast-poc --forward-remote --peer radeks-mac-mini --remote-port 49152
+```
+
+Then run the normal proxy on the Mac mini, selecting the MacBook as its peer:
+
+```sh
+nuticast-poc \
+  --interface en1 \
+  --peer radeks-macbook-pro-1 \
+  --remote-port 49152 \
+  --bonjour-name "Radek iPhone"
+```
+
+The two commands intentionally use the same manual RemotePairing port. The
+forwarder uses only the captured local Bonjour host and port; it does not
+accept a free-form destination. Automatic reconfiguration when the iPhone's
+RemotePairing port changes remains a later phase.
+
 ## Bonjour capture
 
 Capture and normalize the first local `_remotepairing._tcp` service:

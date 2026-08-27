@@ -188,14 +188,17 @@ struct BonjourZoneParser {
 
   private static func isInstanceName(_ value: String) -> Bool {
     value.hasSuffix(".\(serviceType).\(domain)")
+      || value.hasSuffix(".\(serviceType)")
   }
 
   private static func instanceName(from value: String) -> String {
-    let suffix = ".\(serviceType).\(domain)"
-    guard let range = value.range(of: suffix, options: [.caseInsensitive, .backwards]) else {
-      return unescapeDNS(value)
+    let suffixes = [".\(serviceType).\(domain)", ".\(serviceType)"]
+    for suffix in suffixes {
+      if let range = value.range(of: suffix, options: [.caseInsensitive, .backwards]) {
+        return unescapeDNS(String(value[..<range.lowerBound]))
+      }
     }
-    return unescapeDNS(String(value[..<range.lowerBound]))
+    return unescapeDNS(value)
   }
 
   private static func hostName(from value: String) -> String {

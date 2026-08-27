@@ -4,6 +4,7 @@ import Network
 enum RelayError: LocalizedError {
   case invalidPort(UInt16)
   case invalidDestination(String)
+  case invalidDestinationHost(String)
   case noAvailableLocalPort(ClosedRange<UInt16>, lastFailure: String?)
   case listenerFailed(String)
   case startupTimedOut
@@ -15,6 +16,8 @@ enum RelayError: LocalizedError {
       return "Invalid relay port: \(port)."
     case .invalidDestination(let host):
       return "Relay destination is not an allowed Tailscale IPv4 address: \(host)."
+    case .invalidDestinationHost(let host):
+      return "Relay destination is not an allowed local Bonjour host: \(host)."
     case .noAvailableLocalPort(let range, let lastFailure):
       let details = lastFailure.map { " Last listener error: \($0)" } ?? ""
       return
@@ -30,28 +33,38 @@ enum RelayError: LocalizedError {
 }
 
 struct RelayAccessPolicy {
-  let localInterfaceAddress: String
-  let allowLANClients: Bool
+  private let allowedSourceAddresses: Set<String>?
+
+  init(localInterfaceAddress: String, allowLANClients: Bool) {
+    if allowLANClients {
+      self.allowedSourceAddresses = nil
+    } else {
+      self.allowedSourceAddresses = [localInterfaceAddress, "127.0.0.1", "::1"]
+    }
+  }
+
+  init(allowedSourceAddresses: Set<String>) {
+    self.allowedSourceAddresses = allowedSourceAddresses
+  }
 
   func allows(_ connection: NWConnection) -> Bool {
-    guard !allowLANClients else { return true }
+    guard let allowedSourceAddresses else { return true }
 
     guard case .hostPort(let host, _) = connection.endpoint else {
       return false
     }
 
     let sourceAddress = String(describing: host)
-    return sourceAddress == localInterfaceAddress
-      || sourceAddress == "127.0.0.1"
-      || sourceAddress == "::1"
+    return allowedSourceAddresses.contains(sourceAddress)
   }
 }
 
 final class TCPRelay {
   private let bindInterface: NWInterface
-  private let remoteHost: String
+  private let remoteHost: NWEndpoint.Host
   private let remotePort: UInt16
   private let localPort: UInt16
+  private let localInterfaceAddress: String
   private let accessPolicy: RelayAccessPolicy
   private let queue: DispatchQueue
 
@@ -62,22 +75,21 @@ final class TCPRelay {
 
   init(
     bindInterface: NWInterface,
-    remoteHost: String,
+    remoteHost: NWEndpoint.Host,
     remotePort: UInt16,
     localPort: UInt16,
+    localInterfaceAddress: String,
     accessPolicy: RelayAccessPolicy
   ) throws {
     guard localPort > 0, remotePort > 0 else {
       throw RelayError.invalidPort(localPort == 0 ? localPort : remotePort)
-    }
-    guard NetworkSupport.isAllowedTailscaleIPv4(remoteHost) else {
-      throw RelayError.invalidDestination(remoteHost)
     }
 
     self.bindInterface = bindInterface
     self.remoteHost = remoteHost
     self.remotePort = remotePort
     self.localPort = localPort
+    self.localInterfaceAddress = localInterfaceAddress
     self.accessPolicy = accessPolicy
     self.queue = DispatchQueue(label: "nuticast-poc.tcp-relay-\(localPort)")
   }
@@ -102,7 +114,7 @@ final class TCPRelay {
       }
       _ = parameters.localEndpoint(
         .hostPort(
-          host: NWEndpoint.Host(accessPolicy.localInterfaceAddress),
+          host: NWEndpoint.Host(localInterfaceAddress),
           port: port
         ))
       // The exact local endpoint carries both the bind address and port.
@@ -172,7 +184,7 @@ final class TCPRelay {
     }
 
     let remoteEndpoint = NWEndpoint.hostPort(
-      host: NWEndpoint.Host(remoteHost),
+      host: remoteHost,
       port: remotePort
     )
     let remoteConnection = NWConnection(to: remoteEndpoint, using: .tcp)

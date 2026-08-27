@@ -14,9 +14,10 @@ final class RelayPair {
 
   init(
     bindInterface: NWInterface,
-    remoteHost: String,
+    remoteHost: NWEndpoint.Host,
     remotePort: UInt16,
     localPort: UInt16,
+    localInterfaceAddress: String,
     accessPolicy: RelayAccessPolicy
   ) throws {
     self.localPort = localPort
@@ -25,6 +26,7 @@ final class RelayPair {
       remoteHost: remoteHost,
       remotePort: remotePort,
       localPort: localPort,
+      localInterfaceAddress: localInterfaceAddress,
       accessPolicy: accessPolicy
     )
     self.udp = try UDPRelay(
@@ -32,6 +34,7 @@ final class RelayPair {
       remoteHost: remoteHost,
       remotePort: remotePort,
       localPort: localPort,
+      localInterfaceAddress: localInterfaceAddress,
       accessPolicy: accessPolicy
     )
   }
@@ -104,7 +107,7 @@ final class RelayPair {
 
 final class RelayManager {
   private let bindInterface: NWInterface
-  private let remoteHost: String
+  private let remoteHost: NWEndpoint.Host
   private let localInterfaceAddress: String
   private let localPortRange: ClosedRange<UInt16>
   private let accessPolicy: RelayAccessPolicy
@@ -114,7 +117,21 @@ final class RelayManager {
   private var pairs: [UInt16: RelayPair] = [:]
   private var stopped = false
 
-  init(
+  private init(
+    bindInterface: NWInterface,
+    remoteHost: NWEndpoint.Host,
+    localInterfaceAddress: String,
+    localPortRange: ClosedRange<UInt16>,
+    accessPolicy: RelayAccessPolicy
+  ) {
+    self.bindInterface = bindInterface
+    self.remoteHost = remoteHost
+    self.localInterfaceAddress = localInterfaceAddress
+    self.localPortRange = localPortRange
+    self.accessPolicy = accessPolicy
+  }
+
+  convenience init(
     bindInterface: NWInterface,
     remoteHost: String,
     localInterfaceAddress: String,
@@ -124,13 +141,38 @@ final class RelayManager {
     guard NetworkSupport.isAllowedTailscaleIPv4(remoteHost) else {
       throw RelayError.invalidDestination(remoteHost)
     }
-    self.bindInterface = bindInterface
-    self.remoteHost = remoteHost
-    self.localInterfaceAddress = localInterfaceAddress
-    self.localPortRange = localPortRange
-    self.accessPolicy = RelayAccessPolicy(
+    self.init(
+      bindInterface: bindInterface,
+      remoteHost: NWEndpoint.Host(remoteHost),
       localInterfaceAddress: localInterfaceAddress,
-      allowLANClients: allowLANClients
+      localPortRange: localPortRange,
+      accessPolicy: RelayAccessPolicy(
+        localInterfaceAddress: localInterfaceAddress,
+        allowLANClients: allowLANClients
+      )
+    )
+  }
+
+  convenience init(
+    bindInterface: NWInterface,
+    remoteHost: String,
+    localInterfaceAddress: String,
+    localPortRange: ClosedRange<UInt16>,
+    accessPolicy: RelayAccessPolicy
+  ) throws {
+    let normalizedHost = remoteHost.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedHost.isEmpty,
+      normalizedHost.rangeOfCharacter(from: .controlCharacters) == nil,
+      normalizedHost.lowercased().hasSuffix(".local")
+    else {
+      throw RelayError.invalidDestinationHost(remoteHost)
+    }
+    self.init(
+      bindInterface: bindInterface,
+      remoteHost: NWEndpoint.Host(normalizedHost),
+      localInterfaceAddress: localInterfaceAddress,
+      localPortRange: localPortRange,
+      accessPolicy: accessPolicy
     )
   }
 
@@ -203,6 +245,7 @@ final class RelayManager {
         remoteHost: remoteHost,
         remotePort: remotePort,
         localPort: candidate,
+        localInterfaceAddress: localInterfaceAddress,
         accessPolicy: accessPolicy
       )
       pairs[candidate] = pair

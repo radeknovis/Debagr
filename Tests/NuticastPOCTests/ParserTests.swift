@@ -35,6 +35,24 @@ final class ParserTests: XCTestCase {
     XCTAssertEqual(parser.device?.hostName, "first.local")
   }
 
+  func testBonjourZoneParserAcceptsDnsSDInstanceNamesWithoutLocalSuffix() {
+    var parser = BonjourZoneParser()
+    parser.consume("_remotepairing._tcp PTR iPhone._remotepairing._tcp")
+    parser.consume("iPhone._remotepairing._tcp SRV 0 0 49152 iPhone.local.")
+    parser.consume("iPhone._remotepairing._tcp TXT \"flags=0\"")
+
+    XCTAssertEqual(
+      parser.device,
+      BonjourDevice(
+        instanceName: "iPhone",
+        serviceType: "_remotepairing._tcp",
+        hostName: "iPhone.local",
+        port: 49_152,
+        txt: ["flags": "0"]
+      )
+    )
+  }
+
   func testTunnelPortParserAcceptsIPv4AndIPv6Endpoints() {
     XCTAssertEqual(
       TunnelPortParser.port(in: "remotepairingd: Got tunnel endpoint: '100.64.0.2:49640'"),

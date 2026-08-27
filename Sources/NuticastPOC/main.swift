@@ -9,6 +9,7 @@ enum CLIError: LocalizedError {
   case invalidPort(String)
   case invalidTimeout(String)
   case discoveryTimedOut
+  case remotePortMismatch(discovered: UInt16, requested: UInt16)
 
   var errorDescription: String? {
     switch self {
@@ -26,6 +27,8 @@ enum CLIError: LocalizedError {
       return "Invalid timeout: \(value)."
     case .discoveryTimedOut:
       return "No _remotepairing._tcp service was captured before the timeout."
+    case .remotePortMismatch(let discovered, let requested):
+      return "Captured RemotePairing port \(discovered), but --remote-port requested \(requested)."
     }
   }
 }
@@ -35,6 +38,7 @@ struct CommandLineOptions {
   var remotePort: UInt16?
   var bonjourName: String?
   var interfaceName: String
+  var forwardRemote: Bool
   var profileURL: URL
   var watchTunnels: Bool
   var discover: Bool
@@ -47,6 +51,7 @@ struct CommandLineOptions {
     var remotePort: UInt16?
     var bonjourName: String?
     var interfaceName = "en0"
+    var forwardRemote = false
     var profileURL = ProfileStore.defaultStore.url
     var watchTunnels = false
     var discover = false
@@ -66,6 +71,8 @@ struct CommandLineOptions {
         watchTunnels = true
       case "--allow-lan":
         allowLANClients = true
+      case "--forward-remote":
+        forwardRemote = true
       case "--peer":
         peerName = try requiredValue(for: argument, arguments: arguments, index: &index)
       case "--remote-port":
@@ -95,6 +102,7 @@ struct CommandLineOptions {
       remotePort: remotePort,
       bonjourName: bonjourName,
       interfaceName: interfaceName,
+      forwardRemote: forwardRemote,
       profileURL: profileURL,
       watchTunnels: watchTunnels,
       discover: discover,
@@ -135,7 +143,12 @@ struct CommandLineOptions {
   }
 }
 
-final class NuticastApplication {
+protocol ApplicationLifecycle: AnyObject {
+  func start() throws
+  func stop()
+}
+
+final class NuticastApplication: ApplicationLifecycle {
   private let options: CommandLineOptions
   private let profileStore: ProfileStore
 
@@ -362,11 +375,13 @@ func printUsage() {
     """
     Usage:
       nuticast-poc --peer <tailscale-hostname> --remote-port <port> [options]
+      nuticast-poc --forward-remote --peer <tailscale-hostname> [options]
       nuticast-poc --discover [--timeout <seconds>]
 
     Options:
       --bonjour-name <name>  Local _remotepairing._tcp instance name
       --interface <name>     Interface to bind (default: en0)
+      --forward-remote       Forward from this Mac's Tailscale IP to local Bonjour
       --profile <path>      JSON profile (default: ~/.config/nuticast-poc/device-profile.json)
       --watch-tunnels       Watch remotepairingd and add TCP/UDP tunnel relays
       --allow-lan           Allow clients other than this Mac's en0 address
@@ -379,7 +394,7 @@ func printUsage() {
   )
 }
 
-var runningApplication: NuticastApplication?
+var runningApplication: (any ApplicationLifecycle)?
 atexit {
   runningApplication?.stop()
 }
@@ -396,7 +411,10 @@ do {
     exit(EXIT_SUCCESS)
   }
 
-  let application = NuticastApplication(options: options)
+  let application: any ApplicationLifecycle =
+    options.forwardRemote
+    ? RemoteForwarderApplication(options: options)
+    : NuticastApplication(options: options)
   runningApplication = application
   let stopped = DispatchSemaphore(value: 0)
   let signals = SignalHandler {

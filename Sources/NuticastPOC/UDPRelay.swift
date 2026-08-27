@@ -3,9 +3,10 @@ import Network
 
 final class UDPRelay {
   private let bindInterface: NWInterface
-  private let remoteHost: String
+  private let remoteHost: NWEndpoint.Host
   private let remotePort: UInt16
   private let localPort: UInt16
+  private let localInterfaceAddress: String
   private let accessPolicy: RelayAccessPolicy
   private let queue: DispatchQueue
 
@@ -16,22 +17,21 @@ final class UDPRelay {
 
   init(
     bindInterface: NWInterface,
-    remoteHost: String,
+    remoteHost: NWEndpoint.Host,
     remotePort: UInt16,
     localPort: UInt16,
+    localInterfaceAddress: String,
     accessPolicy: RelayAccessPolicy
   ) throws {
     guard localPort > 0, remotePort > 0 else {
       throw RelayError.invalidPort(localPort == 0 ? localPort : remotePort)
-    }
-    guard NetworkSupport.isAllowedTailscaleIPv4(remoteHost) else {
-      throw RelayError.invalidDestination(remoteHost)
     }
 
     self.bindInterface = bindInterface
     self.remoteHost = remoteHost
     self.remotePort = remotePort
     self.localPort = localPort
+    self.localInterfaceAddress = localInterfaceAddress
     self.accessPolicy = accessPolicy
     self.queue = DispatchQueue(label: "nuticast-poc.udp-relay-\(localPort)")
   }
@@ -56,7 +56,7 @@ final class UDPRelay {
       }
       _ = parameters.localEndpoint(
         .hostPort(
-          host: NWEndpoint.Host(accessPolicy.localInterfaceAddress),
+          host: NWEndpoint.Host(localInterfaceAddress),
           port: port
         ))
       // The exact local endpoint carries both the bind address and port.
@@ -126,7 +126,7 @@ final class UDPRelay {
     }
 
     let remoteEndpoint = NWEndpoint.hostPort(
-      host: NWEndpoint.Host(remoteHost),
+      host: remoteHost,
       port: remotePort
     )
     let remoteConnection = NWConnection(to: remoteEndpoint, using: .udp)
