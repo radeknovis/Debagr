@@ -46,6 +46,16 @@ The profile is stored at
 The selected peer IP is refreshed from live `tailscale status --json` output on
 each run.
 
+If the host uses a different active interface, select it explicitly. For
+example, a Mac mini whose Wi-Fi is `en1` can use:
+
+```sh
+nuticast-poc --interface en1 --peer radeks-macbook-pro-1 --remote-port 49152
+```
+
+The relay still binds to that interface's resolved IPv4 address rather than
+`0.0.0.0`.
+
 ## Bonjour capture
 
 Capture and normalize the first local `_remotepairing._tcp` service:

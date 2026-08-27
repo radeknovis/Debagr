@@ -34,6 +34,7 @@ struct CommandLineOptions {
   var peerName: String?
   var remotePort: UInt16?
   var bonjourName: String?
+  var interfaceName: String
   var profileURL: URL
   var watchTunnels: Bool
   var discover: Bool
@@ -45,6 +46,7 @@ struct CommandLineOptions {
     var peerName: String?
     var remotePort: UInt16?
     var bonjourName: String?
+    var interfaceName = "en0"
     var profileURL = ProfileStore.defaultStore.url
     var watchTunnels = false
     var discover = false
@@ -71,6 +73,8 @@ struct CommandLineOptions {
         remotePort = try parsePort(value)
       case "--bonjour-name":
         bonjourName = try requiredValue(for: argument, arguments: arguments, index: &index)
+      case "--interface":
+        interfaceName = try requiredValue(for: argument, arguments: arguments, index: &index)
       case "--profile":
         let value = try requiredValue(for: argument, arguments: arguments, index: &index)
         profileURL = expandedURL(value)
@@ -90,6 +94,7 @@ struct CommandLineOptions {
       peerName: peerName,
       remotePort: remotePort,
       bonjourName: bonjourName,
+      interfaceName: interfaceName,
       profileURL: profileURL,
       watchTunnels: watchTunnels,
       discover: discover,
@@ -133,7 +138,6 @@ struct CommandLineOptions {
 final class NuticastApplication {
   private let options: CommandLineOptions
   private let profileStore: ProfileStore
-  private let interfaceName = "en0"
 
   private var relayManager: RelayManager?
   private var proxy: BonjourProxy?
@@ -150,7 +154,7 @@ final class NuticastApplication {
 
   func start() throws {
     do {
-      let binding = try NetworkSupport.resolveInterface(named: interfaceName)
+      let binding = try NetworkSupport.resolveInterface(named: options.interfaceName)
       let selectedPeerName = try requirePeerName()
       let peer = try TailscaleClient().selectPeer(named: selectedPeerName)
       let previousProfile = try profileStore.load()
@@ -362,6 +366,7 @@ func printUsage() {
 
     Options:
       --bonjour-name <name>  Local _remotepairing._tcp instance name
+      --interface <name>     Interface to bind (default: en0)
       --profile <path>      JSON profile (default: ~/.config/nuticast-poc/device-profile.json)
       --watch-tunnels       Watch remotepairingd and add TCP/UDP tunnel relays
       --allow-lan           Allow clients other than this Mac's en0 address
