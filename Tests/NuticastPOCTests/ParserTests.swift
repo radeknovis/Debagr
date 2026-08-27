@@ -53,6 +53,18 @@ final class ParserTests: XCTestCase {
     )
   }
 
+  func testBonjourZoneParserCanSelectPreferredHost() {
+    var parser = BonjourZoneParser(preferredHostName: "Radek-iPhone.local")
+    parser.consume("_remotepairing._tcp PTR Jane._remotepairing._tcp")
+    parser.consume("Jane._remotepairing._tcp SRV 0 0 49152 Jane-iPhone.local.")
+    parser.consume("_remotepairing._tcp PTR Radek._remotepairing._tcp")
+    parser.consume("Radek._remotepairing._tcp SRV 0 0 49153 Radek-iPhone.local.")
+
+    XCTAssertEqual(parser.device?.instanceName, "Radek")
+    XCTAssertEqual(parser.device?.hostName, "Radek-iPhone.local")
+    XCTAssertEqual(parser.device?.port, 49_153)
+  }
+
   func testTunnelPortParserAcceptsIPv4AndIPv6Endpoints() {
     XCTAssertEqual(
       TunnelPortParser.port(in: "remotepairingd: Got tunnel endpoint: '100.64.0.2:49640'"),

@@ -37,6 +37,7 @@ struct CommandLineOptions {
   var peerName: String?
   var remotePort: UInt16?
   var bonjourName: String?
+  var bonjourHost: String?
   var interfaceName: String
   var forwardRemote: Bool
   var profileURL: URL
@@ -50,6 +51,7 @@ struct CommandLineOptions {
     var peerName: String?
     var remotePort: UInt16?
     var bonjourName: String?
+    var bonjourHost: String?
     var interfaceName = "en0"
     var forwardRemote = false
     var profileURL = ProfileStore.defaultStore.url
@@ -80,6 +82,8 @@ struct CommandLineOptions {
         remotePort = try parsePort(value)
       case "--bonjour-name":
         bonjourName = try requiredValue(for: argument, arguments: arguments, index: &index)
+      case "--bonjour-host":
+        bonjourHost = try requiredValue(for: argument, arguments: arguments, index: &index)
       case "--interface":
         interfaceName = try requiredValue(for: argument, arguments: arguments, index: &index)
       case "--profile":
@@ -101,6 +105,7 @@ struct CommandLineOptions {
       peerName: peerName,
       remotePort: remotePort,
       bonjourName: bonjourName,
+      bonjourHost: bonjourHost,
       interfaceName: interfaceName,
       forwardRemote: forwardRemote,
       profileURL: profileURL,
@@ -380,6 +385,7 @@ func printUsage() {
 
     Options:
       --bonjour-name <name>  Local _remotepairing._tcp instance name
+      --bonjour-host <host>  Forward only the captured Bonjour host (remote mode)
       --interface <name>     Interface to bind (default: en0)
       --forward-remote       Forward from this Mac's Tailscale IP to local Bonjour
       --profile <path>      JSON profile (default: ~/.config/nuticast-poc/device-profile.json)

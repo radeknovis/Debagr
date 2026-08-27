@@ -67,6 +67,14 @@ accepts the selected Mac mini's Tailscale IP:
 nuticast-poc --forward-remote --peer radeks-mac-mini --remote-port 49152
 ```
 
+If more than one paired phone is present, constrain capture to the desired
+Bonjour host:
+
+```sh
+nuticast-poc --forward-remote --peer radeks-mac-mini \
+  --bonjour-host Radeks-iPhone-16-Pro.local --remote-port 49152
+```
+
 Then run the normal proxy on the Mac mini, selecting the MacBook as its peer:
 
 ```sh

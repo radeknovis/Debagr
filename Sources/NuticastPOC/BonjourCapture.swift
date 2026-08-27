@@ -21,6 +21,11 @@ struct BonjourZoneParser {
 
   private var records: [String: PartialRecord] = [:]
   private var selectedKey: String?
+  private let preferredHostName: String?
+
+  init(preferredHostName: String? = nil) {
+    self.preferredHostName = preferredHostName.map(Self.canonicalDNSName)
+  }
 
   var device: BonjourDevice? {
     guard let selectedKey,
@@ -90,6 +95,11 @@ struct BonjourZoneParser {
       record.port = port
       record.hostName = Self.hostName(from: tokens[typeIndex + 4])
       records[owner] = record
+      if let preferredHostName,
+        Self.canonicalDNSName(record.hostName ?? "") == preferredHostName
+      {
+        selectedKey = owner
+      }
 
     case "TXT":
       guard Self.isInstanceName(owner), selectIfNeeded(owner) else { return }
@@ -115,6 +125,9 @@ struct BonjourZoneParser {
   }
 
   private mutating func selectIfNeeded(_ key: String) -> Bool {
+    if preferredHostName != nil {
+      return true
+    }
     if let selectedKey {
       return selectedKey == key
     }
@@ -251,12 +264,15 @@ final class BonjourCapture {
   private var browseCallback: ((String) -> Void)?
   private var deliveryScheduled = false
 
-  func startZoneCapture(onDevice: @escaping (BonjourDevice) -> Void) throws {
+  func startZoneCapture(
+    matchingHostName: String? = nil,
+    onDevice: @escaping (BonjourDevice) -> Void
+  ) throws {
     stop()
 
     let currentGeneration = activate(mode: .zone)
     queue.sync {
-      zoneParser = BonjourZoneParser()
+      zoneParser = BonjourZoneParser(preferredHostName: matchingHostName)
       zoneCallback = onDevice
       browseCallback = nil
       deliveryScheduled = false

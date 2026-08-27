@@ -80,7 +80,7 @@ final class RemoteForwarderApplication: ApplicationLifecycle {
     let semaphore = DispatchSemaphore(value: 0)
     let result = LockedValue<BonjourDevice?>(nil)
 
-    try capture.startZoneCapture { device in
+    try capture.startZoneCapture(matchingHostName: options.bonjourHost) { device in
       result.set(device)
       semaphore.signal()
     }
