@@ -17,6 +17,10 @@ final class RemoteForwarderApplication: ApplicationLifecycle {
       let selectedPeerName = try requirePeerName()
       let selectedPeer = try TailscaleClient().selectPeer(named: selectedPeerName)
       let device = try captureBonjourDevice()
+      let destinationAddress = try BonjourHostResolver().resolveIPv4(
+        hostName: device.hostName,
+        timeout: options.timeout
+      )
 
       if let requestedPort = options.remotePort, requestedPort != device.port {
         throw CLIError.remotePortMismatch(
@@ -27,7 +31,7 @@ final class RemoteForwarderApplication: ApplicationLifecycle {
 
       let manager = try RelayManager(
         bindInterface: binding.networkInterface,
-        remoteHost: device.hostName,
+        remoteHost: destinationAddress,
         localInterfaceAddress: binding.ipv4Address,
         localPortRange: device.port...device.port,
         accessPolicy: RelayAccessPolicy(
@@ -40,7 +44,10 @@ final class RemoteForwarderApplication: ApplicationLifecycle {
       print(
         "Remote forwarder selected peer: \(selectedPeer.hostname) (\(selectedPeer.ipAddress))"
       )
-      print("Captured Bonjour endpoint: \(device.hostName):\(device.port)")
+      print(
+        "Captured Bonjour endpoint: \(device.hostName) (\(destinationAddress)):"
+          + "\(device.port)"
+      )
       print(
         "TCP and UDP forwarders ready on \(binding.ipv4Address):\(localPort) -> "
           + "Bonjour endpoint (source restricted to \(selectedPeer.ipAddress))."

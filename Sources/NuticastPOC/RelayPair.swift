@@ -163,7 +163,7 @@ final class RelayManager {
     let normalizedHost = remoteHost.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalizedHost.isEmpty,
       normalizedHost.rangeOfCharacter(from: .controlCharacters) == nil,
-      normalizedHost.lowercased().hasSuffix(".local")
+      NetworkSupport.isAllowedBonjourDestinationHost(normalizedHost)
     else {
       throw RelayError.invalidDestinationHost(remoteHost)
     }

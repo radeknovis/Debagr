@@ -105,6 +105,27 @@ enum NetworkSupport {
     ipv4Value(address) != nil
   }
 
+  static func isAllowedBonjourDestinationHost(_ host: String) -> Bool {
+    let normalizedHost =
+      host
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+      .lowercased()
+
+    return normalizedHost.hasSuffix(".local") || isAllowedLocalIPv4(normalizedHost)
+  }
+
+  static func isAllowedLocalIPv4(_ address: String) -> Bool {
+    guard let value = ipv4Value(address) else { return false }
+
+    let firstOctet = value >> 24
+    let secondOctet = (value >> 16) & 255
+    return firstOctet == 10
+      || (firstOctet == 172 && (16...31).contains(secondOctet))
+      || (firstOctet == 192 && secondOctet == 168)
+      || (firstOctet == 169 && secondOctet == 254)
+  }
+
   /// Tailscale's normal IPv4 allocation is CGNAT space (100.64.0.0/10).
   /// Restricting the relay destination to that range prevents a profile or
   /// future input path from turning this tool into a generic TCP proxy.
