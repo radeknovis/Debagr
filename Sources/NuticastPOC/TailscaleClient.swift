@@ -91,10 +91,16 @@ final class TailscaleClient {
 
     let normalizedRequest = normalizeHostName(requestedName)
     let matches = status.peers.values.filter { peer in
-      [peer.hostname, peer.dnsName]
+      let exactNames = [peer.hostname, peer.dnsName]
         .compactMap { $0 }
         .map(normalizeHostName)
-        .contains(normalizedRequest)
+      let shortDNSName = peer.dnsName?
+        .split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+        .first
+        .map(String.init)
+        .map(normalizeHostName)
+
+      return exactNames.contains(normalizedRequest) || shortDNSName == normalizedRequest
     }
 
     guard !matches.isEmpty else {
