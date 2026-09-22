@@ -1,0 +1,1 @@
+window.DEBAGR_CHECKOUT_URL = "";

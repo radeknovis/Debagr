@@ -2,6 +2,7 @@ import Foundation
 
 final class RemoteForwarderApplication: ApplicationLifecycle {
   private let options: CommandLineOptions
+  private let profileStore: ProfileStore
   private var relayManager: RelayManager?
   private var bonjourCapture: BonjourCapture?
   private let shutdownLock = NSLock()
@@ -9,6 +10,7 @@ final class RemoteForwarderApplication: ApplicationLifecycle {
 
   init(options: CommandLineOptions) {
     self.options = options
+    self.profileStore = ProfileStore(url: options.profileURL)
   }
 
   func start() throws {
@@ -40,6 +42,16 @@ final class RemoteForwarderApplication: ApplicationLifecycle {
       )
       relayManager = manager
 
+      try profileStore.save(
+        DeviceProfile(
+          bonjourName: device.instanceName,
+          bonjourTXT: device.txt,
+          provider: "tailscale",
+          peerIP: binding.ipv4Address,
+          remotePort: device.port,
+          localPortRange: DeviceProfile.defaultLocalPortRange
+        ))
+
       let localPort = try startRelay(manager: manager, remotePort: device.port)
       print(
         "Remote forwarder selected peer: \(selectedPeer.hostname) (\(selectedPeer.ipAddress))"
@@ -52,6 +64,7 @@ final class RemoteForwarderApplication: ApplicationLifecycle {
         "TCP and UDP forwarders ready on \(binding.ipv4Address):\(localPort) -> "
           + "Bonjour endpoint (source restricted to \(selectedPeer.ipAddress))."
       )
+      print("Projection profile written to \(options.profileURL.path).")
       print("Run the Mac mini relay with --peer \(localBonjourPeerHint()).")
     } catch {
       stop()

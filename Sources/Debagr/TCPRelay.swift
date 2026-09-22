@@ -1,7 +1,65 @@
 import Foundation
 import Network
 
-final class UDPRelay {
+enum RelayError: LocalizedError {
+  case invalidPort(UInt16)
+  case invalidDestination(String)
+  case invalidDestinationHost(String)
+  case noAvailableLocalPort(ClosedRange<UInt16>, lastFailure: String?)
+  case listenerFailed(String)
+  case startupTimedOut
+  case explicitAddressBindingUnavailable
+
+  var errorDescription: String? {
+    switch self {
+    case .invalidPort(let port):
+      return "Invalid relay port: \(port)."
+    case .invalidDestination(let host):
+      return "Relay destination is not an allowed Tailscale IPv4 address: \(host)."
+    case .invalidDestinationHost(let host):
+      return "Relay destination is not an allowed local Bonjour host: \(host)."
+    case .noAvailableLocalPort(let range, let lastFailure):
+      let details = lastFailure.map { " Last listener error: \($0)" } ?? ""
+      return
+        "No local relay port was available in \(range.lowerBound)...\(range.upperBound).\(details)"
+    case .listenerFailed(let details):
+      return "Relay listener failed: \(details)"
+    case .startupTimedOut:
+      return "Timed out while waiting for relay listeners to become ready."
+    case .explicitAddressBindingUnavailable:
+      return "Exact local-address binding requires macOS 26 or newer."
+    }
+  }
+}
+
+struct RelayAccessPolicy {
+  private let allowedSourceAddresses: Set<String>?
+
+  init(localInterfaceAddress: String, allowLANClients: Bool) {
+    if allowLANClients {
+      self.allowedSourceAddresses = nil
+    } else {
+      self.allowedSourceAddresses = [localInterfaceAddress, "127.0.0.1", "::1"]
+    }
+  }
+
+  init(allowedSourceAddresses: Set<String>) {
+    self.allowedSourceAddresses = allowedSourceAddresses
+  }
+
+  func allows(_ connection: NWConnection) -> Bool {
+    guard let allowedSourceAddresses else { return true }
+
+    guard case .hostPort(let host, _) = connection.endpoint else {
+      return false
+    }
+
+    let sourceAddress = String(describing: host)
+    return allowedSourceAddresses.contains(sourceAddress)
+  }
+}
+
+final class TCPRelay {
   private let bindInterface: NWInterface
   private let remoteHost: NWEndpoint.Host
   private let remotePort: UInt16
@@ -11,7 +69,7 @@ final class UDPRelay {
   private let queue: DispatchQueue
 
   private var listener: NWListener?
-  private var flows: [UUID: UDPFlow] = [:]
+  private var bridges: [UUID: TCPBridge] = [:]
   private var startCompletion: ((Result<Void, Error>) -> Void)?
   private var didCompleteStart = false
 
@@ -33,7 +91,7 @@ final class UDPRelay {
     self.localPort = localPort
     self.localInterfaceAddress = localInterfaceAddress
     self.accessPolicy = accessPolicy
-    self.queue = DispatchQueue(label: "nuticast-poc.udp-relay-\(localPort)")
+    self.queue = DispatchQueue(label: "debagr.tcp-relay-\(localPort)")
   }
 
   func start(completion: @escaping (Result<Void, Error>) -> Void) {
@@ -43,7 +101,7 @@ final class UDPRelay {
     }
 
     do {
-      let parameters = NWParameters.udp
+      let parameters = NWParameters.tcp
       parameters.allowLocalEndpointReuse = true
       parameters.requiredInterface = bindInterface
 
@@ -95,10 +153,10 @@ final class UDPRelay {
     listener?.cancel()
     listener = nil
 
-    let activeFlows = Array(flows.values)
-    flows.removeAll()
-    for flow in activeFlows {
-      flow.stop()
+    let activeBridges = Array(bridges.values)
+    bridges.removeAll()
+    for bridge in activeBridges {
+      bridge.stop()
     }
   }
 
@@ -129,28 +187,30 @@ final class UDPRelay {
       host: remoteHost,
       port: remotePort
     )
-    let remoteConnection = NWConnection(to: remoteEndpoint, using: .udp)
+    let remoteConnection = NWConnection(to: remoteEndpoint, using: .tcp)
     let identifier = UUID()
-    let flow = UDPFlow(
+    let bridge = TCPBridge(
       local: connection,
       remote: remoteConnection,
       queue: queue
     ) { [weak self] in
-      self?.flows.removeValue(forKey: identifier)
+      self?.bridges.removeValue(forKey: identifier)
     }
 
-    flows[identifier] = flow
-    flow.start()
+    bridges[identifier] = bridge
+    bridge.start()
   }
 }
 
-private final class UDPFlow {
+private final class TCPBridge {
   private let local: NWConnection
   private let remote: NWConnection
   private let queue: DispatchQueue
   private let onStop: () -> Void
   private let stateLock = NSLock()
   private var stopped = false
+  private var localInputComplete = false
+  private var remoteInputComplete = false
 
   init(
     local: NWConnection,
@@ -166,11 +226,8 @@ private final class UDPFlow {
 
   func start() {
     local.stateUpdateHandler = { [weak self] state in
-      switch state {
-      case .failed, .cancelled:
+      if case .failed = state {
         self?.stop()
-      default:
-        break
       }
     }
     remote.stateUpdateHandler = { [weak self] state in
@@ -205,7 +262,8 @@ private final class UDPFlow {
   private func receive(from source: NWConnection, forwardingTo destination: NWConnection) {
     guard !isStopped else { return }
 
-    source.receiveMessage { [weak self] data, _, _, error in
+    source.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
+      [weak self] data, _, isComplete, error in
       guard let self, !self.isStopped else { return }
 
       if error != nil {
@@ -213,18 +271,43 @@ private final class UDPFlow {
         return
       }
 
-      if let data, !data.isEmpty {
-        destination.send(
-          content: data,
-          completion: .contentProcessed { [weak self] error in
-            if error != nil {
-              self?.stop()
-            }
-          })
+      let shouldFinishAfterSend = isComplete && self.markInputComplete(for: source)
+      let sendCompletion: NWConnection.SendCompletion = .contentProcessed { [weak self] error in
+        guard let self else { return }
+        if error != nil || (shouldFinishAfterSend && self.areBothInputsComplete) {
+          self.stop()
+        }
       }
 
-      self.receive(from: source, forwardingTo: destination)
+      if let data, !data.isEmpty {
+        destination.send(content: data, isComplete: isComplete, completion: sendCompletion)
+      } else if isComplete {
+        destination.send(content: nil, isComplete: true, completion: sendCompletion)
+      }
+
+      if !isComplete {
+        self.receive(from: source, forwardingTo: destination)
+      }
     }
+  }
+
+  private func markInputComplete(for source: NWConnection) -> Bool {
+    stateLock.lock()
+    if source === local {
+      localInputComplete = true
+    } else {
+      remoteInputComplete = true
+    }
+    let bothComplete = localInputComplete && remoteInputComplete
+    stateLock.unlock()
+    return bothComplete
+  }
+
+  private var areBothInputsComplete: Bool {
+    stateLock.lock()
+    let bothComplete = localInputComplete && remoteInputComplete
+    stateLock.unlock()
+    return bothComplete
   }
 
   private var isStopped: Bool {

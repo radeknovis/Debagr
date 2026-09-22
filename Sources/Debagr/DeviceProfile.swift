@@ -2,10 +2,41 @@ import Foundation
 
 struct DeviceProfile: Codable, Equatable {
   let bonjourName: String
+  let bonjourTXT: [String: String]
   let provider: String
   let peerIP: String
   let remotePort: UInt16
   let localPortRange: [UInt16]
+
+  init(
+    bonjourName: String,
+    bonjourTXT: [String: String] = [:],
+    provider: String,
+    peerIP: String,
+    remotePort: UInt16,
+    localPortRange: [UInt16]
+  ) {
+    self.bonjourName = bonjourName
+    self.bonjourTXT = bonjourTXT
+    self.provider = provider
+    self.peerIP = peerIP
+    self.remotePort = remotePort
+    self.localPortRange = localPortRange
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case bonjourName, bonjourTXT, provider, peerIP, remotePort, localPortRange
+  }
+
+  init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    bonjourName = try values.decode(String.self, forKey: .bonjourName)
+    bonjourTXT = try values.decodeIfPresent([String: String].self, forKey: .bonjourTXT) ?? [:]
+    provider = try values.decode(String.self, forKey: .provider)
+    peerIP = try values.decode(String.self, forKey: .peerIP)
+    remotePort = try values.decode(UInt16.self, forKey: .remotePort)
+    localPortRange = try values.decode([UInt16].self, forKey: .localPortRange)
+  }
 
   static let defaultLocalPortRange: [UInt16] = [55_000, 58_000]
 
@@ -67,7 +98,7 @@ struct ProfileStore {
   static var defaultStore: ProfileStore {
     let directory = FileManager.default.homeDirectoryForCurrentUser
       .appendingPathComponent(".config", isDirectory: true)
-      .appendingPathComponent("nuticast-poc", isDirectory: true)
+      .appendingPathComponent("debagr", isDirectory: true)
     return ProfileStore(url: directory.appendingPathComponent("device-profile.json"))
   }
 

@@ -111,7 +111,7 @@ final class RelayManager {
   private let localInterfaceAddress: String
   private let localPortRange: ClosedRange<UInt16>
   private let accessPolicy: RelayAccessPolicy
-  private let queue = DispatchQueue(label: "nuticast-poc.relay-manager")
+  private let queue = DispatchQueue(label: "debagr.relay-manager")
 
   private var claimedPorts = Set<UInt16>()
   private var pairs: [UInt16: RelayPair] = [:]

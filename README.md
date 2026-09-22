@@ -1,134 +1,186 @@
-# nuticast-poc
+# Debagr
 
-Small macOS Swift command-line proof of the Xcode-to-iPhone remote debugging
-relay path:
+Debagr is a native macOS build-server agent for deploying signed iOS and iPadOS
+apps to devices paired with that Mac. Any computer, CI job, or agent that can
+SSH into the build server can invoke the same deployment command; the iPhone
+does not need to appear on the caller's machine.
 
-```text
-selected Tailscale peer:100.x.x.x:RemotePairing port
-              ↓
-       local TCP + UDP relay
-              ↓
-   local _remotepairing._tcp proxy
-              ↓
-       Xcode / devicectl
-```
+The app ships two deliberately separate surfaces:
 
-## Build
+- The product UI merges Apple `devicectl` inventory with visible
+  `_remotepairing._tcp` services, shows human-readable Target Device details,
+  explains first-run requirements, supports Launch at Login, and copies a
+  diagnostics report without Bonjour TXT values.
+- The command line preflights a specific paired device, installs a signed
+  device `.app` with Apple's `devicectl`, confirms the installed bundle ID, and
+  optionally launches it.
+- The old cross-Mac RemotePairing relay remains only as a research lab. It is
+  not part of the deployment product.
 
-Requires macOS 26 or newer for exact `NWParameters.localEndpoint` binding.
+## Build and test
+
+The menu-bar monitor supports macOS 13 or later. The experimental relay's exact
+Network.framework address binding requires macOS 26 or later.
 
 ```sh
 swift build
 swift test
 ```
 
-The executable is `.build/Products/Debug/nuticast-poc`.
+The executable is `.build/debug/debagr`.
 
-## Phase-1 run
-
-Select the peer explicitly and provide the known RemotePairing port:
+## Package the app
 
 ```sh
-nuticast-poc --peer radeks-mac-mini --remote-port 49640
+./scripts/build-macos-app.sh release
+./scripts/verify-macos-app.sh
+open Debagr.app
 ```
 
-The tool resolves the current `en0` IPv4 address, allocates the first usable
-local port in `55000...58000`, starts TCP and UDP relays, registers one local
-`_remotepairing._tcp` service with `dns-sd -P`, and starts a local `dns-sd -B`
-verification browse. Then test with:
+The default build is ad-hoc signed for local testing. A customer release must
+use a Developer ID Application identity and Apple's notarization service:
 
 ```sh
-xcrun devicectl list devices
+VERSION=1.0.0 \
+BUILD_NUMBER=42 \
+CODESIGN_IDENTITY="Developer ID Application: Example, Inc. (TEAMID)" \
+NOTARY_PROFILE="debagr-notary" \
+DEBAGR_WEBSITE_URL="https://example.com/debagr" \
+DEBAGR_SUPPORT_URL="https://example.com/debagr/support" \
+./scripts/release-macos-app.sh
 ```
 
-The profile is stored at
-`~/.config/nuticast-poc/device-profile.json` unless `--profile` is supplied.
-The selected peer IP is refreshed from live `tailscale status --json` output on
-each run.
+That produces a notarized, stapled DMG and SHA-256 checksum in `dist/`. See
+[`docs/RELEASE.md`](docs/RELEASE.md) for the account-bound setup and clean-Mac
+acceptance checklist.
 
-If the host uses a different active interface, select it explicitly. For
-example, a Mac mini whose Wi-Fi is `en1` can use:
+## Menu-bar behavior
+
+On first launch Debagr explains the required Xcode, Developer Mode, USB trust,
+and wireless-device steps. Its menu then:
+
+- reports `Looking`, `No Target Devices found`, a Target Device count, or a
+  discovery failure;
+- lists each Target Device with kind, Bonjour host, identifier, and port;
+- shows Developer Tools and Tailscale prerequisite checks;
+- refreshes discovery, toggles Launch at Login, and opens native About;
+- copies an agent-ready deployment command for each Apple-identified device;
+- copies a support report containing app/system status and endpoints, but no
+  TXT records or RemotePairing payloads.
+
+“Visible” is intentional. A Bonjour record does not prove that Xcode can list,
+install, launch, or debug on a Target Device.
+
+## Build-server deployment
+
+Build a signed device `.app` on the paired Mac, then run:
 
 ```sh
-nuticast-poc --interface en1 --peer radeks-macbook-pro-1 --remote-port 49152
+/Applications/Debagr.app/Contents/MacOS/Debagr \
+  --deploy-app /absolute/path/MyApp.app \
+  --device DEVICE_UDID \
+  --launch
 ```
 
-The relay still binds to that interface's resolved IPv4 address rather than
-`0.0.0.0`.
-
-## Peer-side forwarder
-
-When the iPhone is attached to a different Mac, run the forwarder on the
-iPhone's MacBook first. It captures the local `_remotepairing._tcp` SRV
-endpoint, binds TCP and UDP on the MacBook's Tailscale IPv4 address, and only
-accepts the selected Mac mini's Tailscale IP:
+Remote callers use the same command through the build server's existing SSH
+authentication. Tailscale is recommended as the private network, but Debagr
+does not require a custom client or expose its own network listener:
 
 ```sh
-nuticast-poc --forward-remote --peer radeks-mac-mini --remote-port 49152
+ssh build-server \
+  "/Applications/Debagr.app/Contents/MacOS/Debagr \
+  --deploy-app /absolute/path/MyApp.app --device DEVICE_UDID --launch"
 ```
 
-If more than one paired phone is present, constrain capture to the desired
-Bonjour host:
+The `.app` must already exist on the build server and be signed for the Target
+Device. This keeps source checkout, signing, and build configuration under the
+project's existing Xcode or CI workflow.
+
+## Experimental relay lab
+
+Select a Tailscale peer and known RemotePairing port explicitly:
 
 ```sh
-nuticast-poc --forward-remote --peer radeks-mac-mini \
-  --bonjour-host Radeks-iPhone-16-Pro.local --remote-port 49152
+debagr --peer paired-mac --remote-port 49640
 ```
 
-Then run the normal proxy on the Mac mini, selecting the MacBook as its peer:
+On the Mac that can already see the Target Device locally, the peer-side lab
+forwarder is:
 
 ```sh
-nuticast-poc \
-  --interface en1 \
-  --peer radeks-macbook-pro-1 \
-  --remote-port 49152 \
-  --bonjour-name "Radek iPhone"
+debagr --forward-remote --peer developer-mac --remote-port 49152
 ```
 
-The two commands intentionally use the same manual RemotePairing port. The
-forwarder uses only the captured local Bonjour host and port; it does not
-accept a free-form destination. Automatic reconfiguration when the iPhone's
-RemotePairing port changes remains a later phase.
-
-## Bonjour capture
-
-Capture and normalize the first local `_remotepairing._tcp` service:
+If more than one Target Device is present, constrain the captured service:
 
 ```sh
-nuticast-poc --discover
+debagr --forward-remote \
+  --peer developer-mac \
+  --bonjour-host My-iPhone.local \
+  --remote-port 49152
 ```
 
-Only one service is retained. Duplicate or conflicting instances are ignored.
-TXT values are parsed for proxy use but are never printed by the tool.
-
-## Tunnel watcher
-
-The later tunnel-port path is available behind an explicit flag:
+Discover all physical iPhones and iPads known to `devicectl`, enriched with any
+complete local Bonjour services:
 
 ```sh
-nuticast-poc --peer radeks-mac-mini --remote-port 49640 --watch-tunnels
+debagr --discover --timeout 5
 ```
 
-It watches the owned `/usr/bin/log stream` process, deduplicates remote ports,
-allocates a local port for each, and starts both TCP and UDP relays while the
-original Bonjour proxy remains alive.
+The peer-side command now writes the captured instance name and TXT metadata to
+the selected profile. Copy that profile to the Developer Mac before starting
+its relay so the local projection preserves the Apple service identity.
+
+This proves the fixed RemotePairing control port can be projected through a
+tailnet. It does **not** make the Target Device usable from a differently paired
+Mac: Apple pairing state belongs to each Mac, and CoreDevice negotiates a
+dynamic link-local IPv6 tunnel after the control connection. Tailscale's macOS
+transport and Debagr's layer-4 relay do not route that endpoint.
+
+Before any future end-to-end experiment, require an honest relay-off baseline:
+
+```sh
+./scripts/verify-remote-environment.sh paired-mac paired-mac-tailnet-name DEVICE_UDID
+```
+
+The check refuses to continue when the Developer Mac can already reach the
+Target Device directly, which prevents a shared-LAN false positive.
 
 ## Safety boundaries
 
-- Tailscale is resolved only from fixed executable paths and the selected peer
+- Tailscale is resolved only from fixed executable paths and a selected peer
   must be online.
-- Relay destinations are restricted to the selected peer's `100.64.0.0/10`
-  IPv4 address. Bonjour records never choose a relay destination.
-- Listeners bind to the resolved en0 address, not `0.0.0.0`.
-- By default, inbound clients must appear as this Mac's local interface address
-  (loopback is also accepted). `--allow-lan` is an explicit opt-in to accept
-  other en0 clients.
-- RemotePairing bytes are opaque and are not authenticated, decrypted, or
-  otherwise terminated by the relay.
-- Child processes are passed argument arrays directly and are stopped on normal
-  shutdown and handled termination signals. A narrow PID-scoped kill fallback
-  handles children that ignore termination.
+- Relay destinations are restricted to the peer's `100.64.0.0/10` IPv4 address.
+- Listeners bind to the selected local interface, not `0.0.0.0`.
+- By default, only this Mac's local interface address and loopback are accepted.
+  `--allow-lan` is an explicit opt-in.
+- RemotePairing bytes remain opaque. Debagr does not authenticate, decrypt,
+  inspect, or log the payload.
+- Owned child processes receive argument arrays directly and are stopped by
+  process identifier.
 
-Automatic port scanning, additional mDNS service types, multiple devices,
-other VPN providers, UI, and credential persistence are intentionally outside
-this MVP.
+These controls do not replace the missing mutual Debagr authorization design.
+Do not sell or publicly promise transparent cross-Mac Xcode access. The current
+layer-4 architecture cannot carry CoreDevice's negotiated link-local tunnel.
+
+## Product and launch material
+
+- [`docs/LAUNCH_RESEARCH.md`](docs/LAUNCH_RESEARCH.md) — primary-source channel,
+  pricing, competitor, and risk research.
+- [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) — exact supported and
+  experimental claims.
+- [`docs/PRIVACY.md`](docs/PRIVACY.md), [`docs/EULA.md`](docs/EULA.md),
+  [`docs/SUPPORT.md`](docs/SUPPORT.md), and [`docs/SECURITY.md`](docs/SECURITY.md)
+  — release-policy drafts requiring owner/legal review.
+- [`Marketing/site/index.html`](Marketing/site/index.html) — dependency-free
+  launch site. Checkout remains closed until its hardware and security gates
+  pass; one URL in `config.js` opens it later.
+
+## Paid-launch gate
+
+Debagr is not ready for paid distribution until the packaged app passes
+install-and-launch tests through SSH on clean build-server Macs with current
+iPhone and iPad hardware, including locked-device recovery, restart, sleep,
+network change, revoked trust, and deterministic failure reporting. Developer
+ID, notarization, storefront, domain, and legal-owner credentials remain
+account-bound release gates.

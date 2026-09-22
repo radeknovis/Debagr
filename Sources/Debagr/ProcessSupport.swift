@@ -44,6 +44,7 @@ final class OwnedLineProcess {
   private let executablePath: String
   private let arguments: [String]
   private let lineHandler: (String) -> Void
+  private let terminationHandler: ((Int32) -> Void)?
   private let lineQueue: DispatchQueue
 
   private var process: Process?
@@ -54,11 +55,13 @@ final class OwnedLineProcess {
     executablePath: String,
     arguments: [String],
     label: String,
+    terminationHandler: ((Int32) -> Void)? = nil,
     lineHandler: @escaping (String) -> Void
   ) {
     self.executablePath = executablePath
     self.arguments = arguments
     self.lineHandler = lineHandler
+    self.terminationHandler = terminationHandler
     self.lineQueue = DispatchQueue(label: label)
   }
 
@@ -90,8 +93,9 @@ final class OwnedLineProcess {
       }
     }
 
-    process.terminationHandler = { [weak self] _ in
+    process.terminationHandler = { [weak self] process in
       self?.flushOutput()
+      self?.terminationHandler?(process.terminationStatus)
     }
 
     self.outputPipe = pipe

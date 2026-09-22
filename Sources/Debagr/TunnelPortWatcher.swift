@@ -7,7 +7,13 @@ struct TunnelPortParser {
     guard let endpointEnd = line[endpointStart...].firstIndex(of: "'") else { return nil }
 
     let endpoint = line[endpointStart..<endpointEnd]
-    guard let separator = endpoint.lastIndex(of: ":") else { return nil }
+    let separator: String.Index?
+    if endpoint.contains("%"), let scopeSeparator = endpoint.lastIndex(of: ".") {
+      separator = scopeSeparator
+    } else {
+      separator = endpoint.lastIndex(of: ":")
+    }
+    guard let separator else { return nil }
 
     let portText = endpoint[endpoint.index(after: separator)...]
     guard let port = UInt32(portText), port > 0, port <= 65_535 else { return nil }
@@ -19,7 +25,7 @@ final class TunnelPortWatcher {
   static let predicate =
     "process == \"remotepairingd\" AND eventMessage CONTAINS \"Got tunnel endpoint\""
 
-  private let queue = DispatchQueue(label: "nuticast-poc.tunnel-port-watcher")
+  private let queue = DispatchQueue(label: "debagr.tunnel-port-watcher")
   private let stateLock = NSLock()
   private var process: OwnedLineProcess?
   private var generation = 0
@@ -45,7 +51,7 @@ final class TunnelPortWatcher {
         "--predicate",
         Self.predicate,
       ],
-      label: "nuticast-poc.tunnel-log-process"
+      label: "debagr.tunnel-log-process"
     ) { [weak self] line in
       self?.queue.async { [weak self] in
         self?.consume(line, generation: currentGeneration)

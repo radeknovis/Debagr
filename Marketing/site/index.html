@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Debagr turns a paired Mac into a private iPhone and iPad deployment server.">
+    <title>Debagr — deploy to your paired Apple devices remotely</title>
+    <link rel="icon" href="assets/app-icon.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <nav aria-label="Main navigation">
+      <a class="brand" href="#top"><img src="assets/app-icon.png" alt="">Debagr</a>
+      <div class="nav-links">
+        <a href="#how-it-works">How it works</a>
+        <a href="#requirements">Requirements</a>
+        <a href="legal.html">Legal &amp; support</a>
+      </div>
+    </nav>
+
+    <main id="top">
+      <section class="hero">
+        <div class="eyebrow">Private technical preview for Apple developers</div>
+        <h1>One paired Mac. Deploy from anywhere you can SSH.</h1>
+        <p class="lede">Debagr installs and launches signed builds on the iPhones and iPads paired to your build server. Your laptop, CI job, or coding agent never needs the device locally.</p>
+        <div class="actions">
+          <a id="checkout" class="button disabled" href="#availability" aria-disabled="true">Checkout opens after validation</a>
+          <a class="text-link" href="#how-it-works">See what ships <span aria-hidden="true">↓</span></a>
+        </div>
+        <p class="fine">No analytics. No Debagr cloud. No custom network service—remote access uses your SSH setup.</p>
+        <div class="visual" aria-label="Debagr menu preview">
+          <img src="assets/app-icon.png" alt="Debagr app icon">
+          <div class="menu-card">
+            <div class="menu-row muted"><span class="pulse"></span>2 Target Devices found</div>
+            <div class="divider"></div>
+            <div class="menu-row"><span>▯</span>Radek’s iPhone 16 Pro <strong>›</strong></div>
+            <div class="menu-row"><span>▭</span>Studio iPad Pro <strong>›</strong></div>
+            <div class="divider"></div>
+            <div class="menu-row">Refresh Target Devices <kbd>⌘R</kbd></div>
+            <div class="menu-row">Copy Diagnostics</div>
+            <div class="divider"></div>
+            <div class="menu-row">✓ Launch at Login</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="how-it-works" class="section">
+        <div class="section-heading">
+          <span>What works today</span>
+          <h2>A deployment agent with one clear boundary.</h2>
+        </div>
+        <div class="grid three">
+          <article><b>01</b><h3>Pair once</h3><p>Trust the build-server Mac over USB and enable Developer Mode. Apple’s pairing stays where Apple expects it.</p></article>
+          <article><b>02</b><h3>Build normally</h3><p>Your existing Xcode or CI workflow produces a signed device .app on the server.</p></article>
+          <article><b>03</b><h3>Deploy remotely</h3><p>Invoke one Debagr command locally or through SSH. It preflights the exact UDID, installs, confirms the bundle ID, and optionally launches.</p></article>
+        </div>
+      </section>
+
+      <section class="section dark">
+        <div class="section-heading"><span>Privacy by absence</span><h2>Your development traffic is not our data.</h2></div>
+        <div class="grid two">
+          <p>Debagr has no analytics, ads, account SDK, or cloud relay. Device discovery and diagnostics happen on your Mac.</p>
+          <p>Debagr opens no deployment listener. SSH authenticates the caller; Apple’s devicectl performs the device operation locally.</p>
+        </div>
+      </section>
+
+      <section id="requirements" class="section">
+        <div class="section-heading"><span>Requirements</span><h2>Clear before you download.</h2></div>
+        <ul class="requirements">
+          <li><strong>Build server:</strong> Apple-silicon Mac running macOS 13 or later.</li>
+          <li><strong>Target Device:</strong> developer-enabled iPhone or iPad paired to that Mac.</li>
+          <li><strong>Build:</strong> current Xcode and a device-signed .app on the server.</li>
+          <li><strong>Remote trigger:</strong> any SSH-capable computer, CI system, or agent; Tailscale is recommended but optional.</li>
+        </ul>
+        <p class="warning">Debagr does not copy Apple pairing state or make the device appear in another Mac’s Xcode. It executes deployment on the paired build server. Debagr is not affiliated with or endorsed by Apple or Tailscale.</p>
+      </section>
+
+      <section id="availability" class="section availability">
+        <div>
+          <span class="eyebrow">Availability</span>
+          <h2>Free private preview first. $99/year after the hardware matrix passes.</h2>
+        </div>
+        <p>Paid checkout stays closed until signed builds pass repeatable install-and-launch tests on current iPhone and iPad hardware through local and SSH-triggered commands, including restart, sleep, locked-device recovery, and revoked trust.</p>
+      </section>
+    </main>
+
+    <footer>
+      <span>© 2026 Debagr</span>
+      <span>Developer tool in technical preview</span>
+      <a href="legal.html">Privacy · Terms · Support</a>
+    </footer>
+
+    <script src="config.js"></script>
+    <script>
+      const checkout = document.querySelector("#checkout");
+      if (window.DEBAGR_CHECKOUT_URL) {
+        checkout.href = window.DEBAGR_CHECKOUT_URL;
+        checkout.textContent = "Buy Debagr — $99/year";
+        checkout.classList.remove("disabled");
+        checkout.removeAttribute("aria-disabled");
+      }
+    </script>
+  </body>
+</html>

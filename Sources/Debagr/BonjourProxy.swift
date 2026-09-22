@@ -25,7 +25,7 @@ final class BonjourProxy {
   private let localHost: String
   private let localIP: String
   private let txt: [String: String]
-  private let processQueue = DispatchQueue(label: "nuticast-poc.bonjour-proxy")
+  private let processQueue = DispatchQueue(label: "debagr.bonjour-proxy")
 
   private var process: Process?
 

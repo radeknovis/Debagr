@@ -6,6 +6,8 @@ enum CLIError: LocalizedError {
   case unknownOption(String)
   case missingPeer
   case missingRemotePort
+  case missingDevice
+  case deployOptionRequiresApp(String)
   case invalidPort(String)
   case invalidTimeout(String)
   case discoveryTimedOut
@@ -21,12 +23,16 @@ enum CLIError: LocalizedError {
       return "An explicit peer selection is required: --peer <hostname>."
     case .missingRemotePort:
       return "Provide --remote-port <port> initially, or use a profile containing remotePort."
+    case .missingDevice:
+      return "Provide --device <UDID> when deploying an app."
+    case .deployOptionRequiresApp(let option):
+      return "\(option) requires --deploy-app <path>."
     case .invalidPort(let value):
       return "Invalid port: \(value)."
     case .invalidTimeout(let value):
       return "Invalid timeout: \(value)."
     case .discoveryTimedOut:
-      return "No _remotepairing._tcp service was captured before the timeout."
+      return "No physical iPhone or iPad was found by devicectl or Bonjour before the timeout."
     case .remotePortMismatch(let discovered, let requested):
       return "Captured RemotePairing port \(discovered), but --remote-port requested \(requested)."
     }
@@ -43,6 +49,10 @@ struct CommandLineOptions {
   var profileURL: URL
   var watchTunnels: Bool
   var discover: Bool
+  var menuBar: Bool
+  var deployAppURL: URL?
+  var deviceIdentifier: String?
+  var launchAfterInstall: Bool
   var timeout: TimeInterval
   var allowLANClients: Bool
   var showHelp: Bool
@@ -57,6 +67,10 @@ struct CommandLineOptions {
     var profileURL = ProfileStore.defaultStore.url
     var watchTunnels = false
     var discover = false
+    var menuBar = false
+    var deployAppURL: URL?
+    var deviceIdentifier: String?
+    var launchAfterInstall = false
     var timeout: TimeInterval = 5
     var allowLANClients = false
     var showHelp = false
@@ -69,6 +83,15 @@ struct CommandLineOptions {
         showHelp = true
       case "--discover":
         discover = true
+      case "--menu-bar":
+        menuBar = true
+      case "--deploy-app":
+        deployAppURL = expandedURL(
+          try requiredValue(for: argument, arguments: arguments, index: &index))
+      case "--device":
+        deviceIdentifier = try requiredValue(for: argument, arguments: arguments, index: &index)
+      case "--launch":
+        launchAfterInstall = true
       case "--watch-tunnels":
         watchTunnels = true
       case "--allow-lan":
@@ -101,6 +124,17 @@ struct CommandLineOptions {
       index += 1
     }
 
+    if deployAppURL == nil {
+      if deviceIdentifier != nil {
+        throw CLIError.deployOptionRequiresApp("--device")
+      }
+      if launchAfterInstall {
+        throw CLIError.deployOptionRequiresApp("--launch")
+      }
+    } else if deviceIdentifier == nil {
+      throw CLIError.missingDevice
+    }
+
     return CommandLineOptions(
       peerName: peerName,
       remotePort: remotePort,
@@ -111,6 +145,10 @@ struct CommandLineOptions {
       profileURL: profileURL,
       watchTunnels: watchTunnels,
       discover: discover,
+      menuBar: menuBar,
+      deployAppURL: deployAppURL,
+      deviceIdentifier: deviceIdentifier,
+      launchAfterInstall: launchAfterInstall,
       timeout: timeout,
       allowLANClients: allowLANClients,
       showHelp: showHelp
@@ -153,7 +191,7 @@ protocol ApplicationLifecycle: AnyObject {
   func stop()
 }
 
-final class NuticastApplication: ApplicationLifecycle {
+final class DebagrApplication: ApplicationLifecycle {
   private let options: CommandLineOptions
   private let profileStore: ProfileStore
 
@@ -188,6 +226,7 @@ final class NuticastApplication: ApplicationLifecycle {
       let localPortRange = matchingProfile?.localPortRange ?? DeviceProfile.defaultLocalPortRange
       let profile = DeviceProfile(
         bonjourName: bonjourName,
+        bonjourTXT: matchingProfile?.bonjourTXT ?? [:],
         provider: "tailscale",
         peerIP: peer.ipAddress,
         remotePort: remotePort,
@@ -223,7 +262,8 @@ final class NuticastApplication: ApplicationLifecycle {
         instanceName: bonjourName,
         localPort: localPort,
         localHost: localBonjourHostName(),
-        localIP: binding.ipv4Address
+        localIP: binding.ipv4Address,
+        txt: profile.bonjourTXT
       )
       try proxy.start()
       self.proxy = proxy
@@ -320,7 +360,7 @@ final class NuticastApplication: ApplicationLifecycle {
 }
 
 final class SignalHandler {
-  private let queue = DispatchQueue(label: "nuticast-poc.signal-handler")
+  private let queue = DispatchQueue(label: "debagr.signal-handler")
   private var sources: [DispatchSourceSignal] = []
 
   init(onSignal: @escaping () -> Void) {
@@ -345,29 +385,66 @@ final class SignalHandler {
   }
 }
 
-func runBonjourDiscovery(timeout: TimeInterval) throws {
+func runTargetDeviceDiscovery(timeout: TimeInterval) throws {
   let capture = BonjourCapture()
   let semaphore = DispatchSemaphore(value: 0)
-  let result = LockedValue<BonjourDevice?>(nil)
+  let result = LockedValue<[BonjourDevice]>([])
+  let pairedMacNodeID = "local:\(ProcessInfo.processInfo.hostName)"
+  let coreDevices = (try? CoreDeviceInventory.load(pairedMacNodeID: pairedMacNodeID)) ?? []
+  var didStartCapture = false
 
-  try capture.startZoneCapture { device in
-    result.set(device)
-    capture.stop()
-    semaphore.signal()
+  do {
+    try capture.startZoneCaptureAll { devices in
+      result.set(devices)
+    }
+    didStartCapture = true
+  } catch  where coreDevices.isEmpty {
+    throw error
   }
 
-  guard semaphore.wait(timeout: .now() + timeout) == .success else {
+  if didStartCapture {
+    // Let the capture window collect every complete PTR/SRV/TXT group. A
+    // Bonjour browser can deliver different devices at different times, so
+    // completing on the first callback would make multi-device discovery
+    // nondeterministically incomplete.
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
+      semaphore.signal()
+    }
+    _ = semaphore.wait(timeout: .now() + timeout + 1)
     capture.stop()
+  }
+
+  var registry = TargetDeviceRegistry()
+  for device in coreDevices {
+    registry.merge(device)
+  }
+  for service in result.get() {
+    registry.merge(
+      TargetDevice(
+        identity: .provisional(pairedMacNodeID: pairedMacNodeID, service: service),
+        displayName: service.suggestedDisplayName,
+        kind: .inferred(from: service),
+        service: service,
+        status: .visible
+      )
+    )
+  }
+
+  let devices = registry.orderedDevices
+  guard !devices.isEmpty else {
     throw CLIError.discoveryTimedOut
   }
 
-  guard let device = result.get() else {
-    throw CLIError.discoveryTimedOut
+  print("Target Devices found: \(devices.count)")
+  for device in devices {
+    print("- \(device.kind.displayName) — \(device.displayName)")
+    print("  Status: \(device.status.displayName)")
+    print("  Identifier: \(device.identity.value.replacingOccurrences(of: "bonjour:", with: ""))")
+    if let service = device.service {
+      print("  SRV endpoint: \(service.hostName):\(service.port)")
+      print("  TXT records captured: \(service.txt.count) (values intentionally not logged)")
+    }
   }
-
-  print("Bonjour service: \(device.instanceName) \(device.serviceType)")
-  print("SRV endpoint: \(device.hostName):\(device.port)")
-  print("TXT records captured: \(device.txt.count) (values intentionally not logged)")
 }
 
 func writeError(_ message: String) {
@@ -379,18 +456,24 @@ func printUsage() {
   print(
     """
     Usage:
-      nuticast-poc --peer <tailscale-hostname> --remote-port <port> [options]
-      nuticast-poc --forward-remote --peer <tailscale-hostname> [options]
-      nuticast-poc --discover [--timeout <seconds>]
+      debagr --deploy-app <path> --device <UDID> [--launch]
+      debagr --peer <tailscale-hostname> --remote-port <port> [options]
+      debagr --forward-remote --peer <tailscale-hostname> [options]
+      debagr --discover [--timeout <seconds>]
+      debagr --menu-bar
 
     Options:
+      --deploy-app <path>   Install a signed device .app from this paired Mac
+      --device <UDID>       Explicit paired Target Device for deployment
+      --launch              Launch the app after a confirmed installation
       --bonjour-name <name>  Local _remotepairing._tcp instance name
       --bonjour-host <host>  Forward only the captured Bonjour host (remote mode)
       --interface <name>     Interface to bind (default: en0)
       --forward-remote       Forward from this Mac's Tailscale IP to local Bonjour
-      --profile <path>      JSON profile (default: ~/.config/nuticast-poc/device-profile.json)
+      --profile <path>      JSON profile (default: ~/.config/debagr/device-profile.json)
       --watch-tunnels       Watch remotepairingd and add TCP/UDP tunnel relays
       --allow-lan           Allow clients other than this Mac's en0 address
+      --menu-bar            Run the automatic multi-device menu-bar inventory
       --help                Show this help
 
     The relay destination is always the explicitly selected online Tailscale
@@ -413,14 +496,36 @@ do {
   }
 
   if options.discover {
-    try runBonjourDiscovery(timeout: options.timeout)
+    try runTargetDeviceDiscovery(timeout: options.timeout)
+    exit(EXIT_SUCCESS)
+  }
+
+  if let appURL = options.deployAppURL {
+    guard let deviceIdentifier = options.deviceIdentifier else {
+      throw CLIError.missingDevice
+    }
+    let result = try DeviceDeployer().deploy(
+      appURL: appURL,
+      deviceIdentifier: deviceIdentifier,
+      launch: options.launchAfterInstall
+    )
+    print(
+      result.launched
+        ? "Installed and launched \(result.bundleIdentifier)."
+        : "Installed \(result.bundleIdentifier)."
+    )
+    exit(EXIT_SUCCESS)
+  }
+
+  if options.menuBar || Bundle.main.bundleIdentifier == "com.debagr.app" {
+    runMenuBarApplication()
     exit(EXIT_SUCCESS)
   }
 
   let application: any ApplicationLifecycle =
     options.forwardRemote
     ? RemoteForwarderApplication(options: options)
-    : NuticastApplication(options: options)
+    : DebagrApplication(options: options)
   runningApplication = application
   let stopped = DispatchSemaphore(value: 0)
   let signals = SignalHandler {
@@ -435,6 +540,8 @@ do {
 } catch {
   runningApplication?.stop()
   writeError("Error: \(error.localizedDescription)")
-  printUsage()
+  if error is CLIError {
+    printUsage()
+  }
   exit(EXIT_FAILURE)
 }

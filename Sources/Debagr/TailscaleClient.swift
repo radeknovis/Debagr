@@ -43,6 +43,10 @@ final class TailscaleClient {
     "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
   ]
 
+  static func installedExecutablePath() -> String? {
+    supportedExecutablePaths.first(where: FileManager.default.isExecutableFile)
+  }
+
   private struct Status: Decodable {
     let peers: [String: Peer]
 
@@ -130,11 +134,7 @@ final class TailscaleClient {
   }
 
   private func executablePath() throws -> String {
-    guard
-      let path = Self.supportedExecutablePaths.first(where: {
-        FileManager.default.isExecutableFile(atPath: $0)
-      })
-    else {
+    guard let path = Self.installedExecutablePath() else {
       throw TailscaleError.executableNotFound
     }
     return path

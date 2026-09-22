@@ -1,3 +1,7 @@
 .build/
 .swiftpm/
 DerivedData/
+/Debagr.app/
+.DS_Store
+.debagr-*/
+dist/

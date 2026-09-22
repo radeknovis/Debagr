@@ -9,17 +9,17 @@ let package = Package(
     ],
     products: [
         .executable(
-            name: "nuticast-poc",
-            targets: ["NuticastPOC"]
+            name: "debagr",
+            targets: ["Debagr"]
         )
     ],
     targets: [
         .executableTarget(
-            name: "NuticastPOC"
+            name: "Debagr"
         ),
         .testTarget(
-            name: "NuticastPOCTests",
-            dependencies: ["NuticastPOC"]
+            name: "DebagrTests",
+            dependencies: ["Debagr"]
         )
     ]
 )

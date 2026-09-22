@@ -35,7 +35,7 @@ final class BonjourHostResolver {
     let process = OwnedLineProcess(
       executablePath: "/usr/bin/dns-sd",
       arguments: ["-G", "v4", normalizedHost],
-      label: "nuticast-poc.bonjour-host-resolver"
+      label: "debagr.bonjour-host-resolver"
     ) { line in
       let address = BonjourZoneParser.tokenize(line).first(where: {
         NetworkSupport.isValidIPv4($0) && NetworkSupport.isAllowedLocalIPv4($0)

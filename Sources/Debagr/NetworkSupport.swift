@@ -164,7 +164,7 @@ enum NetworkSupport {
 
   private static func networkInterface(named name: String) throws -> NWInterface {
     let monitor = NWPathMonitor()
-    let monitorQueue = DispatchQueue(label: "nuticast-poc.interface-monitor")
+    let monitorQueue = DispatchQueue(label: "debagr.interface-monitor")
     let resultLock = NSLock()
     var result: NWInterface?
     let found = DispatchSemaphore(value: 0)

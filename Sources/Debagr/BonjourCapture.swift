@@ -1,11 +1,44 @@
 import Foundation
 
-struct BonjourDevice: Equatable {
+enum BonjourCaptureError: LocalizedError {
+  case processExited(Int32)
+
+  var errorDescription: String? {
+    switch self {
+    case .processExited(let status):
+      return "Device discovery stopped unexpectedly (status \(status))."
+    }
+  }
+}
+
+struct BonjourDevice: Codable, Equatable {
   let instanceName: String
   let serviceType: String
   let hostName: String
   let port: UInt16
   let txt: [String: String]
+
+  var suggestedDisplayName: String {
+    let candidate =
+      hostName
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+      .replacingOccurrences(of: ".local", with: "")
+      .replacingOccurrences(of: "-", with: " ")
+      .split(whereSeparator: \.isWhitespace)
+      .joined(separator: " ")
+
+    guard !candidate.isEmpty, !Self.looksLikeIdentifier(candidate) else {
+      return instanceName
+    }
+    return candidate
+  }
+
+  private static func looksLikeIdentifier(_ value: String) -> Bool {
+    let compact = value.replacingOccurrences(of: " ", with: "")
+    guard compact.count == 32 else { return false }
+    return compact.allSatisfy { $0.isHexDigit }
+  }
 }
 
 struct BonjourZoneParser {
@@ -20,30 +53,41 @@ struct BonjourZoneParser {
   static let domain = "local"
 
   private var records: [String: PartialRecord] = [:]
-  private var selectedKey: String?
   private let preferredHostName: String?
 
   init(preferredHostName: String? = nil) {
     self.preferredHostName = preferredHostName.map(Self.canonicalDNSName)
   }
 
-  var device: BonjourDevice? {
-    guard let selectedKey,
-      let record = records[selectedKey],
-      let instanceName = record.instanceName,
-      let hostName = record.hostName,
-      let port = record.port
-    else {
-      return nil
-    }
+  var devices: [BonjourDevice] {
+    records.keys.sorted().compactMap { key in
+      guard let record = records[key],
+        let instanceName = record.instanceName,
+        let hostName = record.hostName,
+        let port = record.port
+      else {
+        return nil
+      }
 
-    return BonjourDevice(
-      instanceName: instanceName,
-      serviceType: Self.serviceType,
-      hostName: hostName,
-      port: port,
-      txt: record.txt
-    )
+      guard
+        preferredHostName == nil
+          || Self.canonicalDNSName(hostName) == preferredHostName
+      else {
+        return nil
+      }
+
+      return BonjourDevice(
+        instanceName: instanceName,
+        serviceType: Self.serviceType,
+        hostName: hostName,
+        port: port,
+        txt: record.txt
+      )
+    }
+  }
+
+  var device: BonjourDevice? {
+    devices.first
   }
 
   mutating func consume(_ line: String) {
@@ -77,7 +121,6 @@ struct BonjourZoneParser {
       let rawTarget = Self.trimDNSName(tokens[typeIndex + 1])
       let target = Self.canonicalDNSName(rawTarget)
       guard Self.isInstanceName(target) else { return }
-      guard selectIfNeeded(target) else { return }
 
       var record = records[target, default: PartialRecord()]
       record.instanceName = Self.instanceName(from: rawTarget)
@@ -88,21 +131,15 @@ struct BonjourZoneParser {
         let port = UInt16(tokens[typeIndex + 3]),
         port > 0
       else { return }
-      guard Self.isInstanceName(owner), selectIfNeeded(owner) else { return }
+      guard Self.isInstanceName(owner) else { return }
 
       var record = records[owner, default: PartialRecord()]
       record.instanceName = record.instanceName ?? Self.instanceName(from: rawOwner)
       record.port = port
       record.hostName = Self.hostName(from: tokens[typeIndex + 4])
       records[owner] = record
-      if let preferredHostName,
-        Self.canonicalDNSName(record.hostName ?? "") == preferredHostName
-      {
-        selectedKey = owner
-      }
-
     case "TXT":
-      guard Self.isInstanceName(owner), selectIfNeeded(owner) else { return }
+      guard Self.isInstanceName(owner) else { return }
 
       var record = records[owner, default: PartialRecord()]
       for value in tokens.dropFirst(typeIndex + 1) {
@@ -122,17 +159,6 @@ struct BonjourZoneParser {
     default:
       break
     }
-  }
-
-  private mutating func selectIfNeeded(_ key: String) -> Bool {
-    if preferredHostName != nil {
-      return true
-    }
-    if let selectedKey {
-      return selectedKey == key
-    }
-    selectedKey = key
-    return true
   }
 
   static func tokenize(_ line: String) -> [String] {
@@ -254,39 +280,64 @@ final class BonjourCapture {
     case browse
   }
 
-  private let queue = DispatchQueue(label: "nuticast-poc.bonjour-capture")
+  private let queue = DispatchQueue(label: "debagr.bonjour-capture")
   private let stateLock = NSLock()
   private var process: OwnedLineProcess?
   private var mode: Mode = .none
   private var generation = 0
   private var zoneParser = BonjourZoneParser()
-  private var zoneCallback: ((BonjourDevice) -> Void)?
+  private var zoneDevicesCallback: (([BonjourDevice]) -> Void)?
+  private var zoneFailureCallback: ((Error) -> Void)?
   private var browseCallback: ((String) -> Void)?
   private var deliveryScheduled = false
+  private var lastDeliveredDevices: [BonjourDevice] = []
 
   func startZoneCapture(
     matchingHostName: String? = nil,
+    onFailure: ((Error) -> Void)? = nil,
     onDevice: @escaping (BonjourDevice) -> Void
+  ) throws {
+    try startZoneCaptureAll(
+      matchingHostName: matchingHostName,
+      onFailure: onFailure,
+      onDevices: { devices in
+        guard let device = devices.first else { return }
+        onDevice(device)
+      })
+  }
+
+  func startZoneCaptureAll(
+    matchingHostName: String? = nil,
+    onFailure: ((Error) -> Void)? = nil,
+    onDevices: @escaping ([BonjourDevice]) -> Void
   ) throws {
     stop()
 
     let currentGeneration = activate(mode: .zone)
     queue.sync {
       zoneParser = BonjourZoneParser(preferredHostName: matchingHostName)
-      zoneCallback = onDevice
+      zoneDevicesCallback = onDevices
+      zoneFailureCallback = onFailure
       browseCallback = nil
       deliveryScheduled = false
+      lastDeliveredDevices.removeAll()
     }
 
     let process = OwnedLineProcess(
       executablePath: "/usr/bin/dns-sd",
       arguments: ["-Z", BonjourZoneParser.serviceType, BonjourZoneParser.domain],
-      label: "nuticast-poc.bonjour-zone-process"
-    ) { [weak self] line in
-      self?.queue.async { [weak self] in
-        self?.consumeZoneLine(line, generation: currentGeneration)
-      }
-    }
+      label: "debagr.bonjour-zone-process",
+      terminationHandler: { [weak self] status in
+        self?.queue.async { [weak self] in
+          guard let self, self.isActive(currentGeneration, mode: .zone) else { return }
+          self.zoneFailureCallback?(BonjourCaptureError.processExited(status))
+        }
+      },
+      lineHandler: { [weak self] line in
+        self?.queue.async { [weak self] in
+          self?.consumeZoneLine(line, generation: currentGeneration)
+        }
+      })
 
     setProcess(process)
     do {
@@ -303,15 +354,17 @@ final class BonjourCapture {
     let currentGeneration = activate(mode: .browse)
     queue.sync {
       zoneParser = BonjourZoneParser()
-      zoneCallback = nil
+      zoneDevicesCallback = nil
+      zoneFailureCallback = nil
       browseCallback = onVisible
       deliveryScheduled = false
+      lastDeliveredDevices.removeAll()
     }
 
     let process = OwnedLineProcess(
       executablePath: "/usr/bin/dns-sd",
       arguments: ["-B", BonjourZoneParser.serviceType, BonjourZoneParser.domain],
-      label: "nuticast-poc.bonjour-browse-process"
+      label: "debagr.bonjour-browse-process"
     ) { [weak self] line in
       self?.queue.async { [weak self] in
         self?.consumeBrowseLine(line, generation: currentGeneration)
@@ -339,9 +392,11 @@ final class BonjourCapture {
 
     queue.async { [weak self] in
       guard let self else { return }
-      self.zoneCallback = nil
+      self.zoneDevicesCallback = nil
+      self.zoneFailureCallback = nil
       self.browseCallback = nil
       self.deliveryScheduled = false
+      self.lastDeliveredDevices.removeAll()
     }
   }
 
@@ -375,15 +430,26 @@ final class BonjourCapture {
     guard isActive(generation, mode: .zone) else { return }
     zoneParser.consume(line)
 
-    guard zoneParser.device != nil, !deliveryScheduled else { return }
+    guard !zoneParser.devices.isEmpty, !deliveryScheduled else { return }
     deliveryScheduled = true
     queue.asyncAfter(deadline: .now() + 0.15) { [weak self] in
       guard let self,
         self.isActive(generation, mode: .zone),
-        let device = self.zoneParser.device,
-        let callback = self.zoneCallback
-      else { return }
-      callback(device)
+        let callback = self.zoneDevicesCallback
+      else {
+        self?.deliveryScheduled = false
+        return
+      }
+
+      let devices = self.zoneParser.devices
+      guard devices != self.lastDeliveredDevices else {
+        self.deliveryScheduled = false
+        return
+      }
+
+      self.lastDeliveredDevices = devices
+      self.deliveryScheduled = false
+      callback(devices)
     }
   }
 

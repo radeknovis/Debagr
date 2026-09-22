@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version, for example 1.0.0
+        required: true
+      build_number:
+        description: Monotonically increasing build number
+        required: true
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install swift-format xcsift
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.BUILD_KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$CERTIFICATE_P12" | base64 -D > "$RUNNER_TEMP/developer-id.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/debagr.keychain-db"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/debagr.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/debagr.keychain-db"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$RUNNER_TEMP/debagr.keychain-db" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychain -d user -s "$RUNNER_TEMP/debagr.keychain-db" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/debagr.keychain-db"
+      - name: Configure notarization
+        env:
+          NOTARY_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          printf '%s' "$NOTARY_KEY" > "$RUNNER_TEMP/AuthKey.p8"
+          xcrun notarytool store-credentials debagr-ci --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID"
+      - name: Build, sign, notarize, and staple
+        env:
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          CODESIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION_IDENTITY }}
+          NOTARY_PROFILE: debagr-ci
+          DEBAGR_WEBSITE_URL: ${{ vars.DEBAGR_WEBSITE_URL }}
+          DEBAGR_SUPPORT_URL: ${{ vars.DEBAGR_SUPPORT_URL }}
+        run: ./scripts/release-macos-app.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Debagr-${{ inputs.version }}
+          path: |
+            dist/Debagr-${{ inputs.version }}.dmg
+            dist/Debagr-${{ inputs.version }}.dmg.sha256
