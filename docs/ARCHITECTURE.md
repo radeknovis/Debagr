@@ -1,9 +1,21 @@
 # Debagr architecture
 
-Debagr has one supported product path—deployment executed on the Mac that owns
-Apple pairing—and one experimental path—the layer-4 RemotePairing relay lab.
-The relay does not transfer Apple pairing state or make a Target Device appear
-in another Mac's Xcode.
+Debagr must keep the original Build Server's Apple pairing usable when the
+Target Device moves to another network. Tailscale runs directly on both
+endpoints. Remote invocation by a Caller alone does not satisfy this requirement.
+The direct-device discovery mode is experimental; remote install and launch
+remain unverified. See [DIRECT_DEVICE.md](DIRECT_DEVICE.md) for the test procedure.
+
+```mermaid
+flowchart LR
+  caller["Caller / CI / agent"] -->|"Optional SSH"| server["Original paired Build Server"]
+  profile["Captured RemotePairing identity and port"] --> discovery["Local-only advertisement of phone's Tailscale IP"]
+  discovery --> server
+  server <-->|"Required development transport over Tailscale"| phone["Target Device on another network"]
+```
+
+The following component map includes the earlier two-Mac relay lab. It is
+separate from the direct-device experiment and does not prove roaming support.
 
 ```mermaid
 flowchart LR
@@ -36,7 +48,7 @@ flowchart LR
     notarize[Developer ID + notarization\nrelease credentials required]
     source --> ci --> package --> notarize
   end
-  notarize -->|DMG release artifact| artifact
+  notarize -->|Install Debagr DMG on Build Server| menu
 
   %% Supported discovery path
   menu --> core
@@ -49,7 +61,8 @@ flowchart LR
   support --> menu
 
   %% Supported deployment path
-  caller -->|local command or| ssh
+  caller -->|Remote command| ssh
+  caller -->|Local command| cli
   ssh --> cli
   cli --> deploy
   artifact --> deploy
@@ -97,12 +110,14 @@ flowchart LR
 1. The Build Server is paired with the Target Device through Apple's normal
    Xcode/device workflow.
 2. A Caller invokes the Debagr CLI locally or through SSH.
-3. `DeviceDeployer` validates the signed `.app`, checks the device lock state,
+3. `DeviceDeployer` validates the `.app` path and bundle ID, requests device lock state,
    installs it with `xcrun devicectl`, and confirms the expected bundle ID.
 4. With `--launch`, Debagr asks `devicectl` to launch that same bundle.
 
 The menu-bar app is a monitor and command helper. Its Bonjour view indicates
 visibility only; it is not proof that installation or launch will succeed.
+Apple performs signing validation. The Debagr DMG is distinct from the signed
+iOS/iPadOS app being deployed.
 
 ## Relay-lab boundary
 

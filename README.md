@@ -1,5 +1,12 @@
 # Debagr
 
+**Required product behavior:** the originally paired iPhone/iPad remains usable
+after moving to a different network, with Tailscale running directly on both
+the device and Build Server. This is not yet verified end to end. The current
+deployment CLI assumes Apple can already reach the device. See
+[direct-device transport](docs/DIRECT_DEVICE.md) for the experimental discovery
+mode and [architecture](docs/ARCHITECTURE.md) for the intended complete path.
+
 Debagr is a native macOS build-server agent for deploying signed iOS and iPadOS
 apps to devices paired with that Mac. Any computer, CI job, or agent that can
 SSH into the build server can invoke the same deployment command; the iPhone

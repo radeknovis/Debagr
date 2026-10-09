@@ -3,6 +3,48 @@ import XCTest
 @testable import Debagr
 
 final class ParserTests: XCTestCase {
+  func testDirectDeviceModesRejectConflictingOperations() throws {
+    let capture = try CommandLineOptions.parse([
+      "--capture-device-profile", "--peer", "iphone", "--bonjour-host", "phone.local",
+    ])
+    XCTAssertTrue(capture.captureDeviceProfile)
+    XCTAssertFalse(capture.directDevice)
+    let direct = try CommandLineOptions.parse(["--direct-device", "--peer", "iphone"])
+    XCTAssertTrue(direct.directDevice)
+    for arguments in [
+      ["--capture-device-profile", "--peer", "iphone"],
+      ["--direct-device"],
+      ["--direct-device", "--peer", "iphone", "--forward-remote"],
+      ["--direct-device", "--peer", "iphone", "--discover"],
+      ["--direct-device", "--peer", "iphone", "--remote-port", "49152"],
+      [
+        "--direct-device", "--peer", "iphone", "--capture-device-profile", "--bonjour-host",
+        "phone.local",
+      ],
+    ] {
+      XCTAssertThrowsError(try CommandLineOptions.parse(arguments))
+    }
+  }
+
+  func testDirectDeviceRequiresProfileForSelectedPeerAndCapturedIdentity() throws {
+    let peer = SelectedTailscalePeer(
+      hostname: "iphone", dnsName: "iphone.test", ipAddress: "100.64.0.1", online: true)
+    func profile(ip: String, txt: [String: String]) -> DeviceProfile {
+      DeviceProfile(
+        bonjourName: "device-service", bonjourTXT: txt, provider: "tailscale", peerIP: ip,
+        remotePort: 49152, localPortRange: [55000, 58000])
+    }
+    XCTAssertThrowsError(
+      try DirectDeviceApplication.makeProxy(
+        profile: profile(ip: "100.64.0.2", txt: ["authTag": "test"]), peer: peer))
+    XCTAssertThrowsError(
+      try DirectDeviceApplication.makeProxy(
+        profile: profile(ip: "100.64.0.1", txt: [:]), peer: peer))
+    XCTAssertNoThrow(
+      try DirectDeviceApplication.makeProxy(
+        profile: profile(ip: "100.64.0.1", txt: ["authTag": "test"]), peer: peer))
+  }
+
   func testDeployOptionsRequireAnAppAndExplicitDevice() throws {
     let options = try CommandLineOptions.parse([
       "--deploy-app", "/tmp/Test.app",

@@ -12,6 +12,7 @@ enum CLIError: LocalizedError {
   case invalidTimeout(String)
   case discoveryTimedOut
   case remotePortMismatch(discovered: UInt16, requested: UInt16)
+  case invalidDirectDeviceOptions
 
   var errorDescription: String? {
     switch self {
@@ -35,6 +36,9 @@ enum CLIError: LocalizedError {
       return "No physical iPhone or iPad was found by devicectl or Bonjour before the timeout."
     case .remotePortMismatch(let discovered, let requested):
       return "Captured RemotePairing port \(discovered), but --remote-port requested \(requested)."
+    case .invalidDirectDeviceOptions:
+      return
+        "Use --capture-device-profile with --peer and --bonjour-host, or --direct-device with --peer and a captured --profile. These modes cannot be combined with deployment, discovery, menu-bar, or relay options."
     }
   }
 }
@@ -56,6 +60,8 @@ struct CommandLineOptions {
   var timeout: TimeInterval
   var allowLANClients: Bool
   var showHelp: Bool
+  var captureDeviceProfile: Bool = false
+  var directDevice: Bool = false
 
   static func parse(_ arguments: [String]) throws -> CommandLineOptions {
     var peerName: String?
@@ -74,6 +80,8 @@ struct CommandLineOptions {
     var timeout: TimeInterval = 5
     var allowLANClients = false
     var showHelp = false
+    var captureDeviceProfile = false
+    var directDevice = false
 
     var index = 0
     while index < arguments.count {
@@ -83,6 +91,10 @@ struct CommandLineOptions {
         showHelp = true
       case "--discover":
         discover = true
+      case "--capture-device-profile":
+        captureDeviceProfile = true
+      case "--direct-device":
+        directDevice = true
       case "--menu-bar":
         menuBar = true
       case "--deploy-app":
@@ -124,6 +136,16 @@ struct CommandLineOptions {
       index += 1
     }
 
+    if captureDeviceProfile || directDevice {
+      guard !(captureDeviceProfile && directDevice),
+        peerName?.isEmpty == false,
+        !captureDeviceProfile || bonjourHost?.isEmpty == false,
+        !forwardRemote, !watchTunnels, !allowLANClients, !menuBar, !discover,
+        deployAppURL == nil, deviceIdentifier == nil, !launchAfterInstall,
+        remotePort == nil, bonjourName == nil
+      else { throw CLIError.invalidDirectDeviceOptions }
+    }
+
     if deployAppURL == nil {
       if deviceIdentifier != nil {
         throw CLIError.deployOptionRequiresApp("--device")
@@ -151,7 +173,9 @@ struct CommandLineOptions {
       launchAfterInstall: launchAfterInstall,
       timeout: timeout,
       allowLANClients: allowLANClients,
-      showHelp: showHelp
+      showHelp: showHelp,
+      captureDeviceProfile: captureDeviceProfile,
+      directDevice: directDevice
     )
   }
 
@@ -456,6 +480,8 @@ func printUsage() {
   print(
     """
     Usage:
+      debagr --capture-device-profile --peer <iPhone-hostname> --bonjour-host <local-host> --profile <path>
+      debagr --direct-device --peer <iPhone-hostname> --profile <path>
       debagr --deploy-app <path> --device <UDID> [--launch]
       debagr --peer <tailscale-hostname> --remote-port <port> [options]
       debagr --forward-remote --peer <tailscale-hostname> [options]
@@ -463,6 +489,8 @@ func printUsage() {
       debagr --menu-bar
 
     Options:
+      --capture-device-profile Capture the local Target Device service before roaming
+      --direct-device       Publish the captured service pointing directly to the Target Device's Tailscale IP
       --deploy-app <path>   Install a signed device .app from this paired Mac
       --device <UDID>       Explicit paired Target Device for deployment
       --launch              Launch the app after a confirmed installation
@@ -495,6 +523,11 @@ do {
     exit(EXIT_SUCCESS)
   }
 
+  if options.captureDeviceProfile {
+    try DirectDeviceApplication.captureProfile(options: options)
+    exit(EXIT_SUCCESS)
+  }
+
   if options.discover {
     try runTargetDeviceDiscovery(timeout: options.timeout)
     exit(EXIT_SUCCESS)
@@ -517,15 +550,20 @@ do {
     exit(EXIT_SUCCESS)
   }
 
-  if options.menuBar || Bundle.main.bundleIdentifier == "com.debagr.app" {
+  if !options.directDevice && (options.menuBar || Bundle.main.bundleIdentifier == "com.debagr.app")
+  {
     runMenuBarApplication()
     exit(EXIT_SUCCESS)
   }
 
-  let application: any ApplicationLifecycle =
-    options.forwardRemote
-    ? RemoteForwarderApplication(options: options)
-    : DebagrApplication(options: options)
+  let application: any ApplicationLifecycle
+  if options.directDevice {
+    application = DirectDeviceApplication(options: options)
+  } else if options.forwardRemote {
+    application = RemoteForwarderApplication(options: options)
+  } else {
+    application = DebagrApplication(options: options)
+  }
   runningApplication = application
   let stopped = DispatchSemaphore(value: 0)
   let signals = SignalHandler {
