@@ -3,13 +3,14 @@
 Debagr must keep the original Build Server's Apple pairing usable when the
 Target Device moves to another network. Tailscale runs directly on both
 endpoints. Remote invocation by a Caller alone does not satisfy this requirement.
-The direct-device discovery mode is experimental; remote install and launch
-remain unverified. See [DIRECT_DEVICE.md](DIRECT_DEVICE.md) for the test procedure.
+The direct-device mode remains experimental; install and launch on a roaming
+iPhone were verified on 10 October 2026. Reconnection and cellular operation
+remain unverified. See [DIRECT_DEVICE.md](DIRECT_DEVICE.md) for test evidence.
 
 ```mermaid
 flowchart LR
   caller["Caller / CI / agent"] -->|"Optional SSH"| server["Original paired Build Server"]
-  profile["Captured RemotePairing identity and port"] --> discovery["Local-only advertisement of phone's Tailscale IP"]
+  profile["Captured RemotePairing identity and port"] --> discovery["Local advertisement and TCP/UDP proxy to phone's Tailscale IP"]
   discovery --> server
   server <-->|"Required development transport over Tailscale"| phone["Target Device on another network"]
 ```

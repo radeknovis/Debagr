@@ -69,9 +69,9 @@ final class BonjourProxy {
     localIP: String,
     txt: [String: String]
   ) -> [String] {
-    var arguments = [
-      "-i",
-      interfaceName,
+    // dns-sd rejects `-i 0`; omitting -i selects all interfaces.
+    var arguments = interfaceName == "0" ? [] : ["-i", interfaceName]
+    arguments += [
       "-P",
       instanceName,
       serviceType,

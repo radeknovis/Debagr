@@ -36,13 +36,34 @@ final class ParserTests: XCTestCase {
     }
     XCTAssertThrowsError(
       try DirectDeviceApplication.makeProxy(
-        profile: profile(ip: "100.64.0.2", txt: ["authTag": "test"]), peer: peer))
+        profile: profile(ip: "100.64.0.2", txt: ["authTag": "test"]), peer: peer,
+        interfaceName: "en1", localIP: "192.168.1.2", localPort: 49152))
     XCTAssertThrowsError(
       try DirectDeviceApplication.makeProxy(
-        profile: profile(ip: "100.64.0.1", txt: [:]), peer: peer))
+        profile: profile(ip: "100.64.0.1", txt: [:]), peer: peer,
+        interfaceName: "en1", localIP: "192.168.1.2", localPort: 49152))
     XCTAssertNoThrow(
       try DirectDeviceApplication.makeProxy(
-        profile: profile(ip: "100.64.0.1", txt: ["authTag": "test"]), peer: peer))
+        profile: profile(ip: "100.64.0.1", txt: ["authTag": "test"]), peer: peer,
+        interfaceName: "en1", localIP: "192.168.1.2", localPort: 49152))
+  }
+
+  func testDirectDeviceTunnelRangeIsBoundedAndSurvivesProfileRoundTrip() throws {
+    let profile = DeviceProfile(
+      bonjourName: "device-service", bonjourTXT: ["authTag": "test"],
+      provider: "tailscale", peerIP: "100.64.0.1", remotePort: 49152,
+      localPortRange: [55000, 58000], tunnelPortRange: [50000, 50020])
+    let decoded = try JSONDecoder().decode(
+      DeviceProfile.self, from: JSONEncoder().encode(profile))
+    XCTAssertEqual(decoded.tunnelPortRange, [50000, 50020])
+    try decoded.validate()
+    for range: [UInt16] in [[], [50000], [50020, 50000], [80, 100], [49152, 65535]] {
+      let invalid = DeviceProfile(
+        bonjourName: profile.bonjourName, bonjourTXT: profile.bonjourTXT,
+        provider: profile.provider, peerIP: profile.peerIP, remotePort: profile.remotePort,
+        localPortRange: profile.localPortRange, tunnelPortRange: range)
+      XCTAssertThrowsError(try invalid.validate())
+    }
   }
 
   func testDeployOptionsRequireAnAppAndExplicitDevice() throws {
@@ -192,6 +213,10 @@ final class ParserTests: XCTestCase {
   }
 
   func testTunnelPortParserAcceptsIPv4AndIPv6Endpoints() {
+    XCTAssertEqual(
+      TunnelPortParser.port(in: "Got tunnel endpoint: '192.168.1.140%en1:60546'"),
+      60_546
+    )
     XCTAssertEqual(
       TunnelPortParser.port(in: "remotepairingd: Got tunnel endpoint: '100.64.0.2:49640'"),
       49_640
@@ -508,5 +533,11 @@ final class ParserTests: XCTestCase {
         "local", "55000", "mac.local.", "192.168.1.10",
       ])
     XCTAssertEqual(arguments.last, "flags=1")
+    let allInterfaces = BonjourProxy.makeArguments(
+      interfaceName: "0", instanceName: "Remote iPhone",
+      serviceType: "_remotepairing._tcp", domain: "local", localPort: 55_000,
+      localHost: "mac.local.", localIP: "192.168.1.10", txt: [:])
+    XCTAssertEqual(allInterfaces.first, "-P")
+    XCTAssertFalse(allInterfaces.contains("-i"))
   }
 }

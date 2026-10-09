@@ -8,7 +8,9 @@ struct TunnelPortParser {
 
     let endpoint = line[endpointStart..<endpointEnd]
     let separator: String.Index?
-    if endpoint.contains("%"), let scopeSeparator = endpoint.lastIndex(of: ".") {
+    if let scope = endpoint.lastIndex(of: "%"),
+      let scopeSeparator = endpoint[scope...].lastIndex(of: ".")
+    {
       separator = scopeSeparator
     } else {
       separator = endpoint.lastIndex(of: ":")

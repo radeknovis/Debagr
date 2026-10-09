@@ -7,6 +7,7 @@ struct DeviceProfile: Codable, Equatable {
   let peerIP: String
   let remotePort: UInt16
   let localPortRange: [UInt16]
+  let tunnelPortRange: [UInt16]
 
   init(
     bonjourName: String,
@@ -14,7 +15,8 @@ struct DeviceProfile: Codable, Equatable {
     provider: String,
     peerIP: String,
     remotePort: UInt16,
-    localPortRange: [UInt16]
+    localPortRange: [UInt16],
+    tunnelPortRange: [UInt16] = [49_152, 49_216]
   ) {
     self.bonjourName = bonjourName
     self.bonjourTXT = bonjourTXT
@@ -22,10 +24,11 @@ struct DeviceProfile: Codable, Equatable {
     self.peerIP = peerIP
     self.remotePort = remotePort
     self.localPortRange = localPortRange
+    self.tunnelPortRange = tunnelPortRange
   }
 
   private enum CodingKeys: String, CodingKey {
-    case bonjourName, bonjourTXT, provider, peerIP, remotePort, localPortRange
+    case bonjourName, bonjourTXT, provider, peerIP, remotePort, localPortRange, tunnelPortRange
   }
 
   init(from decoder: Decoder) throws {
@@ -36,6 +39,9 @@ struct DeviceProfile: Codable, Equatable {
     peerIP = try values.decode(String.self, forKey: .peerIP)
     remotePort = try values.decode(UInt16.self, forKey: .remotePort)
     localPortRange = try values.decode([UInt16].self, forKey: .localPortRange)
+    tunnelPortRange =
+      try values.decodeIfPresent([UInt16].self, forKey: .tunnelPortRange)
+      ?? [49_152, 49_216]
   }
 
   static let defaultLocalPortRange: [UInt16] = [55_000, 58_000]
@@ -66,6 +72,13 @@ struct DeviceProfile: Codable, Equatable {
     else {
       throw ProfileError.invalidLocalPortRange(localPortRange)
     }
+    guard tunnelPortRange.count == 2,
+      tunnelPortRange[0] >= 1_024,
+      tunnelPortRange[0] <= tunnelPortRange[1],
+      Int(tunnelPortRange[1]) - Int(tunnelPortRange[0]) < 1_024
+    else {
+      throw ProfileError.invalidTunnelPortRange(tunnelPortRange)
+    }
   }
 }
 
@@ -75,6 +88,7 @@ enum ProfileError: LocalizedError {
   case invalidPeerIP(String)
   case invalidRemotePort(UInt16)
   case invalidLocalPortRange([UInt16])
+  case invalidTunnelPortRange([UInt16])
 
   var errorDescription: String? {
     switch self {
@@ -88,6 +102,8 @@ enum ProfileError: LocalizedError {
       return "Invalid remote port: \(port)."
     case .invalidLocalPortRange(let range):
       return "Invalid local port range: \(range)."
+    case .invalidTunnelPortRange(let range):
+      return "Invalid tunnel port range: \(range). Use 1...1024 ports above 1023."
     }
   }
 }

@@ -490,7 +490,7 @@ func printUsage() {
 
     Options:
       --capture-device-profile Capture the local Target Device service before roaming
-      --direct-device       Publish the captured service pointing directly to the Target Device's Tailscale IP
+      --direct-device       Proxy the captured service and tunnel ports to the Target Device's Tailscale IP
       --deploy-app <path>   Install a signed device .app from this paired Mac
       --device <UDID>       Explicit paired Target Device for deployment
       --launch              Launch the app after a confirmed installation
