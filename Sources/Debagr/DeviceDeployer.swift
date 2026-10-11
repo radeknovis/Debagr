@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 enum DeviceDeploymentError: LocalizedError {
@@ -5,6 +6,9 @@ enum DeviceDeploymentError: LocalizedError {
   case commandFailed(arguments: [String], status: Int32)
   case invalidResult
   case installedBundleNotConfirmed(String)
+  case timedOut
+  case launchFailed(String)
+  case deviceLocked
 
   var errorDescription: String? {
     switch self {
@@ -16,54 +20,69 @@ enum DeviceDeploymentError: LocalizedError {
       return "devicectl returned an unreadable installation result."
     case .installedBundleNotConfirmed(let bundleIdentifier):
       return "devicectl did not confirm installation of \(bundleIdentifier)."
+    case .timedOut:
+      return "Apple's device command exceeded its deadline."
+    case .launchFailed(let identifier):
+      return "Installed \(identifier), but launch failed. Retry launch rather than installation."
+    case .deviceLocked:
+      return "Unlock the device before deployment."
     }
   }
 }
 
-struct DeploymentResult: Equatable {
+struct DeploymentResult: Codable, Equatable {
   let bundleIdentifier: String
   let launched: Bool
 }
 
 struct DeviceDeployer {
+  var run: ([String], TimeInterval) throws -> Data = DeviceDeployer.runDevicectl
+
+  func checkReady(deviceIdentifier: String, timeout: TimeInterval = 5) throws {
+    let data = try run(
+      [
+        "device", "info", "lockState", "--device", deviceIdentifier,
+        "--timeout", String(max(1, Int(timeout))),
+      ], timeout)
+    guard let output = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let result = output["result"] as? [String: Any],
+      let passcodeRequired = result["passcodeRequired"] as? Bool,
+      let unlockedSinceBoot = result["unlockedSinceBoot"] as? Bool
+    else { throw DeviceDeploymentError.invalidResult }
+    guard !passcodeRequired, unlockedSinceBoot else { throw DeviceDeploymentError.deviceLocked }
+  }
+
   func deploy(appURL: URL, deviceIdentifier: String, launch: Bool) throws -> DeploymentResult {
     let bundleIdentifier = try Self.bundleIdentifier(at: appURL)
 
-    try runDevicectl([
-      "device", "info", "lockState",
-      "--device", deviceIdentifier,
-      "--timeout", "15",
-    ])
-
-    let resultURL = FileManager.default.temporaryDirectory
-      .appendingPathComponent("debagr-install-\(UUID().uuidString).json")
-    defer { try? FileManager.default.removeItem(at: resultURL) }
-
-    try runDevicectl([
-      "device", "install", "app",
-      "--device", deviceIdentifier,
-      appURL.path,
-      "--timeout", "120",
-      "--json-output", resultURL.path,
-    ])
-
-    let resultData = try Data(contentsOf: resultURL)
+    try checkReady(deviceIdentifier: deviceIdentifier)
+    let resultData = try run(
+      [
+        "device", "install", "app",
+        "--device", deviceIdentifier,
+        appURL.path,
+        "--timeout", "120",
+      ], 120)
     guard let result = try JSONSerialization.jsonObject(with: resultData) as? [String: Any]
     else {
       throw DeviceDeploymentError.invalidResult
     }
-    guard Self.contains(bundleIdentifier, in: result) else {
+    guard let installation = result["result"], Self.contains(bundleIdentifier, in: installation)
+    else {
       throw DeviceDeploymentError.installedBundleNotConfirmed(bundleIdentifier)
     }
 
     if launch {
-      try runDevicectl([
-        "device", "process", "launch",
-        "--device", deviceIdentifier,
-        "--terminate-existing",
-        "--timeout", "30",
-        bundleIdentifier,
-      ])
+      do {
+        _ = try run(
+          [
+            "device", "process", "launch",
+            "--device", deviceIdentifier,
+            "--terminate-existing",
+            "--timeout", "30",
+            bundleIdentifier,
+          ], 30)
+      } catch { throw DeviceDeploymentError.launchFailed(bundleIdentifier) }
     }
 
     return DeploymentResult(bundleIdentifier: bundleIdentifier, launched: launch)
@@ -103,18 +122,34 @@ struct DeviceDeployer {
     return false
   }
 
-  private func runDevicectl(_ arguments: [String]) throws {
+  static func runDevicectl(_ arguments: [String], timeout: TimeInterval) throws -> Data {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("debagr-command-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(
+      at: directory, withIntermediateDirectories: false,
+      attributes: [.posixPermissions: 0o700])
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let resultURL = directory.appendingPathComponent("result.json")
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-    process.arguments = ["devicectl"] + arguments
+    process.arguments = ["devicectl"] + arguments + ["--json-output", resultURL.path]
     process.standardInput = FileHandle.nullDevice
-    process.standardOutput = FileHandle.standardOutput
-    process.standardError = FileHandle.standardError
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    let finished = DispatchSemaphore(value: 0)
+    process.terminationHandler = { _ in finished.signal() }
     try process.run()
-    process.waitUntilExit()
+    guard finished.wait(timeout: .now() + timeout) == .success else {
+      process.terminate()
+      if finished.wait(timeout: .now() + 1) != .success {
+        _ = kill(process.processIdentifier, SIGKILL)
+      }
+      throw DeviceDeploymentError.timedOut
+    }
     guard process.terminationStatus == 0 else {
       throw DeviceDeploymentError.commandFailed(
         arguments: arguments, status: process.terminationStatus)
     }
+    return try Data(contentsOf: resultURL)
   }
 }

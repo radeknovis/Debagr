@@ -1,26 +1,25 @@
 # Debagr
 
-**Required product behavior:** the originally paired iPhone/iPad remains usable
-after moving to a different network, with Tailscale running directly on both
-the device and Build Server. This is not yet verified end to end. The current
-deployment CLI assumes Apple can already reach the device. See
-[direct-device transport](docs/DIRECT_DEVICE.md) for the experimental discovery
-mode and [architecture](docs/ARCHITECTURE.md) for the intended complete path.
+Debagr is an AI-operable deployment endpoint on the Mac that owns Apple's device
+pairing. Direct install and launch over Tailscale were verified on an iPhone on
+another Wi-Fi network. Cellular-only RemotePairing is excluded by iOS.
+See [direct-device evidence](docs/DIRECT_DEVICE.md) and the
+[AI deployment workflow](docs/AI_DEPLOYMENT.md).
 
 Debagr is a native macOS build-server agent for deploying signed iOS and iPadOS
 apps to devices paired with that Mac. Any computer, CI job, or agent that can
 SSH into the build server can invoke the same deployment command; the iPhone
 does not need to appear on the caller's machine.
 
-The app ships two deliberately separate surfaces:
+One app bundle ships the human setup UI, CLI, and companion deployment skill:
 
 - The product UI merges Apple `devicectl` inventory with visible
   `_remotepairing._tcp` services, shows human-readable Target Device details,
-  explains first-run requirements, supports Launch at Login, and copies a
-  diagnostics report without Bonjour TXT values.
+  configures one remote device, owns its relay, restores enabled configuration
+  on launch, and shows verified readiness and the last successful deployment.
 - The command line preflights a specific paired device, installs a signed
   device `.app` with Apple's `devicectl`, confirms the installed bundle ID, and
-  optionally launches it.
+  optionally launches it. `--json` provides versioned results and actionable failures.
 - The old cross-Mac RemotePairing relay remains only as a research lab. It is
   not part of the deployment product.
 
@@ -63,6 +62,15 @@ acceptance checklist.
 
 ## Menu-bar behavior
 
+Choose **Configure Remote iPhone…**, select the paired Apple device, its local
+Bonjour service, and the same physical device in Tailscale. Existing private
+profiles can be imported instead. Configuration is stored privately under
+`~/.config/debagr/managed-device.json`; it is never included in public CLI results.
+Use **Connect/Disconnect Remote Device** and **Launch at Login**. The app must
+remain running; the CLI does not create competing background relays.
+**Show AI Deployment Skill…** reveals the bundled skill for installation in
+your agent client's skills directory.
+
 On first launch Debagr explains the required Xcode, Developer Mode, USB trust,
 and wireless-device steps. Its menu then:
 
@@ -86,7 +94,7 @@ Build a signed device `.app` on the paired Mac, then run:
 /Applications/Debagr.app/Contents/MacOS/Debagr \
   --deploy-app /absolute/path/MyApp.app \
   --device DEVICE_UDID \
-  --launch
+  --launch --json
 ```
 
 Remote callers use the same command through the build server's existing SSH
@@ -96,7 +104,7 @@ does not require a custom client or expose its own network listener:
 ```sh
 ssh build-server \
   "/Applications/Debagr.app/Contents/MacOS/Debagr \
-  --deploy-app /absolute/path/MyApp.app --device DEVICE_UDID --launch"
+  --deploy-app /absolute/path/MyApp.app --device DEVICE_UDID --launch --json"
 ```
 
 The `.app` must already exist on the build server and be signed for the Target
@@ -167,8 +175,10 @@ Target Device directly, which prevents a shared-LAN false positive.
   process identifier.
 
 These controls do not replace the missing mutual Debagr authorization design.
-Do not sell or publicly promise transparent cross-Mac Xcode access. The current
-layer-4 architecture cannot carry CoreDevice's negotiated link-local tunnel.
+Do not sell or publicly promise transparent cross-Mac Xcode access. Direct-device
+deployment uses the original paired Build Server and relays its dynamic tunnel
+ports; it does not transfer Apple pairing or route a different Mac's negotiated
+link-local tunnel.
 
 ## Product and launch material
 

@@ -28,6 +28,8 @@ mkdir -p "$staged_app/Contents/MacOS" "$staged_app/Contents/Resources"
 cp "$binary_path" "$staged_app/Contents/MacOS/Debagr"
 cp "Packaging/Debagr.app/Contents/Info.plist" "$staged_app/Contents/Info.plist"
 cp "Packaging/Resources/AppIcon.icns" "$staged_app/Contents/Resources/AppIcon.icns"
+mkdir -p "$staged_app/Contents/Resources/Skills"
+cp -R "Skills/debagr-deploy" "$staged_app/Contents/Resources/Skills/debagr-deploy"
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$staged_app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$staged_app/Contents/Info.plist"

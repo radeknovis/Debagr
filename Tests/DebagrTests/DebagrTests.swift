@@ -3,6 +3,144 @@ import XCTest
 @testable import Debagr
 
 final class ParserTests: XCTestCase {
+  func testAgentCommandsAreExplicitAndCannotStartCompetingRelays() throws {
+    let status = try CommandLineOptions.parse([
+      "--status", "--device", "udid", "--timeout", "30", "--json",
+    ])
+    XCTAssertEqual(status.agentCommand, "status")
+    XCTAssertTrue(status.json)
+    XCTAssertEqual(status.interfaceName, "auto")
+    XCTAssertEqual(try CommandLineOptions.parse(["--devices", "--json"]).agentCommand, "devices")
+    for arguments in [
+      ["--status", "--json"], ["--json"], ["--devices", "--status", "--device", "udid"],
+      ["--devices", "--deploy-app", "/tmp/Test.app", "--device", "udid"],
+      ["--deploy-app", "/tmp/Test.app", "--device", "udid", "--menu-bar"],
+      ["--status", "--device", "udid", "--direct-device", "--peer", "phone"],
+    ] { XCTAssertThrowsError(try CommandLineOptions.parse(arguments)) }
+  }
+
+  func testReadinessRequiresAnExplicitUnlockedAppleResult() throws {
+    let ready = Data(#"{"result":{"passcodeRequired":false,"unlockedSinceBoot":true}}"#.utf8)
+    var commands: [[String]] = []
+    let deployer = DeviceDeployer(run: { args, _ in
+      commands.append(args)
+      return ready
+    })
+    try deployer.checkReady(deviceIdentifier: "udid")
+    XCTAssertTrue(commands[0].contains("lockState"))
+    XCTAssertTrue(commands[0].contains("udid"))
+    for data in [
+      Data(#"{"result":{}}"#.utf8),
+      Data(#"{"result":{"passcodeRequired":true,"unlockedSinceBoot":true}}"#.utf8),
+    ] {
+      XCTAssertThrowsError(
+        try DeviceDeployer(run: { _, _ in data }).checkReady(deviceIdentifier: "udid"))
+    }
+  }
+
+  func testDeploymentFlowConfirmsInstallAndReportsPartialLaunchFailure() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "AgentTest-\(UUID().uuidString).app")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try PropertyListSerialization.data(
+      fromPropertyList: ["CFBundleIdentifier": "com.example.agent"],
+      format: .xml, options: 0
+    ).write(to: directory.appendingPathComponent("Info.plist"))
+    var calls: [[String]] = []
+    let run: ([String], TimeInterval) throws -> Data = { arguments, _ in
+      calls.append(arguments)
+      if arguments.contains("lockState") {
+        return Data(#"{"result":{"passcodeRequired":false,"unlockedSinceBoot":true}}"#.utf8)
+      }
+      if arguments.contains("install") {
+        return Data(#"{"result":{"installedApplication":{"bundleID":"com.example.agent"}}}"#.utf8)
+      }
+      throw DeviceDeploymentError.commandFailed(arguments: arguments, status: 1)
+    }
+    do {
+      _ = try DeviceDeployer(run: run).deploy(
+        appURL: directory, deviceIdentifier: "udid", launch: true)
+      XCTFail("Launch failure must not report success")
+    } catch {
+      let failure = AgentCLI.failure(error, operation: "deploy")
+      XCTAssertEqual(failure.exitCode, 1)
+      let detail = try XCTUnwrap(failure.object["error"] as? [String: Any])
+      XCTAssertEqual(detail["code"] as? String, "launch_failed")
+      XCTAssertEqual(detail["installed"] as? Bool, true)
+      XCTAssertEqual(detail["bundleIdentifier"] as? String, "com.example.agent")
+    }
+    XCTAssertEqual(calls.count, 3)
+    calls.removeAll()
+    let result = try DeviceDeployer(run: run).deploy(
+      appURL: directory, deviceIdentifier: "udid", launch: false)
+    XCTAssertFalse(result.launched)
+    XCTAssertEqual(calls.count, 2)
+    let wrongResult = DeviceDeployer(run: { args, _ in
+      if args.contains("lockState") {
+        return Data(#"{"result":{"passcodeRequired":false,"unlockedSinceBoot":true}}"#.utf8)
+      }
+      return Data(#"{"info":{"bundleID":"com.example.agent"},"result":{}}"#.utf8)
+    })
+    XCTAssertThrowsError(
+      try wrongResult.deploy(appURL: directory, deviceIdentifier: "udid", launch: false))
+  }
+
+  func testManagedConfigurationIsPrivateAndLearnedPortsStayBounded() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "ManagedTest-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = ManagedDeviceStore(url: directory.appendingPathComponent("device.json"))
+    let profile = DeviceProfile(
+      bonjourName: "phone", bonjourTXT: ["authTag": "test-secret"],
+      provider: "tailscale", peerIP: "100.64.0.2", remotePort: 49152,
+      localPortRange: [55000, 58000])
+    let device = ConfiguredDevice(
+      deviceIdentifier: "udid", displayName: "Phone", peerName: "phone.test", profile: profile)
+    try store.save(device)
+    XCTAssertEqual(try store.load(), device)
+    try store.toggleEnabled()
+    try store.learn(port: 60549, for: device)
+    XCTAssertFalse(try XCTUnwrap(store.load()).enabled)
+    let attributes = try FileManager.default.attributesOfItem(atPath: store.url.path)
+    XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+    for port: UInt16 in [1024, 60549, 65535] {
+      let learned = profile.learningTunnelPort(port)
+      try learned.validate()
+      XCTAssertTrue((learned.tunnelPortRange[0]...learned.tunnelPortRange[1]).contains(port))
+      var updated = device
+      updated.profile = learned
+      XCTAssertTrue(device.hasSameConnection(as: updated))
+    }
+  }
+
+  func testAgentWaitIsBoundedAndStructuredErrorsAreActionable() throws {
+    var count = 0
+    XCTAssertThrowsError(
+      try AgentCLI.waitUntilReady(
+        deviceIdentifier: "udid", timeout: 0.01,
+        check: { _, _ in
+          count += 1
+          throw DeviceDeploymentError.deviceLocked
+        }))
+    XCTAssertEqual(count, 1)
+    let result = AgentCLI.failure(DeviceDeploymentError.deviceLocked, operation: "status")
+    XCTAssertEqual(result.exitCode, 2)
+    XCTAssertEqual((result.object["error"] as? [String: Any])?["code"] as? String, "device_locked")
+    XCTAssertNoThrow(try JSONSerialization.data(withJSONObject: result.object))
+  }
+
+  func testRelayLeaseExcludesCompetingOwnersAndReleasesOnStop() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "LeaseTest-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    var lease: RelayLease? = try RelayLease(port: 49152, directory: directory)
+    XCTAssertNotNil(lease)
+    XCTAssertThrowsError(try RelayLease(port: 49152, directory: directory))
+    lease = nil
+    XCTAssertNoThrow(try RelayLease(port: 49152, directory: directory))
+  }
+
   func testDirectDeviceModesRejectConflictingOperations() throws {
     let capture = try CommandLineOptions.parse([
       "--capture-device-profile", "--peer", "iphone", "--bonjour-host", "phone.local",

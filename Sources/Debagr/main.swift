@@ -13,6 +13,7 @@ enum CLIError: LocalizedError {
   case discoveryTimedOut
   case remotePortMismatch(discovered: UInt16, requested: UInt16)
   case invalidDirectDeviceOptions
+  case conflictingCommands
 
   var errorDescription: String? {
     switch self {
@@ -39,6 +40,9 @@ enum CLIError: LocalizedError {
     case .invalidDirectDeviceOptions:
       return
         "Use --capture-device-profile with --peer and --bonjour-host, or --direct-device with --peer and a captured --profile. These modes cannot be combined with deployment, discovery, menu-bar, or relay options."
+    case .conflictingCommands:
+      return
+        "Select one command. --json supports --devices, --status, --diagnose, --configure, or --deploy-app."
     }
   }
 }
@@ -62,13 +66,15 @@ struct CommandLineOptions {
   var showHelp: Bool
   var captureDeviceProfile: Bool = false
   var directDevice: Bool = false
+  var agentCommand: String?
+  var json: Bool = false
 
   static func parse(_ arguments: [String]) throws -> CommandLineOptions {
     var peerName: String?
     var remotePort: UInt16?
     var bonjourName: String?
     var bonjourHost: String?
-    var interfaceName = "en0"
+    var interfaceName = "auto"
     var forwardRemote = false
     var profileURL = ProfileStore.defaultStore.url
     var watchTunnels = false
@@ -82,6 +88,8 @@ struct CommandLineOptions {
     var showHelp = false
     var captureDeviceProfile = false
     var directDevice = false
+    var agentCommand: String?
+    var json = false
 
     var index = 0
     while index < arguments.count {
@@ -97,6 +105,11 @@ struct CommandLineOptions {
         directDevice = true
       case "--menu-bar":
         menuBar = true
+      case "--devices", "--status", "--diagnose", "--configure":
+        guard agentCommand == nil else { throw CLIError.conflictingCommands }
+        agentCommand = String(argument.dropFirst(2))
+      case "--json":
+        json = true
       case "--deploy-app":
         deployAppURL = expandedURL(
           try requiredValue(for: argument, arguments: arguments, index: &index))
@@ -142,12 +155,12 @@ struct CommandLineOptions {
         !captureDeviceProfile || bonjourHost?.isEmpty == false,
         !forwardRemote, !watchTunnels, !allowLANClients, !menuBar, !discover,
         deployAppURL == nil, deviceIdentifier == nil, !launchAfterInstall,
-        remotePort == nil, bonjourName == nil
+        remotePort == nil, bonjourName == nil, agentCommand == nil, !json
       else { throw CLIError.invalidDirectDeviceOptions }
     }
 
     if deployAppURL == nil {
-      if deviceIdentifier != nil {
+      if deviceIdentifier != nil && agentCommand == nil {
         throw CLIError.deployOptionRequiresApp("--device")
       }
       if launchAfterInstall {
@@ -155,6 +168,28 @@ struct CommandLineOptions {
       }
     } else if deviceIdentifier == nil {
       throw CLIError.missingDevice
+    }
+
+    if agentCommand != nil {
+      guard deployAppURL == nil, !discover, !menuBar, !forwardRemote, !watchTunnels,
+        !allowLANClients, remotePort == nil, bonjourName == nil, !launchAfterInstall
+      else { throw CLIError.conflictingCommands }
+      if agentCommand != "devices" && deviceIdentifier == nil { throw CLIError.missingDevice }
+      if agentCommand == "devices" && deviceIdentifier != nil { throw CLIError.conflictingCommands }
+      if agentCommand == "configure" && peerName == nil { throw CLIError.missingPeer }
+      if agentCommand != "configure"
+        && (peerName != nil || bonjourHost != nil || arguments.contains("--profile"))
+      {
+        throw CLIError.conflictingCommands
+      }
+    }
+    if deployAppURL != nil {
+      guard !discover, !menuBar, !forwardRemote, !watchTunnels, peerName == nil,
+        bonjourName == nil, bonjourHost == nil, remotePort == nil, !allowLANClients
+      else { throw CLIError.conflictingCommands }
+    }
+    if json && agentCommand == nil && deployAppURL == nil && !showHelp {
+      throw CLIError.conflictingCommands
     }
 
     return CommandLineOptions(
@@ -175,7 +210,9 @@ struct CommandLineOptions {
       allowLANClients: allowLANClients,
       showHelp: showHelp,
       captureDeviceProfile: captureDeviceProfile,
-      directDevice: directDevice
+      directDevice: directDevice,
+      agentCommand: agentCommand,
+      json: json
     )
   }
 
@@ -185,7 +222,8 @@ struct CommandLineOptions {
     index: inout Int
   ) throws -> String {
     index += 1
-    guard index < arguments.count, !arguments[index].isEmpty else {
+    guard index < arguments.count, !arguments[index].isEmpty, !arguments[index].hasPrefix("--")
+    else {
       throw CLIError.missingValue(option)
     }
     return arguments[index]
@@ -480,15 +518,24 @@ func printUsage() {
   print(
     """
     Usage:
+      debagr --devices --json
+      debagr --status --device <UDID> --timeout 30 --json
+      debagr --diagnose --device <UDID> --json
+      debagr --configure --device <UDID> --peer <iPhone-hostname> --bonjour-host <local-host> [--json]
       debagr --capture-device-profile --peer <iPhone-hostname> --bonjour-host <local-host> --profile <path>
       debagr --direct-device --peer <iPhone-hostname> --profile <path>
-      debagr --deploy-app <path> --device <UDID> [--launch]
+      debagr --deploy-app <path> --device <UDID> [--launch] [--json]
       debagr --peer <tailscale-hostname> --remote-port <port> [options]
       debagr --forward-remote --peer <tailscale-hostname> [options]
       debagr --discover [--timeout <seconds>]
       debagr --menu-bar
 
     Options:
+      --devices             List stable Apple device IDs and saved configuration; not a readiness check
+      --status              Verify trusted connectivity and unlocked state, retrying until --timeout
+      --diagnose            Same verified check, with recovery instructions on failure
+      --configure           Save one remote device, capturing Bonjour or importing --profile
+      --json                Emit one versioned JSON result on stdout; failures have nonzero exit codes
       --capture-device-profile Capture the local Target Device service before roaming
       --direct-device       Proxy the captured service and tunnel ports to the Target Device's Tailscale IP
       --deploy-app <path>   Install a signed device .app from this paired Mac
@@ -496,7 +543,7 @@ func printUsage() {
       --launch              Launch the app after a confirmed installation
       --bonjour-name <name>  Local _remotepairing._tcp instance name
       --bonjour-host <host>  Forward only the captured Bonjour host (remote mode)
-      --interface <name>     Interface to bind (default: en0)
+      --interface <name>     Interface to bind (default: auto — active Wi-Fi or Ethernet)
       --forward-remote       Forward from this Mac's Tailscale IP to local Bonjour
       --profile <path>      JSON profile (default: ~/.config/debagr/device-profile.json)
       --watch-tunnels       Watch remotepairingd and add TCP/UDP tunnel relays
@@ -512,14 +559,22 @@ func printUsage() {
 }
 
 var runningApplication: (any ApplicationLifecycle)?
+let rawArguments = Array(CommandLine.arguments.dropFirst())
+var operation = "arguments"
 atexit {
   runningApplication?.stop()
 }
 
 do {
-  let options = try CommandLineOptions.parse(Array(CommandLine.arguments.dropFirst()))
+  let options = try CommandLineOptions.parse(rawArguments)
+  operation = options.agentCommand ?? (options.deployAppURL != nil ? "deploy" : "command")
   if options.showHelp {
     printUsage()
+    exit(EXIT_SUCCESS)
+  }
+
+  if options.agentCommand != nil {
+    try AgentCLI.run(options)
     exit(EXIT_SUCCESS)
   }
 
@@ -542,15 +597,29 @@ do {
       deviceIdentifier: deviceIdentifier,
       launch: options.launchAfterInstall
     )
-    print(
-      result.launched
-        ? "Installed and launched \(result.bundleIdentifier)."
-        : "Installed \(result.bundleIdentifier)."
-    )
+    do { try DeploymentReceipt.record(result, deviceIdentifier: deviceIdentifier) } catch {
+      writeError("Deployment succeeded, but its local history could not be saved.")
+    }
+    if options.json {
+      AgentCLI.emit(
+        [
+          "state": result.launched ? "installed_and_launched" : "installed",
+          "deviceIdentifier": deviceIdentifier, "bundleIdentifier": result.bundleIdentifier,
+          "installed": true, "launched": result.launched,
+        ], operation: "deploy", options: options)
+    } else {
+      print(
+        result.launched
+          ? "Installed and launched \(result.bundleIdentifier)."
+          : "Installed \(result.bundleIdentifier)."
+      )
+    }
     exit(EXIT_SUCCESS)
   }
 
-  if !options.directDevice && (options.menuBar || Bundle.main.bundleIdentifier == "com.debagr.app")
+  if !options.directDevice
+    && (options.menuBar
+      || (rawArguments.isEmpty && Bundle.main.bundleIdentifier == "com.debagr.app"))
   {
     runMenuBarApplication()
     exit(EXIT_SUCCESS)
@@ -577,6 +646,11 @@ do {
   application.stop()
 } catch {
   runningApplication?.stop()
+  if rawArguments.contains("--json") {
+    let failure = AgentCLI.failure(error, operation: operation)
+    AgentCLI.writeJSON(failure.object)
+    exit(failure.exitCode)
+  }
   writeError("Error: \(error.localizedDescription)")
   if error is CLIError {
     printUsage()

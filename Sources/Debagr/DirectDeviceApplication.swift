@@ -10,15 +10,40 @@ final class DirectDeviceApplication: ApplicationLifecycle {
   private let relayQueue = DispatchQueue(label: "debagr.direct-device-relays")
   private var pairs: [UInt16: RelayPair] = [:]
   private var stopped = false
+  private var lease: RelayLease?
+  private let configuredProfile: DeviceProfile?
+  private let onTunnelPort: ((UInt16) -> Void)?
 
   init(options: CommandLineOptions) {
     self.options = options
+    configuredProfile = nil
+    onTunnelPort = nil
+  }
+
+  init(device: ConfiguredDevice, onTunnelPort: ((UInt16) -> Void)? = nil) {
+    var options = try! CommandLineOptions.parse([])
+    options.peerName = device.peerName
+    options.interfaceName = device.interfaceName
+    self.options = options
+    configuredProfile = device.profile
+    self.onTunnelPort = onTunnelPort
   }
 
   static func captureProfile(options: CommandLineOptions) throws {
     guard let peerName = options.peerName, let host = options.bonjourHost else {
       throw CLIError.invalidDirectDeviceOptions
     }
+    let profile = try capturedProfile(peerName: peerName, host: host, timeout: options.timeout)
+    try ProfileStore(url: options.profileURL).save(profile)
+    print(
+      "Captured Target Device service on port \(profile.remotePort) for \(profile.peerIP). TXT values are not logged."
+    )
+    print("Keep this profile private. Recapture if the device's service identity or port changes.")
+  }
+
+  static func capturedProfile(peerName: String, host: String, timeout: TimeInterval) throws
+    -> DeviceProfile
+  {
     let peer = try TailscaleClient().selectPeer(named: peerName)
     let capture = BonjourCapture()
     defer { capture.stop() }
@@ -28,23 +53,18 @@ final class DirectDeviceApplication: ApplicationLifecycle {
       result.set(device)
       completed.signal()
     }
-    guard completed.wait(timeout: .now() + options.timeout) == .success,
+    guard completed.wait(timeout: .now() + timeout) == .success,
       let device = result.get(), !device.txt.isEmpty
     else { throw CLIError.discoveryTimedOut }
 
-    try ProfileStore(url: options.profileURL).save(
-      DeviceProfile(
-        bonjourName: device.instanceName,
-        bonjourTXT: device.txt,
-        provider: "tailscale",
-        peerIP: peer.ipAddress,
-        remotePort: device.port,
-        localPortRange: DeviceProfile.defaultLocalPortRange
-      ))
-    print(
-      "Captured Target Device service on port \(device.port) for \(peer.ipAddress). TXT values are not logged."
+    return DeviceProfile(
+      bonjourName: device.instanceName,
+      bonjourTXT: device.txt,
+      provider: "tailscale",
+      peerIP: peer.ipAddress,
+      remotePort: device.port,
+      localPortRange: DeviceProfile.defaultLocalPortRange
     )
-    print("Keep this profile private. Recapture if the device's service identity or port changes.")
   }
 
   static func makeProxy(
@@ -67,7 +87,7 @@ final class DirectDeviceApplication: ApplicationLifecycle {
 
   func start() throws {
     guard let peerName = options.peerName,
-      let profile = try ProfileStore(url: options.profileURL).load()
+      let profile = try configuredProfile ?? ProfileStore(url: options.profileURL).load()
     else { throw CLIError.invalidDirectDeviceOptions }
     let peer = try TailscaleClient().selectPeer(named: peerName)
     let binding = try NetworkSupport.resolveInterface(named: options.interfaceName)
@@ -76,6 +96,7 @@ final class DirectDeviceApplication: ApplicationLifecycle {
       profile: profile, peer: peer, interfaceName: "0",
       localIP: binding.ipv4Address, localPort: profile.remotePort)
     do {
+      lease = try RelayLease(port: profile.remotePort)
       try relayQueue.sync {
         try startRelay(port: profile.remotePort, binding: binding, peer: peer)
         for port in profile.tunnelPortRange[0]...profile.tunnelPortRange[1]
@@ -92,6 +113,11 @@ final class DirectDeviceApplication: ApplicationLifecycle {
           guard let self, !self.stopped else { return }
           do {
             try self.startRelay(port: port, binding: binding, peer: peer)
+            let learned = profile.learningTunnelPort(port)
+            for next in learned.tunnelPortRange[0]...learned.tunnelPortRange[1] where next != port {
+              try? self.startRelay(port: next, binding: binding, peer: peer)
+            }
+            self.onTunnelPort?(port)
             print("Discovered tunnel relay ready on \(port).")
           } catch {
             print("Discovered tunnel relay failed on \(port): \(error.localizedDescription)")
@@ -123,6 +149,7 @@ final class DirectDeviceApplication: ApplicationLifecycle {
         pair.stop()
       }
       pairs.removeAll()
+      lease = nil
     }
   }
 

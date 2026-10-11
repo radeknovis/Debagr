@@ -105,6 +105,7 @@ final class TailscaleClient {
         .map(normalizeHostName)
 
       return exactNames.contains(normalizedRequest) || shortDNSName == normalizedRequest
+        || peer.tailscaleIPs.contains(requestedName)
     }
 
     guard !matches.isEmpty else {
@@ -131,6 +132,18 @@ final class TailscaleClient {
       ipAddress: ipAddress,
       online: true
     )
+  }
+
+  func onlinePeers() throws -> [SelectedTailscalePeer] {
+    let status = try JSONDecoder().decode(Status.self, from: statusJSON(at: executablePath()))
+    return status.peers.values.compactMap { peer in
+      guard peer.online == true,
+        let ip = peer.tailscaleIPs.first(where: NetworkSupport.isAllowedTailscaleIPv4)
+      else { return nil }
+      return SelectedTailscalePeer(
+        hostname: peer.hostname ?? ip, dnsName: peer.dnsName ?? "",
+        ipAddress: ip, online: true)
+    }.sorted { $0.dnsName < $1.dnsName }
   }
 
   private func executablePath() throws -> String {

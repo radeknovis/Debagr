@@ -46,6 +46,15 @@ struct DeviceProfile: Codable, Equatable {
 
   static let defaultLocalPortRange: [UInt16] = [55_000, 58_000]
 
+  func learningTunnelPort(_ port: UInt16) -> DeviceProfile {
+    // shortcut: neighboring ports are heuristic; recapture a verified range if Apple changes allocation.
+    guard port >= 1024 else { return self }
+    return DeviceProfile(
+      bonjourName: bonjourName, bonjourTXT: bonjourTXT, provider: provider,
+      peerIP: peerIP, remotePort: remotePort, localPortRange: localPortRange,
+      tunnelPortRange: [UInt16(max(1024, Int(port) - 16)), UInt16(min(65535, Int(port) + 64))])
+  }
+
   var localPortBounds: ClosedRange<UInt16> {
     localPortRange[0]...localPortRange[1]
   }

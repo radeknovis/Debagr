@@ -33,6 +33,24 @@ enum NetworkSupportError: LocalizedError {
 
 enum NetworkSupport {
   static func resolveInterface(named name: String) throws -> InterfaceBinding {
+    if name == "auto" {
+      let monitor = NWPathMonitor()
+      let result = LockedValue<String?>(nil)
+      let found = DispatchSemaphore(value: 0)
+      monitor.pathUpdateHandler = { path in
+        let interface = path.availableInterfaces.first {
+          ($0.type == .wifi || $0.type == .wiredEthernet) && path.usesInterfaceType($0.type)
+        }
+        result.set(interface?.name)
+        found.signal()
+      }
+      monitor.start(queue: DispatchQueue(label: "debagr.default-interface"))
+      defer { monitor.cancel() }
+      guard found.wait(timeout: .now() + 3) == .success, let name = result.get() else {
+        throw NetworkSupportError.noNetworkInterface(interface: "auto")
+      }
+      return try resolveInterface(named: name)
+    }
     let address = try ipv4Address(for: name)
     let networkInterface = try networkInterface(named: name)
     return InterfaceBinding(name: name, ipv4Address: address, networkInterface: networkInterface)
