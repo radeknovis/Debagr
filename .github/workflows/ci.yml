@@ -9,7 +9,7 @@ jobs:
   test-and-package:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install build tools
         run: brew install xcsift
       - name: Lint
@@ -26,13 +26,13 @@ jobs:
         run: python3 scripts/check-release.py
       - name: Package and verify agent plugins
         run: python3 scripts/package-plugins.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: Debagr-agent-plugins
           path: |
             dist/debagr-*.zip
             dist/debagr-*.zip.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: Debagr-unsigned
           path: Debagr.app

@@ -22,7 +22,7 @@ jobs:
     runs-on: macos-26
     environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Validate tag and credentials
         env:
           VERSION: ${{ inputs.version }}
@@ -80,7 +80,7 @@ jobs:
         run: ./scripts/release-macos-app.sh
       - name: Package and verify agent plugins
         run: python3 scripts/package-plugins.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: Debagr-${{ inputs.version }}
