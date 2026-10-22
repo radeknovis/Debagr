@@ -25,6 +25,11 @@ optionally delete preferences:
 defaults delete com.debagr.app
 ```
 
+The app also stores private connection profiles and the last deployment receipt
+in `~/.config/debagr/`. Keep a backup if needed, then remove that directory only
+if you want to discard all saved Debagr setup. Removing Debagr does not revoke
+Apple pairing, uninstall the VPN, or uninstall deployed device apps.
+
 ## Preview support promise
 
 The technical preview is best-effort and supports only the matrix in

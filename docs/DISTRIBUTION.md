@@ -34,9 +34,10 @@ Do not confuse GitHub's automatic source-code ZIP with the signed application.
 
 Inspect the accepted notarization log, not only the submit exit status. Apple
 creates tickets for the DMG and nested app; stapling lets Gatekeeper verify
-without fetching a ticket online. The current script staples only the DMG:
-verify the installed app's behavior and consider also stapling the app before
-final packaging for independent/offline copies. A ZIP, if ever added, must
+without fetching a ticket online. The release script now notarizes and staples
+the app before packaging, then signs, notarizes, staples, and assesses the DMG.
+It retains both submission results and Apple logs and refuses rejected results
+and artifact overwrites. CI creates a draft prerelease. A ZIP, if ever added, must
 contain already-stapled items because ZIPs cannot themselves be stapled.
 [Apple custom notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow).
 

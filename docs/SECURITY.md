@@ -8,7 +8,9 @@
 - `xcrun` and `devicectl` receive argument arrays directly; no shell evaluates
   app paths, identifiers, or bundle IDs.
 - RemotePairing payloads are forwarded opaquely and never logged or decrypted.
-- Peer destinations must be online Tailscale IPv4 addresses in `100.64.0.0/10`.
+- Tailscale destinations must be online IPv4 peers in `100.64.0.0/10`.
+  Alternative-provider profiles require an explicitly selected RFC1918 or CGNAT
+  IPv4 address; public and link-local destinations are rejected.
 - Listeners bind to the selected local interface; LAN clients are denied unless
   the explicit lab-only `--allow-lan` flag is used.
 - Child processes use fixed executable paths, argument arrays, and owned process

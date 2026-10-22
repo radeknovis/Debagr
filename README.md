@@ -90,7 +90,8 @@ Connect the Mac and device through your chosen private VPN. While the device's B
 available locally, open Debagr and choose **Set Up Remote Device…**. Select
 your VPN provider, the Apple device, its Bonjour service, and the same device’s
 VPN device or private IPv4 address, then
-choose **Connect Remote Device**.
+choose **Connect device**. **Agent tools** includes the plugin guides and a
+copyable deployment prompt.
 
 Leave Debagr open in that user's logged-in session. **Launch at Login** restores
 the app after login. Your device can then move to another Wi-Fi network.
@@ -128,7 +129,7 @@ checking its UI and behavior is a separate step.
 the device receiving the app. The current pairing and deployment flow supports
 iOS and iPadOS; a Mac target will need a separate deployment path.
 
-- **A paired Mac with Xcode and Debagr running.** Remote callers need existing
+- **An Apple-silicon Mac with macOS 26+, Xcode and Debagr running.** Remote callers need existing
   SSH access as the user who owns the pairing and runs Debagr.
 - **A supported device on Wi-Fi, connected through a private VPN.** Complete initial pairing
   and local device configuration before taking it remote. Unlock it for deployment.
@@ -180,8 +181,9 @@ JSON results, and failure recovery.
 ## Development
 
 
-The menu-bar monitor supports macOS 13 or later. The experimental relay's exact
-Network.framework address binding requires macOS 26 or later.
+The local menu-bar inventory supports macOS 13 or later. Remote deployment and
+the experimental relay require macOS 26 or later for exact Network.framework
+address binding. The preview package targets Apple silicon.
 
 ```sh
 swift build
@@ -332,8 +334,11 @@ locked-device recovery, restart, sleep, network changes, revoked trust, and
 clear failure reporting. Developer ID, notarization, storefront, domain, and
 legal-owner setup remain release requirements.
 
-The [launch research](docs/LAUNCH_RESEARCH.md) records channel and pricing
-hypotheses. The [launch-site draft](Marketing/site/index.html) keeps checkout
-closed until the release gates pass.
+The [shipping report](docs/SHIP_STATUS.md) records completed checks and remaining
+release gates. The [launch kit](Marketing/README.md) includes native screenshots,
+landscape and vertical promo videos, launch copy, and sponsorship drafts.
+The [launch-site preview](Marketing/site/index.html) keeps download and funding
+links in preparation until their destinations are verified. Earlier pricing
+hypotheses in [launch research](docs/LAUNCH_RESEARCH.md) are not an announced price.
 
 Debagr is not affiliated with or endorsed by Apple or Tailscale.
