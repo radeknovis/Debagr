@@ -1,6 +1,10 @@
 # Sponsorship channels — ready-to-paste setup
 
-Prepared 22 October 2026. These are drafts; no payment channel has been activated.
+Prepared 22 October 2026. **Selected channels: GitHub Sponsors + Ko-fi.**
+Account activation is explicitly deferred at the owner's request. Keep these
+drafts and disabled payment links ready; do not prompt for login, create
+accounts, or configure payouts until activation is requested. Funding does not
+block releasing the notarized app. No payment channel has been activated.
 The GitHub API confirms that `radeknovis` has no Sponsors listing. The Sponsors
 signup page is open but requires the owner's GitHub confirmation of access.
 No Ko-fi account or handle has been verified.

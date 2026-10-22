@@ -6,20 +6,30 @@ Apple silicon; managed remote deployment requires macOS 26 or later.
 
 ## Publisher credentials
 
-A local ad-hoc build is not a customer release. This Mac has no usable Developer
-ID Application identity, `debagr-notary` is absent, and the GitHub repository has
-no release secrets. The MacBook Pro is currently offline; the reachable minipc
-host is Linux. No private key or credential has been exported or copied.
+The selected publisher is the personal Apple Developer team **Radek Novak**.
+No Developer ID Application certificate or notarization credentials currently
+exist. Start with local Keychain setup; CI signing is optional and can follow
+after a successful local release. No private key has been exported or copied.
 
-The publisher's Apple Developer Account Holder must create or supply a
-**Developer ID Application** certificate and its matching private key. An
+Xcode Settings → Apple Accounts → the personal account → Radek Novak →
+Manage Certificates currently reports **Unable to process request - PLA Update
+available** and says the latest Program License Agreement must be accepted in
+the developer account. The owner must sign in at
+[Apple Developer](https://developer.apple.com/account/), select this personal
+team, and review the agreement. Accept it only if the owner agrees; certificate
+creation cannot continue while Apple blocks this membership resource.
+
+After that account gate is resolved, the publisher's Apple Developer Account
+Holder must create a **Developer ID Application** certificate and its matching
+private key. An
 Apple Development or Apple Distribution certificate does not replace it.
 [Apple Developer ID certificate instructions](https://developer.apple.com/help/account/certificates/create-developer-id-certificates).
 
-In Xcode Settings → Accounts, select the intended publishing team and use
-Manage Certificates → Developer ID Application. If importing an existing
-certificate, import the owner's password-protected P12 into Keychain locally;
-do not send its password or private key in chat. Check availability with:
+In Xcode Settings → Apple Accounts, select the personal **Radek Novak** team,
+open Manage Certificates, and choose Create a certificate → Developer ID
+Application. Keep the generated private key in Keychain. Do not revoke existing
+development certificates, export keys, or provide passwords in chat. Check
+availability with:
 
 ```sh
 security find-identity -v -p codesigning
@@ -70,7 +80,7 @@ Review both Apple logs even on success. Submission records and logs stay in
 artifacts, not public release assets. The release safety test uses mocked Apple
 tools to check sequencing and failures; it cannot establish real notarization.
 
-## GitHub Actions release
+## GitHub Actions release (optional hosted signing)
 
 The private repository currently has no release secrets or configured release
 environment. Prepare a protected `release` environment with a required reviewer
@@ -136,13 +146,15 @@ clean-Mac, Developer ID, Gatekeeper, offline-stapling, or hardware pass.
 
 Open [`Marketing/index.html`](../Marketing/index.html) to review screenshots,
 both video cuts, captions, social graphics, copy and sponsorship drafts. The
-static site stays in preparation until the actual notarized download and live
-funding URLs are supplied. The repository is private; a public release host or
+download link stays in preparation until the actual notarized installer is
+available. Funding activation is explicitly deferred; those links can remain
+in preparation when the app ships. The repository is private; a public release host or
 visibility/license decision is still required. Do not expose its history just
 to make download links work.
 
 Follow [`Marketing/sponsorship/README.md`](../Marketing/sponsorship/README.md)
-for the prepared GitHub Sponsors/Ko-fi profiles and tiers. Owner authentication,
+for the selected GitHub Sponsors and Ko-fi profiles and tiers. Resume account
+activation only when the owner requests it. Owner authentication,
 identity, payout/tax data, agreement acceptance, and provider approval cannot be
 invented. Sponsorship supports development independently of future commercial
 licensing; there is no active paid checkout or announced subscription price.

@@ -4,6 +4,11 @@ Checked 22 October 2026. **Prepared for review; not yet cleared for public relea
 The app, launch kit and signing pipeline are prepared. No notarized customer
 release, public launch, paid checkout, or sponsorship channel has been activated.
 
+Publisher: the personal Apple Developer team **Radek Novak**. No existing
+Developer ID Application certificate or notarization credentials are available.
+GitHub Sponsors and Ko-fi are the selected funding channels; their activation
+is explicitly deferred and does not block releasing the app.
+
 ## Completed and checked
 
 | Area | Evidence |
@@ -32,15 +37,20 @@ browser has not been tested.
 
 | Gate | Current finding | Next concrete step |
 | --- | --- | --- |
-| Developer ID | This Mac has development certificates only; expected notarization profile missing. MacBook Pro is offline; secondary reachable host is Linux. | Publisher imports or creates a Developer ID Application certificate with its private key and stores notary credentials in Keychain; instructions in RELEASE.md |
-| CI credentials | No repository/environment release secrets configured | Supply the six named secrets and intended release environment; run the workflow from the approved version tag |
+| Developer ID | Personal team Radek Novak is visible in Xcode. Certificate access fails with `Unable to process request - PLA Update available`; Apple requires acceptance of its updated Program License Agreement. No distribution certificate or notary credentials exist. | Owner signs in to the Apple Developer account and reviews the agreement. After the owner chooses to accept it, create a Developer ID Application certificate and store notarization credentials locally; see RELEASE.md |
+| CI signing (optional) | No repository/environment release secrets configured | Configure the six secrets only if using hosted signing. A local notarized release can use Keychain credentials without exporting the private key to CI |
 | Fresh device acceptance | Current configured iPhone returned `device_unavailable` on a read-only readiness check | Connect/unlock that phone on Wi-Fi with its private VPN; get authenticated readiness and verify installation and launch with a known signed device build, including SSH and separate-network conditions |
 | Recovery and iPad | Restart/sleep/trust/permission matrix and current iPad remote acceptance are incomplete | Run and record the matrix in RELEASE.md; keep unverified providers and iPad labeled accordingly |
 | Customer installation | No notarized candidate or clean supported Mac available | Install the accepted/stapled candidate from its downloaded DMG on a clean Mac; verify publisher, online/offline Gatekeeper and setup/recovery/uninstall |
-| GitHub Sponsors | Account has not applied; signup stopped at GitHub Confirm access | Owner reauthenticates, completes identity/payout/tax/terms and approval; then publish reviewed tiers and verify its public funding page |
-| Ko-fi | Login required; no owned page or payout connection verified | Owner logs in or creates the page, accepts terms and connects the intended payout account; verify the resulting public page |
 | Public distribution | Repository is private, no production domain or public binary destination confirmed | Choose public binary hosting or an explicit repository visibility/license plan; verify support/private security contacts and update URLs |
 | Policies | Privacy/EULA/support are clearly labeled drafts with owner/legal details missing | Owner supplies the actual publisher/contact details and reviews terms before public distribution or any commercial launch |
+
+## Funding activation deferred
+
+GitHub Sponsors and Ko-fi are selected. Their profiles, tiers, graphics and
+website integration are prepared; authentication, payout setup, provider terms
+and approval are deferred at the owner's request. Keep payment URLs empty and
+resume activation only when requested. Funding is optional for the app release.
 
 ## Handoff
 
@@ -49,8 +59,9 @@ browser has not been tested.
    authenticated deployment or notarization proof.
 3. Follow [`RELEASE.md`](RELEASE.md) for the tagged signing run and clean-Mac
    acceptance. Retain Apple logs and the previous signed installer for rollback.
-4. Set verified download/funding URLs, add production social metadata, verify the
-   site on the intended production host, and approve the draft release and site for publication.
+4. Set the verified download URL, add production social metadata, verify the
+   site on the intended production host, and approve the draft release and site
+   for publication. Leave funding links in preparation until activation resumes.
 
 No Intel/universal build, cellular transport, new updater, paid licensing system,
 or additional cloud backend was added. Updates remain manual for the preview.
