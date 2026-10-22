@@ -60,7 +60,7 @@ struct DeviceProfile: Codable, Equatable {
   }
 
   func validate() throws {
-    guard provider == "tailscale" else {
+    guard let networkProvider = NetworkProvider(rawValue: provider) else {
       throw ProfileError.invalidProvider(provider)
     }
     guard !bonjourName.isEmpty,
@@ -68,7 +68,7 @@ struct DeviceProfile: Codable, Equatable {
     else {
       throw ProfileError.invalidBonjourName
     }
-    guard NetworkSupport.isAllowedTailscaleIPv4(peerIP) else {
+    guard networkProvider.allowsAddress(peerIP) else {
       throw ProfileError.invalidPeerIP(peerIP)
     }
     guard (1...65_535).contains(Int(remotePort)) else {
@@ -106,7 +106,7 @@ enum ProfileError: LocalizedError {
     case .invalidBonjourName:
       return "The Bonjour instance name must be non-empty and single-line."
     case .invalidPeerIP(let ip):
-      return "Profile peerIP is not an allowed Tailscale IPv4 address: \(ip)."
+      return "Profile peerIP is not an allowed private IPv4 address for this provider: \(ip)."
     case .invalidRemotePort(let port):
       return "Invalid remote port: \(port)."
     case .invalidLocalPortRange(let range):

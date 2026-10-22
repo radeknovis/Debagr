@@ -1,6 +1,6 @@
 import Foundation
 
-struct SelectedTailscalePeer: Equatable {
+struct SelectedNetworkPeer: Equatable {
   let hostname: String
   let dnsName: String
   let ipAddress: String
@@ -15,11 +15,13 @@ enum TailscaleError: LocalizedError {
   case peerIsOffline(String)
   case peerHasNoAllowedIPv4(String)
   case ambiguousPeer(String)
+  case notConnected
 
   var errorDescription: String? {
     switch self {
     case .executableNotFound:
-      return "Could not find tailscale in a supported fixed executable path."
+      return
+        "Install the Tailscale app or CLI for Tailscale / Headscale discovery, then sign in or connect to your Headscale server. Other providers can use a private IPv4 address instead."
     case .commandFailed(let status):
       return "tailscale status --json failed with exit status \(status)."
     case .invalidJSON(let details):
@@ -29,9 +31,13 @@ enum TailscaleError: LocalizedError {
     case .peerIsOffline(let name):
       return "The selected Tailscale peer '\(name)' is offline."
     case .peerHasNoAllowedIPv4(let name):
-      return "The selected Tailscale peer '\(name)' has no allowed 100.64.0.0/10 IPv4 address."
+      return
+        "The selected Tailscale peer '\(name)' has no private IPv4 address allowed by the selected provider."
     case .ambiguousPeer(let name):
       return "The explicit Tailscale peer selection '\(name)' matched more than one peer."
+    case .notConnected:
+      return
+        "Open the Tailscale app and sign in or connect it to your Headscale server, then turn the connection on and retry."
     }
   }
 }
@@ -52,10 +58,16 @@ final class TailscaleClient {
 
     enum CodingKeys: String, CodingKey {
       case peers = "Peer"
+      case backendState = "BackendState"
     }
 
     init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
+      if let state = try container.decodeIfPresent(String.self, forKey: .backendState),
+        state != "Running"
+      {
+        throw TailscaleError.notConnected
+      }
       peers = try container.decodeIfPresent([String: Peer].self, forKey: .peers) ?? [:]
     }
   }
@@ -82,13 +94,17 @@ final class TailscaleClient {
     }
   }
 
-  func selectPeer(named requestedName: String) throws -> SelectedTailscalePeer {
+  func selectPeer(named requestedName: String, provider: NetworkProvider = .tailscale) throws
+    -> SelectedNetworkPeer
+  {
     let path = try executablePath()
     let data = try statusJSON(at: path)
 
     let status: Status
     do {
       status = try JSONDecoder().decode(Status.self, from: data)
+    } catch let error as TailscaleError {
+      throw error
     } catch {
       throw TailscaleError.invalidJSON(error.localizedDescription)
     }
@@ -121,12 +137,12 @@ final class TailscaleClient {
       throw TailscaleError.peerIsOffline(displayName)
     }
 
-    guard let ipAddress = peer.tailscaleIPs.first(where: NetworkSupport.isAllowedTailscaleIPv4)
+    guard let ipAddress = peer.tailscaleIPs.first(where: provider.allowsAddress)
     else {
       throw TailscaleError.peerHasNoAllowedIPv4(displayName)
     }
 
-    return SelectedTailscalePeer(
+    return SelectedNetworkPeer(
       hostname: peer.hostname ?? requestedName,
       dnsName: peer.dnsName ?? "",
       ipAddress: ipAddress,
@@ -134,13 +150,19 @@ final class TailscaleClient {
     )
   }
 
-  func onlinePeers() throws -> [SelectedTailscalePeer] {
-    let status = try JSONDecoder().decode(Status.self, from: statusJSON(at: executablePath()))
+  func onlinePeers(provider: NetworkProvider = .tailscale) throws -> [SelectedNetworkPeer] {
+    try Self.onlinePeers(from: statusJSON(at: executablePath()), provider: provider)
+  }
+
+  static func onlinePeers(from data: Data, provider: NetworkProvider = .tailscale) throws
+    -> [SelectedNetworkPeer]
+  {
+    let status = try JSONDecoder().decode(Status.self, from: data)
     return status.peers.values.compactMap { peer in
       guard peer.online == true,
-        let ip = peer.tailscaleIPs.first(where: NetworkSupport.isAllowedTailscaleIPv4)
+        let ip = peer.tailscaleIPs.first(where: provider.allowsAddress)
       else { return nil }
-      return SelectedTailscalePeer(
+      return SelectedNetworkPeer(
         hostname: peer.hostname ?? ip, dnsName: peer.dnsName ?? "",
         ipAddress: ip, online: true)
     }.sorted { $0.dnsName < $1.dnsName }

@@ -2,6 +2,15 @@
 
 Updated 22 September 2026.
 
+## Provider support update — 22 October 2026
+
+Tailscale and Headscale have online-device discovery through the Tailscale client.
+ZeroTier, NetBird, and WireGuard accept an explicit private VPN IPv4 address in
+setup and the CLI. These alternative-provider paths are implemented and covered
+by automated tests; real-hardware remote deployment acceptance remains pending.
+Only Tailscale has prior remote iPhone install-and-launch evidence.
+See [provider setup and address restrictions](NETWORK_PROVIDERS.md).
+
 ## Technical preview
 
 | Capability | Status | Supported environment |

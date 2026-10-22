@@ -2,7 +2,7 @@ import Foundation
 
 enum AgentCLI {
   static let recovery =
-    "Open Debagr on the paired Build Server and connect the configured device. Keep the iPhone unlocked, on Wi-Fi, with Tailscale connected. Re-pair over USB if trust was revoked."
+    "Open Debagr on the paired Build Server and connect the configured device. Keep the device unlocked, on Wi-Fi, with its selected VPN connected. Re-pair over USB if trust was revoked."
 
   static func waitUntilReady(
     deviceIdentifier: String, timeout: TimeInterval,
@@ -38,7 +38,8 @@ enum AgentCLI {
         devices.append(
           TargetDevice(
             identity: .apple(pairedMacNodeID: "local", identifier: configured.deviceIdentifier),
-            displayName: configured.displayName, kind: .iPhone, service: nil, status: .unavailable))
+            displayName: configured.displayName, kind: configured.kind ?? .unknown,
+            service: nil, status: .unavailable))
       }
       emit(
         [
@@ -61,6 +62,7 @@ enum AgentCLI {
           "configured": configured?.deviceIdentifier == identifier,
           "developerToolsAvailable": ProductSupport.developerToolsAvailable,
           "tailscaleInstalled": TailscaleClient.installedExecutablePath() != nil,
+          "networkProvider": configured?.profile.provider ?? "none",
         ],
         operation: command, options: options)
     case "configure":
@@ -69,22 +71,25 @@ enum AgentCLI {
       guard let device = devices.first(where: { $0.identity.value == identifier }) else {
         throw CLIError.missingDevice
       }
-      let peer = try TailscaleClient().selectPeer(named: options.peerName!)
+      let peer = try options.provider.resolvePeer(options.peerName!)
       let profile: DeviceProfile
       if let host = options.bonjourHost {
         profile = try DirectDeviceApplication.capturedProfile(
-          peerName: options.peerName!, host: host, timeout: options.timeout)
+          peerName: options.peerName!, host: host, timeout: options.timeout,
+          provider: options.provider)
       } else if let imported = try ProfileStore(url: options.profileURL).load() {
         profile = imported
       } else {
         throw CLIError.invalidDirectDeviceOptions
       }
-      guard profile.peerIP == peer.ipAddress else { throw CLIError.invalidDirectDeviceOptions }
+      guard profile.peerIP == peer.ipAddress, profile.provider == options.provider.rawValue else {
+        throw CLIError.invalidDirectDeviceOptions
+      }
       try store.save(
         ConfiguredDevice(
           deviceIdentifier: identifier, displayName: device.displayName,
           peerName: peer.dnsName.isEmpty ? peer.ipAddress : peer.dnsName,
-          interfaceName: options.interfaceName, profile: profile))
+          interfaceName: options.interfaceName, profile: profile, kind: device.kind))
       emit(
         [
           "state": "configured", "deviceIdentifier": identifier,
@@ -130,13 +135,13 @@ enum AgentCLI {
     case DeviceDeploymentError.launchFailed(let identifier):
       code = "launch_failed"
       message = error.localizedDescription
-      recovery = "Installation succeeded. Unlock the phone and retry launch only using devicectl."
+      recovery = "Installation succeeded. Unlock the device and retry launch only using devicectl."
       installed = true
       bundleIdentifier = identifier
     case DeviceDeploymentError.deviceLocked:
       code = "device_locked"
       message = error.localizedDescription
-      recovery = "Unlock the selected iPhone and keep it awake, then retry --status."
+      recovery = "Unlock the selected device and keep it awake, then retry --status."
       exitCode = 2
     case DeviceDeploymentError.commandFailed(let arguments, _):
       if arguments.contains("lockState") {
@@ -153,6 +158,12 @@ enum AgentCLI {
       message = error.localizedDescription
       recovery = "Connect both endpoints to Tailscale and select the unique peer for this device."
       exitCode = 2
+    case is ProfileError:
+      code = "invalid_profile"
+      message = error.localizedDescription
+      recovery =
+        "Select a supported provider and the device's private VPN IPv4 address. Public, loopback, link-local, and IPv6 addresses are unsupported."
+      exitCode = 64
     case is ManagedDeviceError:
       code = "relay_already_running"
       message = error.localizedDescription
@@ -183,6 +194,7 @@ enum AgentCLI {
         "developerToolsAvailable": ProductSupport.developerToolsAvailable,
         "tailscaleInstalled": TailscaleClient.installedExecutablePath() != nil,
         "remoteConfigured": (try? ManagedDeviceStore().load()) != nil,
+        "networkProvider": (try? ManagedDeviceStore().load())?.profile.provider ?? "none",
       ]
     }
     return (object, exitCode)

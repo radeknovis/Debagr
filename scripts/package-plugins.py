@@ -24,9 +24,12 @@ def main():
 
     skill = "Skills/debagr-deploy/SKILL.md"
     common = {
-        "README.md": (root / "docs/PLUGINS.md").read_bytes(),
+        "README.md": (root / "docs/PLUGINS.md").read_text().replace(
+            "](NETWORK_PROVIDERS.md)", "](docs/NETWORK_PROVIDERS.md)"
+        ).encode(),
         "docs/AI_DEPLOYMENT.md": (root / "docs/AI_DEPLOYMENT.md").read_bytes(),
         "docs/PLUGINS.md": (root / "docs/PLUGINS.md").read_bytes(),
+        "docs/NETWORK_PROVIDERS.md": (root / "docs/NETWORK_PROVIDERS.md").read_bytes(),
     }
     for path in sorted((root / "Skills/debagr-deploy").rglob("*")):
         assert not path.is_symlink(), "Plugin resources must be self-contained"

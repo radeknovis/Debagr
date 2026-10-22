@@ -145,8 +145,7 @@ enum NetworkSupport {
   }
 
   /// Tailscale's normal IPv4 allocation is CGNAT space (100.64.0.0/10).
-  /// Restricting the relay destination to that range prevents a profile or
-  /// future input path from turning this tool into a generic TCP proxy.
+  /// Tailscale profiles and the legacy relay lab keep this stricter destination policy.
   static func isAllowedTailscaleIPv4(_ address: String) -> Bool {
     guard let value = ipv4Value(address) else { return false }
     let lower: UInt32 = (100 << 24) | (64 << 16)
@@ -154,12 +153,22 @@ enum NetworkSupport {
     return (lower...upper).contains(value)
   }
 
+  static func isAllowedPrivateVPNIPv4(_ address: String) -> Bool {
+    guard let value = ipv4Value(address) else { return false }
+    let first = value >> 24
+    let second = (value >> 16) & 255
+    return first == 10 || (first == 172 && (16...31).contains(second))
+      || (first == 192 && second == 168) || isAllowedTailscaleIPv4(address)
+  }
+
   private static func ipv4Value(_ address: String) -> UInt32? {
     let components = address.split(separator: ".", omittingEmptySubsequences: false)
     guard components.count == 4 else { return nil }
 
     let octets = components.compactMap { UInt32($0) }
-    guard octets.count == 4, octets.allSatisfy({ $0 <= 255 }) else { return nil }
+    guard octets.count == 4, octets.allSatisfy({ $0 <= 255 }),
+      zip(components, octets).allSatisfy({ String($0.1) == $0.0 })
+    else { return nil }
 
     return (octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]
   }

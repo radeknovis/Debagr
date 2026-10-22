@@ -1,7 +1,7 @@
 import Foundation
 import Network
 
-/// Publishes a local proxy and relays directly to the device's tailnet address.
+/// Publishes a local proxy and relays directly to the device's private VPN address.
 /// Reachability and an advertisement alone do not prove a usable CoreDevice tunnel.
 final class DirectDeviceApplication: ApplicationLifecycle {
   private let options: CommandLineOptions
@@ -33,7 +33,8 @@ final class DirectDeviceApplication: ApplicationLifecycle {
     guard let peerName = options.peerName, let host = options.bonjourHost else {
       throw CLIError.invalidDirectDeviceOptions
     }
-    let profile = try capturedProfile(peerName: peerName, host: host, timeout: options.timeout)
+    let profile = try capturedProfile(
+      peerName: peerName, host: host, timeout: options.timeout, provider: options.provider)
     try ProfileStore(url: options.profileURL).save(profile)
     print(
       "Captured Target Device service on port \(profile.remotePort) for \(profile.peerIP). TXT values are not logged."
@@ -41,10 +42,12 @@ final class DirectDeviceApplication: ApplicationLifecycle {
     print("Keep this profile private. Recapture if the device's service identity or port changes.")
   }
 
-  static func capturedProfile(peerName: String, host: String, timeout: TimeInterval) throws
+  static func capturedProfile(
+    peerName: String, host: String, timeout: TimeInterval, provider: NetworkProvider = .tailscale
+  ) throws
     -> DeviceProfile
   {
-    let peer = try TailscaleClient().selectPeer(named: peerName)
+    let peer = try provider.resolvePeer(peerName)
     let capture = BonjourCapture()
     defer { capture.stop() }
     let completed = DispatchSemaphore(value: 0)
@@ -60,7 +63,7 @@ final class DirectDeviceApplication: ApplicationLifecycle {
     return DeviceProfile(
       bonjourName: device.instanceName,
       bonjourTXT: device.txt,
-      provider: "tailscale",
+      provider: provider.rawValue,
       peerIP: peer.ipAddress,
       remotePort: device.port,
       localPortRange: DeviceProfile.defaultLocalPortRange
@@ -68,7 +71,7 @@ final class DirectDeviceApplication: ApplicationLifecycle {
   }
 
   static func makeProxy(
-    profile: DeviceProfile, peer: SelectedTailscalePeer,
+    profile: DeviceProfile, peer: SelectedNetworkPeer,
     interfaceName: String, localIP: String, localPort: UInt16
   ) throws -> BonjourProxy {
     try profile.validate()
@@ -89,7 +92,9 @@ final class DirectDeviceApplication: ApplicationLifecycle {
     guard let peerName = options.peerName,
       let profile = try configuredProfile ?? ProfileStore(url: options.profileURL).load()
     else { throw CLIError.invalidDirectDeviceOptions }
-    let peer = try TailscaleClient().selectPeer(named: peerName)
+    try profile.validate()
+    let provider = NetworkProvider(rawValue: profile.provider)!
+    let peer = try provider.resolvePeer(peerName)
     let binding = try NetworkSupport.resolveInterface(named: options.interfaceName)
     // Validate the selected device before opening any listeners.
     let proxy = try Self.makeProxy(
@@ -154,7 +159,7 @@ final class DirectDeviceApplication: ApplicationLifecycle {
   }
 
   private func startRelay(
-    port: UInt16, binding: InterfaceBinding, peer: SelectedTailscalePeer
+    port: UInt16, binding: InterfaceBinding, peer: SelectedNetworkPeer
   ) throws {
     guard pairs[port] == nil else { return }
     let pair = try RelayPair(

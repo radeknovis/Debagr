@@ -8,6 +8,7 @@ struct ConfiguredDevice: Codable, Equatable {
   var interfaceName: String = "auto"
   var enabled: Bool = true
   var profile: DeviceProfile
+  var kind: TargetDeviceKind? = nil
 
   func validate() throws {
     guard !deviceIdentifier.isEmpty, !peerName.isEmpty,
@@ -23,6 +24,7 @@ struct ConfiguredDevice: Codable, Equatable {
       && interfaceName == other.interfaceName && profile.bonjourName == other.profile.bonjourName
       && profile.bonjourTXT == other.profile.bonjourTXT && profile.peerIP == other.profile.peerIP
       && profile.remotePort == other.profile.remotePort
+      && profile.provider == other.profile.provider
   }
 }
 
@@ -147,7 +149,7 @@ final class ManagedDeviceRuntime {
   func refresh() throws -> String {
     guard let device = try store.load() else {
       stop()
-      return "Configure a remote iPhone…"
+      return "Set up a remote device…"
     }
     guard device.enabled else {
       stop()

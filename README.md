@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  Ask Claude Code or Codex to install and launch your signed app on your iPhone.<br />
-  Even when your phone and its paired Mac are on separate Wi-Fi networks.
+  Ask Claude Code or Codex to install and launch your signed app on your device.<br />
+  Even when your device and its paired Mac are on separate Wi-Fi networks.
 </p>
 
 <p align="center">
@@ -22,26 +22,26 @@
 
 ---
 
-Leave your build Mac running at home or in the office. Take your iPhone to
+Leave your build Mac running at home or in the office. Take your device to
 another Wi-Fi network, ask your coding agent for a deployment, and try the
-latest build on the phone in your hand.
+latest build on the device in your hand.
 
 Debagr is a native macOS menu-bar app that connects this workflow through
-Tailscale. It runs on the Mac already paired with your iPhone; your agent invokes
+your private VPN. It runs on the Mac already paired with your device; your agent invokes
 its CLI locally or through SSH. Your existing Xcode build and signing workflow
 stays in place.
 
 > **Technical preview.** Install and launch have been verified on an iPhone
 > across separate Wi-Fi networks. Initial USB pairing and local configuration
-> are required. Keep the paired Mac running with Debagr open, and the iPhone on
-> Wi-Fi with Tailscale connected. Cellular-only operation is unsupported.
+> are required. Keep the paired Mac running with Debagr open, and the device on
+> Wi-Fi with its VPN connected. Cellular-only operation is unsupported.
 
 ## How it works
 
 ```mermaid
 flowchart LR
     Agent["Claude Code or Codex<br/>Your computer"] -->|SSH| Mac["Your paired Mac<br/>Debagr + Xcode"]
-    Mac -->|Tailscale| Phone["Your iPhone<br/>On another Wi-Fi network"]
+    Mac -->|Private VPN| Device["Your device<br/>On another Wi-Fi network"]
 ```
 
 The agent can run on a third computer, or directly on the paired Mac. The Mac
@@ -58,23 +58,42 @@ is locked or unavailable.
 Apple pairing stays with its original Mac. Debagr deploys through that Mac;
 remote devices do not become Xcode run destinations on the agent's computer.
 
+## Network providers
+
+| Provider | Device selection | Verification |
+| --- | --- | --- |
+| Tailscale | Automatic online-device list | Remote install and launch previously verified on hardware |
+| Headscale | Automatic list through the Tailscale client connected to your server | Implemented; hardware validation pending |
+| ZeroTier | Enter the device's private VPN IPv4 address | Implemented; hardware validation pending |
+| NetBird | Enter the device's private VPN IPv4 address | Implemented; hardware validation pending |
+| WireGuard | Enter the device's private tunnel IPv4 address | Implemented; hardware validation pending |
+
+Install and connect your VPN on both devices first. Debagr uses that connection;
+it does not create provider accounts or configure tunnels. See the
+[provider setup guide](docs/NETWORK_PROVIDERS.md) for requirements and CLI examples.
+
 ## Get started
 
-### 1. Set up your Mac and iPhone once
+### 1. Set up your Mac and device once
+
+Setup opens in a resizable Debagr window with a single form for network and device selection, inline
+validation, and progress. Tailscale and Headscale device lists load automatically
+when selected; other providers use an address field.
 
 Build Debagr using the [source instructions below](#development), then install
 `Debagr.app` in `/Applications` on the Mac that will deploy your builds. The
 [release runbook](docs/RELEASE.md) covers Developer ID signing and notarization
 for distribution.
 
-Install Xcode, pair your iPhone over USB, grant trust, and enable Developer Mode.
-Connect the Mac and iPhone to Tailscale. While the phone's Bonjour service is
-available locally, open Debagr and choose **Configure Remote iPhone…**. Select
-the Apple device, its Bonjour service, and the same phone in Tailscale, then
+Install Xcode, pair your device over USB, grant trust, and enable Developer Mode.
+Connect the Mac and device through your chosen private VPN. While the device's Bonjour service is
+available locally, open Debagr and choose **Set Up Remote Device…**. Select
+your VPN provider, the Apple device, its Bonjour service, and the same device’s
+VPN device or private IPv4 address, then
 choose **Connect Remote Device**.
 
 Leave Debagr open in that user's logged-in session. **Launch at Login** restores
-the app after login. Your iPhone can then move to another Wi-Fi network.
+the app after login. Your device can then move to another Wi-Fi network.
 
 ### 2. Install your agent plugin
 
@@ -87,11 +106,11 @@ with the app. Use either the plugin or the standalone skill in each client.
 
 ### 3. Ask for a deployment
 
-Give your agent the Mac's SSH alias, intended iPhone, and either the project's
+Give your agent the Mac's SSH alias, intended device, and either the project's
 build instructions or the path to an existing signed device `.app` on that Mac:
 
 > Use Debagr on `build-server` to install and launch
-> `/Users/me/Builds/MyApp.app` on my iPhone. The phone is on another Wi-Fi network.
+> `/Users/me/Builds/MyApp.app` on my target device. The device is on another Wi-Fi network.
 
 The agent checks readiness before deploying and confirms installation and
 launch separately. A confirmed launch establishes that the app started;
@@ -99,12 +118,22 @@ checking its UI and behavior is a separate step.
 
 ## Requirements and current limits
 
+| Target | Current scope |
+| --- | --- |
+| iPhone | Implemented; prior remote install-and-launch evidence over Tailscale |
+| iPad | Implemented; full remote hardware acceptance remains pending |
+| Mac | Possible future target; macOS app deployment is not implemented |
+
+“Build Mac” means the computer running Debagr and Xcode. “Target device” means
+the device receiving the app. The current pairing and deployment flow supports
+iOS and iPadOS; a Mac target will need a separate deployment path.
+
 - **A paired Mac with Xcode and Debagr running.** Remote callers need existing
   SSH access as the user who owns the pairing and runs Debagr.
-- **An iPhone on Wi-Fi, connected through Tailscale.** Complete initial pairing
+- **A supported device on Wi-Fi, connected through a private VPN.** Complete initial pairing
   and local device configuration before taking it remote. Unlock it for deployment.
 - **A signed device build on the paired Mac.** Use your project's existing build
-  workflow; simulator builds cannot be installed on an iPhone.
+  workflow; simulator builds cannot be installed on a device.
 - **One managed remote device.** Ordinary local Apple-device deployment remains
   available. The full remote hardware acceptance matrix is still pending.
 
@@ -239,7 +268,7 @@ If more than one Target Device is present, constrain the captured service:
 ```sh
 debagr --forward-remote \
   --peer developer-mac \
-  --bonjour-host My-iPhone.local \
+  --bonjour-host My-Device.local \
   --remote-port 49152
 ```
 
@@ -277,7 +306,8 @@ Target Device directly, which prevents a shared-LAN false positive.
 
 - Tailscale is resolved only from fixed executable paths and a selected peer
   must be online.
-- Relay destinations are restricted to the peer's `100.64.0.0/10` IPv4 address.
+- Tailscale profiles and the legacy relay lab restrict destinations to `100.64.0.0/10`.
+  Alternative-provider profiles accept explicitly selected RFC1918 or CGNAT IPv4 addresses.
 - Listeners bind to the selected local interface, not `0.0.0.0`.
 - By default, only this Mac's local interface address and loopback are accepted.
   `--allow-lan` is an explicit opt-in.

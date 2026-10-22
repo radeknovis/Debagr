@@ -96,7 +96,8 @@ final class ParserTests: XCTestCase {
       provider: "tailscale", peerIP: "100.64.0.2", remotePort: 49152,
       localPortRange: [55000, 58000])
     let device = ConfiguredDevice(
-      deviceIdentifier: "udid", displayName: "Phone", peerName: "phone.test", profile: profile)
+      deviceIdentifier: "udid", displayName: "iPad", peerName: "ipad.test", profile: profile,
+      kind: .iPad)
     try store.save(device)
     XCTAssertEqual(try store.load(), device)
     try store.toggleEnabled()
@@ -112,6 +113,24 @@ final class ParserTests: XCTestCase {
       updated.profile = learned
       XCTAssertTrue(device.hasSameConnection(as: updated))
     }
+  }
+
+  func testLegacyManagedConfigurationLoadsWithoutAssumingIPhone() throws {
+    let profile = DeviceProfile(
+      bonjourName: "device", bonjourTXT: ["authTag": "test"],
+      provider: "tailscale", peerIP: "100.64.0.2", remotePort: 49152,
+      localPortRange: [55000, 58000])
+    let device = ConfiguredDevice(
+      deviceIdentifier: "udid", displayName: "iPad", peerName: "ipad.test", profile: profile,
+      kind: .iPad)
+    let data = try JSONEncoder().encode(device)
+    XCTAssertEqual(try JSONDecoder().decode(ConfiguredDevice.self, from: data).kind, .iPad)
+    var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    legacy.removeValue(forKey: "kind")
+    let decoded = try JSONDecoder().decode(
+      ConfiguredDevice.self, from: JSONSerialization.data(withJSONObject: legacy))
+    XCTAssertNil(decoded.kind)
+    XCTAssertNoThrow(try decoded.validate())
   }
 
   func testAgentWaitIsBoundedAndStructuredErrorsAreActionable() throws {
@@ -165,7 +184,7 @@ final class ParserTests: XCTestCase {
   }
 
   func testDirectDeviceRequiresProfileForSelectedPeerAndCapturedIdentity() throws {
-    let peer = SelectedTailscalePeer(
+    let peer = SelectedNetworkPeer(
       hostname: "iphone", dnsName: "iphone.test", ipAddress: "100.64.0.1", online: true)
     func profile(ip: String, txt: [String: String]) -> DeviceProfile {
       DeviceProfile(

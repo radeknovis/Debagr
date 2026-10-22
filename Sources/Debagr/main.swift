@@ -22,7 +22,7 @@ enum CLIError: LocalizedError {
     case .unknownOption(let option):
       return "Unknown option: \(option)."
     case .missingPeer:
-      return "An explicit peer selection is required: --peer <hostname>."
+      return "An explicit peer selection is required: --peer <hostname-or-private-IPv4>."
     case .missingRemotePort:
       return "Provide --remote-port <port> initially, or use a profile containing remotePort."
     case .missingDevice:
@@ -34,7 +34,7 @@ enum CLIError: LocalizedError {
     case .invalidTimeout(let value):
       return "Invalid timeout: \(value)."
     case .discoveryTimedOut:
-      return "No physical iPhone or iPad was found by devicectl or Bonjour before the timeout."
+      return "No supported physical device was found by devicectl or Bonjour before the timeout."
     case .remotePortMismatch(let discovered, let requested):
       return "Captured RemotePairing port \(discovered), but --remote-port requested \(requested)."
     case .invalidDirectDeviceOptions:
@@ -68,6 +68,7 @@ struct CommandLineOptions {
   var directDevice: Bool = false
   var agentCommand: String?
   var json: Bool = false
+  var provider: NetworkProvider = .tailscale
 
   static func parse(_ arguments: [String]) throws -> CommandLineOptions {
     var peerName: String?
@@ -90,6 +91,7 @@ struct CommandLineOptions {
     var directDevice = false
     var agentCommand: String?
     var json = false
+    var provider = NetworkProvider.tailscale
 
     var index = 0
     while index < arguments.count {
@@ -125,6 +127,12 @@ struct CommandLineOptions {
         forwardRemote = true
       case "--peer":
         peerName = try requiredValue(for: argument, arguments: arguments, index: &index)
+      case "--provider":
+        let value = try requiredValue(for: argument, arguments: arguments, index: &index)
+        guard let parsed = NetworkProvider(rawValue: value) else {
+          throw ProfileError.invalidProvider(value)
+        }
+        provider = parsed
       case "--remote-port":
         let value = try requiredValue(for: argument, arguments: arguments, index: &index)
         remotePort = try parsePort(value)
@@ -192,6 +200,12 @@ struct CommandLineOptions {
       throw CLIError.conflictingCommands
     }
 
+    if arguments.contains("--provider"),
+      !captureDeviceProfile && agentCommand != "configure"
+    {
+      throw CLIError.conflictingCommands
+    }
+
     return CommandLineOptions(
       peerName: peerName,
       remotePort: remotePort,
@@ -212,7 +226,8 @@ struct CommandLineOptions {
       captureDeviceProfile: captureDeviceProfile,
       directDevice: directDevice,
       agentCommand: agentCommand,
-      json: json
+      json: json,
+      provider: provider
     )
   }
 
@@ -521,9 +536,9 @@ func printUsage() {
       debagr --devices --json
       debagr --status --device <UDID> --timeout 30 --json
       debagr --diagnose --device <UDID> --json
-      debagr --configure --device <UDID> --peer <iPhone-hostname> --bonjour-host <local-host> [--json]
-      debagr --capture-device-profile --peer <iPhone-hostname> --bonjour-host <local-host> --profile <path>
-      debagr --direct-device --peer <iPhone-hostname> --profile <path>
+      debagr --configure --device <UDID> --peer <name-or-VPN-IP> --bonjour-host <local-host> [--json]
+      debagr --capture-device-profile --peer <name-or-VPN-IP> --bonjour-host <local-host> --profile <path>
+      debagr --direct-device --peer <name-or-VPN-IP> --profile <path>
       debagr --deploy-app <path> --device <UDID> [--launch] [--json]
       debagr --peer <tailscale-hostname> --remote-port <port> [options]
       debagr --forward-remote --peer <tailscale-hostname> [options]
@@ -535,9 +550,11 @@ func printUsage() {
       --status              Verify trusted connectivity and unlocked state, retrying until --timeout
       --diagnose            Same verified check, with recovery instructions on failure
       --configure           Save one remote device, capturing Bonjour or importing --profile
+      --provider <name>     Setup/capture provider: tailscale (default), headscale, zerotier, netbird, wireguard
+                            --peer is a device name for Tailscale/Headscale, a private IPv4 for other providers
       --json                Emit one versioned JSON result on stdout; failures have nonzero exit codes
       --capture-device-profile Capture the local Target Device service before roaming
-      --direct-device       Proxy the captured service and tunnel ports to the Target Device's Tailscale IP
+      --direct-device       Proxy to the device's VPN IP using the provider saved in its profile
       --deploy-app <path>   Install a signed device .app from this paired Mac
       --device <UDID>       Explicit paired Target Device for deployment
       --launch              Launch the app after a confirmed installation
@@ -551,9 +568,9 @@ func printUsage() {
       --menu-bar            Run the automatic multi-device menu-bar inventory
       --help                Show this help
 
-    The relay destination is always the explicitly selected online Tailscale
-    peer's 100.64.0.0/10 IPv4 address. Bonjour data is never used as a
-    destination host or port.
+    Direct-device profiles require an explicitly selected private VPN IPv4 address.
+    Tailscale profiles and the experimental relay lab keep the 100.64.0.0/10 policy.
+    Other providers accept RFC1918 or CGNAT IPv4; public and link-local destinations are rejected.
     """
   )
 }
