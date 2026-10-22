@@ -11,25 +11,26 @@ No Developer ID Application certificate or notarization credentials currently
 exist. Start with local Keychain setup; CI signing is optional and can follow
 after a successful local release. No private key has been exported or copied.
 
-Xcode Settings → Apple Accounts → the personal account → Radek Novak →
-Manage Certificates currently reports **Unable to process request - PLA Update
-available** and says the latest Program License Agreement must be accepted in
-the developer account. The owner must sign in at
-[Apple Developer](https://developer.apple.com/account/), select this personal
-team, and review the agreement. Accept it only if the owner agrees; certificate
-creation cannot continue while Apple blocks this membership resource.
+The owner accepted the updated Program License Agreement on 22 October 2026;
+certificate access is restored. Xcode's certificate creation menu remains
+disabled, but the personal team's Apple Developer portal permits a new
+**Developer ID Application** request. No certificate has been issued yet.
 
-After that account gate is resolved, the publisher's Apple Developer Account
-Holder must create a **Developer ID Application** certificate and its matching
-private key. An
-Apple Development or Apple Distribution certificate does not replace it.
+The publisher's Apple Developer Account Holder must create that certificate
+and its matching private key. An Apple Development or Apple Distribution
+certificate does not replace it.
 [Apple Developer ID certificate instructions](https://developer.apple.com/help/account/certificates/create-developer-id-certificates).
 
-In Xcode Settings → Apple Accounts, select the personal **Radek Novak** team,
-open Manage Certificates, and choose Create a certificate → Developer ID
-Application. Keep the generated private key in Keychain. Do not revoke existing
-development certificates, export keys, or provide passwords in chat. Check
-availability with:
+Use Xcode Settings → Apple Accounts → Radek Novak → Manage Certificates →
+Create a certificate → Developer ID Application when available. Otherwise use
+Keychain Access → Certificate Assistant → Request a Certificate From a
+Certificate Authority, save the CSR to disk, and upload it to the personal
+team's Developer ID Application request. Select the G2 intermediary for current
+Xcode, download the issued certificate and import it into the same Keychain.
+[Apple CSR instructions](https://developer.apple.com/help/account/certificates/create-a-certificate-signing-request).
+
+Keep the private key in the login Keychain. Do not revoke existing development
+certificates, export keys, or provide passwords in chat. Check availability with:
 
 ```sh
 security find-identity -v -p codesigning
