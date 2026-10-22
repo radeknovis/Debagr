@@ -26,6 +26,7 @@ final class DeviceSetupModel: ObservableObject {
   var onRefresh: (() -> Void)?
   var onClose: (() -> Void)?
   var onImport: (() -> Void)?
+  var onShowSkill: (() -> Void)?
   private let queue = DispatchQueue(label: "debagr.device-setup")
   private var discoveryGeneration = 0
 
@@ -57,6 +58,12 @@ final class DeviceSetupModel: ObservableObject {
     devices.contains { $0.identity.value == deviceID }
       && peers.contains { $0.ipAddress == peerIP }
       && (importedProfile != nil || serviceHosts.contains(serviceHost))
+  }
+
+  var deploymentPrompt: String {
+    let target = deviceID.isEmpty ? "my target device" : "device \(deviceID)"
+    return
+      "Use Debagr on my build Mac to check \(target)'s readiness, then install and launch /absolute/path/MyApp.app. Confirm installation and launch separately. If blocked, explain the next action."
   }
 
   func loadPeers() {
@@ -164,11 +171,11 @@ final class DeviceSetupWindowController: NSWindowController, NSWindowDelegate {
   init(configured: ConfiguredDevice?) {
     model = DeviceSetupModel(configured: configured)
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 760, height: 740),
+      contentRect: NSRect(x: 0, y: 0, width: 840, height: 760),
       styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered, defer: false)
-    window.title = "Debagr — Remote Device"
-    window.contentMinSize = NSSize(width: 640, height: 580)
+    window.title = "Debagr Settings"
+    window.contentMinSize = NSSize(width: 800, height: 640)
     window.isReleasedWhenClosed = false
     window.contentView = NSHostingView(rootView: DeviceSetupView(model: model))
     window.center()
@@ -211,198 +218,458 @@ final class DeviceSetupWindowController: NSWindowController, NSWindowDelegate {
   }
 }
 
+private enum SettingsStyle {
+  static let accent = Color(red: 0.09, green: 0.39, blue: 0.94)
+  static let surface = Color(nsColor: .textBackgroundColor)
+  static let border = Color(nsColor: .separatorColor).opacity(0.5)
+}
+
 private struct DeviceSetupView: View {
   @ObservedObject var model: DeviceSetupModel
 
   var body: some View {
     VStack(spacing: 0) {
-      SetupHeader(page: model.page)
-      Divider()
-      switch model.page {
-      case .guide: SetupGuideView()
-      case .setup: SetupConnectionForm(model: model)
-      case .saved: SetupSavedView()
+      NavigationSplitView {
+        SettingsSidebar(model: model)
+          .navigationSplitViewColumnWidth(min: 170, ideal: 180, max: 210)
+      } detail: {
+        VStack(spacing: 0) {
+          switch model.page {
+          case .guide: AgentToolsView(model: model)
+          case .setup: DeviceConnectionView(model: model)
+          case .saved: SetupSavedView(model: model)
+          }
+          if let error = model.error {
+            Label(error, systemImage: "exclamationmark.triangle.fill")
+              .font(.callout).foregroundStyle(.red).textSelection(.enabled)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(16).background(Color.red.opacity(0.06))
+          }
+          if model.page == .setup { ConnectionActions(model: model) }
+        }
+        .background(SettingsStyle.surface)
       }
-      if let error = model.error {
-        Label(error, systemImage: "exclamationmark.triangle.fill")
-          .font(.callout).foregroundStyle(.red).textSelection(.enabled)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding().background(Color.red.opacity(0.06))
-      }
+      .navigationSplitViewStyle(.balanced)
       Divider()
-      SetupFooter(model: model)
+      HStack(spacing: 8) {
+        Image(systemName: "info.circle")
+        Text("Keep this Mac running. Device Wi-Fi is required; cellular-only is unsupported.")
+        Spacer(minLength: 0)
+      }
+      .font(.system(size: 11)).foregroundStyle(.secondary)
+      .padding(.horizontal, 16).padding(.vertical, 11)
+      .background(SettingsStyle.surface)
     }
-    .frame(minWidth: 640, minHeight: 580)
+    .tint(SettingsStyle.accent)
+    .frame(minWidth: 800, minHeight: 640)
+  }
+}
+
+private struct DebagrMark: View {
+  var body: some View {
+    HStack(spacing: 9) {
+      Image(systemName: "antenna.radiowaves.left.and.right")
+        .font(.system(size: 15, weight: .medium))
+        .foregroundStyle(SettingsStyle.surface)
+        .frame(width: 29, height: 29)
+        .background(Color.primary, in: RoundedRectangle(cornerRadius: 7))
+        .accessibilityHidden(true)
+      Text("Debagr").font(.system(size: 15, weight: .semibold))
+    }
+  }
+}
+
+private struct SettingsSidebar: View {
+  @ObservedObject var model: DeviceSetupModel
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      DebagrMark().padding(.horizontal, 20).padding(.top, 25)
+      VStack(spacing: 6) {
+        SettingsNavigationItem(
+          title: "Device setup", symbol: "iphone",
+          isSelected: model.page != .guide
+        ) {
+          model.page = .setup
+          model.error = nil
+        }
+        SettingsNavigationItem(
+          title: "Agent tools", symbol: "terminal",
+          isSelected: model.page == .guide
+        ) {
+          model.page = .guide
+          model.error = nil
+        }
+      }
+      .padding(.horizontal, 12).disabled(model.isWorking)
+      Spacer(minLength: 0)
+      VStack(alignment: .leading, spacing: 6) {
+        Text(model.page == .guide ? "Built for your workflow" : "Technical preview")
+          .font(.system(size: 11, weight: .medium))
+        Text(
+          model.page == .guide
+            ? "Claude Code, Codex,\nor your terminal." : "One Mac.\nOne remote device."
+        )
+        .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+      }
+      .padding(.horizontal, 20).padding(.bottom, 24)
+    }
     .background(Color(nsColor: .windowBackgroundColor))
   }
 }
 
-private struct SetupHeader: View {
-  let page: DeviceSetupModel.Page
+private struct SettingsNavigationItem: View {
+  let title: String
+  let symbol: String
+  let isSelected: Bool
+  let action: () -> Void
 
   var body: some View {
-    HStack(spacing: 16) {
-      Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
-        .resizable().scaledToFit().frame(width: 56, height: 56).accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 5) {
-        Text(page == .guide ? "Your next build comes with you." : "Set Up Remote Device")
-          .font(.title2.weight(.semibold))
-        Text("Keep your build Mac at home. Reach your device on another network.")
-          .font(.callout).foregroundStyle(.secondary)
-        if page == .saved {
-          Text("Setup saved").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-        }
-      }
-      Spacer(minLength: 0)
+    Button(action: action) {
+      Label(title, systemImage: symbol)
+        .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10).padding(.vertical, 10)
+        .foregroundStyle(isSelected ? SettingsStyle.accent : Color.primary)
+        .background(
+          isSelected ? SettingsStyle.accent.opacity(0.09) : Color.clear,
+          in: RoundedRectangle(cornerRadius: 7))
     }
-    .padding(24)
+    .buttonStyle(.plain).accessibilityValue(isSelected ? "Selected" : "")
   }
 }
 
-private struct SetupGuideView: View {
+private struct SettingsHeading: View {
+  let eyebrow: String
+  let title: String
+  let subtitle: String
+
   var body: some View {
-    Form {
-      Section("Prepare your build Mac") {
-        Label(
-          "Install Xcode and pair your device over USB. Enable Developer Mode and grant trust.",
-          systemImage: "desktopcomputer")
-        Label(
-          "Connect both devices through your private VPN. Keep the target nearby for initial setup.",
-          systemImage: "network")
-      }
-      Section("Deploy from another network") {
-        Text(
-          "Set up the remote device once, then leave Debagr running on this Mac. Enable Launch at Login from the menu if desired."
-        )
-        Text(
-          "Give Claude Code or Codex the deployment skill and this Mac's SSH alias. The agent builds and deploys through this Mac."
-        )
-      }
-      Section("Current requirements") {
-        Text(
-          "Targets: iPhone and iPad. Mac targets are not implemented. Keep the target unlocked, on Wi-Fi, and connected to its VPN. Cellular-only operation is unsupported."
-        )
-        Text(
-          "If setup fails, check USB trust, Developer Mode, local-network permission, and your VPN's device access rules."
-        )
-        .foregroundStyle(.secondary)
-        if let url = ProductSupport.configuredURL(forInfoKey: "DebagrWebsiteURL") {
-          Link("Open full guide", destination: url)
-        }
-      }
+    VStack(alignment: .leading, spacing: 12) {
+      Text(eyebrow.uppercased())
+        .font(.system(size: 10, weight: .semibold)).tracking(1.1).foregroundStyle(.secondary)
+      Text(title).font(.system(size: 28, weight: .semibold)).tracking(-0.7)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(subtitle).font(.system(size: 13)).foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
-    .formStyle(.grouped)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
-private struct SetupConnectionForm: View {
+private struct ConnectionField<Content: View>: View {
+  let symbol: String
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    HStack(spacing: 10) {
+      Image(systemName: symbol).font(.system(size: 16)).foregroundStyle(.secondary)
+        .frame(width: 20).accessibilityHidden(true)
+      content
+    }
+    .padding(12)
+    .background(SettingsStyle.surface, in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(SettingsStyle.border, lineWidth: 1))
+  }
+}
+
+private struct SettingsBadge: View {
+  let text: String
+
+  var body: some View {
+    Text(text).font(.system(size: 10, weight: .medium))
+      .padding(.horizontal, 7).padding(.vertical, 5)
+      .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
+  }
+}
+
+private struct DeviceConnectionView: View {
   @ObservedObject var model: DeviceSetupModel
 
   var body: some View {
-    Form {
-      SetupNetworkSection(model: model)
-      SetupDeviceSections(model: model)
-      HStack {
-        Text(model.discoveryStatus).foregroundStyle(.secondary)
-        Spacer()
-        Button("Refresh Devices") {
-          model.onRefresh?()
-          model.loadPeers()
-        }
-        .disabled(model.isLoadingPeers)
+    ScrollView {
+      VStack(alignment: .leading, spacing: 20) {
+        SettingsHeading(
+          eyebrow: "A little setup. A lot of freedom.",
+          title: "Your Mac stays home.\nYour next build comes with you.",
+          subtitle: "Connect your paired device over a private VPN.")
+        NetworkSelection(model: model)
+        TargetSelection(model: model)
+        NearbyConnection(model: model)
+        Divider()
+        ConnectionChecklist(model: model)
       }
-      .font(.callout)
+      .frame(maxWidth: 660, alignment: .leading)
+      .padding(32).frame(maxWidth: .infinity, alignment: .leading)
     }
-    .formStyle(.grouped).disabled(model.isWorking)
+    .disabled(model.isWorking)
     .onAppear { model.loadPeers() }
     .onChange(of: model.provider) { _ in model.loadPeers() }
     .onChange(of: model.address) { _ in model.updateManualPeer() }
   }
 }
 
-private struct SetupNetworkSection: View {
+private struct NetworkSelection: View {
   @ObservedObject var model: DeviceSetupModel
 
   var body: some View {
-    Section {
-      Picker("VPN provider", selection: $model.provider) {
-        ForEach(NetworkProvider.allCases, id: \.rawValue) { provider in
-          Text(provider.displayName).tag(provider)
-        }
-      }
-      if model.provider.discoversPeers {
-        Picker("VPN device", selection: $model.peerIP) {
-          Text(model.isLoadingPeers ? "Finding devices…" : "Choose a device…").tag("")
-          ForEach(model.peers, id: \.ipAddress) { peer in
-            Text("\(peer.hostname) · \(peer.ipAddress)").tag(peer.ipAddress)
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Private network").font(.system(size: 12, weight: .medium))
+      ConnectionField(symbol: "checkmark.shield") {
+        Picker("Private network", selection: $model.provider) {
+          ForEach(NetworkProvider.allCases, id: \.rawValue) { provider in
+            Text(provider.displayName).tag(provider)
           }
         }
-        .disabled(model.isLoadingPeers || model.peers.isEmpty)
-        Text(
-          "Online devices load automatically from the Tailscale client. Headscale uses that client connected to your own server."
-        )
-        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-      } else {
-        TextField("Device VPN IPv4 address", text: $model.address, prompt: Text("e.g. 10.20.0.2"))
-          .textFieldStyle(.roundedBorder)
-        Text(
-          "Copy the target device's private IPv4 address from your VPN app or administrator. Public addresses and IPv6 are unsupported."
-        )
-        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        .labelsHidden().pickerStyle(.menu).frame(maxWidth: .infinity)
       }
-      Text("Connect your chosen VPN on both devices first. Debagr uses the existing connection.")
-        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-    } header: {
-      Text("Private network")
+      if model.provider.discoversPeers {
+        ConnectionField(symbol: "network") {
+          Picker("VPN device", selection: $model.peerIP) {
+            Text(model.isLoadingPeers ? "Finding devices…" : "Choose a VPN device…").tag("")
+            ForEach(model.peers, id: \.ipAddress) { peer in
+              Text("\(peer.hostname) · \(peer.ipAddress)").tag(peer.ipAddress)
+            }
+          }
+          .labelsHidden().pickerStyle(.menu).frame(maxWidth: .infinity)
+          .disabled(model.isLoadingPeers || model.peers.isEmpty)
+        }
+      } else {
+        ConnectionField(symbol: "network") {
+          TextField("Device VPN IPv4 address", text: $model.address, prompt: Text("e.g. 10.20.0.2"))
+            .textFieldStyle(.plain)
+        }
+      }
+      Text(
+        model.provider == .tailscale
+          ? "Remote iPhone deployment verified over Tailscale. Choose the same target device in both lists."
+          : "Connect both devices to this VPN first. This provider still needs full hardware validation."
+      )
+      .font(.system(size: 11)).foregroundStyle(.secondary)
+      .fixedSize(horizontal: false, vertical: true)
     }
   }
 }
 
-private struct SetupDeviceSections: View {
+private struct TargetSelection: View {
   @ObservedObject var model: DeviceSetupModel
 
   var body: some View {
-    Section {
-      Picker("Paired device", selection: $model.deviceID) {
-        Text("Choose a device…").tag("")
-        ForEach(model.devices) { device in
-          Text("\(device.displayName) · \(device.kind.displayName)").tag(device.identity.value)
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Remote device").font(.system(size: 12, weight: .medium))
+      ConnectionField(symbol: "rectangle.portrait") {
+        Picker("Remote device", selection: $model.deviceID) {
+          Text("Choose a paired device…").tag("")
+          ForEach(model.devices) { device in
+            Text("\(device.displayName) · \(device.kind.displayName)").tag(device.identity.value)
+          }
+        }
+        .labelsHidden().pickerStyle(.menu).frame(maxWidth: .infinity)
+        if model.devices.contains(where: { $0.identity.value == model.deviceID }) {
+          SettingsBadge(text: "Paired")
         }
       }
       Text(
         model.devices.isEmpty
-          ? "No paired devices found. Connect your device over USB, grant trust, and refresh."
-          : "Choose the same physical device as the VPN address above. This build Mac must already be paired with it."
+          ? "No paired devices found. Connect by USB, grant trust, then refresh."
+          : "One managed device · Pair over USB on this Mac first."
       )
-      .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-    } header: {
-      Text("Target device")
+      .font(.system(size: 11)).foregroundStyle(.secondary)
+      .fixedSize(horizontal: false, vertical: true)
     }
-    Section("Nearby connection") {
-      Picker("Local device service", selection: $model.serviceHost) {
-        Text("Choose a nearby service…").tag("")
-        ForEach(model.serviceHosts, id: \.self) { Text($0).tag($0) }
+  }
+}
+
+private struct NearbyConnection: View {
+  @ObservedObject var model: DeviceSetupModel
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Nearby connection").font(.system(size: 12, weight: .medium))
+      ConnectionField(symbol: "wifi") {
+        Picker("Local device service", selection: $model.serviceHost) {
+          Text("Choose a nearby service…").tag("")
+          ForEach(model.serviceHosts, id: \.self) { Text($0).tag($0) }
+        }
+        .labelsHidden().pickerStyle(.menu).frame(maxWidth: .infinity)
+        .disabled(model.importedProfile != nil)
       }
-      .disabled(model.importedProfile != nil)
-      Text(
-        model.serviceHosts.isEmpty
-          ? "Keep the device unlocked on the same Wi-Fi as this Mac, or import a saved profile."
-          : "Select the same device's nearby service. Debagr captures it for use when the device moves to another network."
-      )
-      .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-      HStack {
-        Button("Use Saved Profile…") { model.onImport?() }
-          .disabled(model.peerIP.isEmpty)
+      Text("Select the same device's local service once, before taking it to another network.")
+        .font(.system(size: 11)).foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      HStack(spacing: 12) {
+        Button("Use Saved Profile…") { model.onImport?() }.disabled(model.peerIP.isEmpty)
         if model.importedProfile != nil {
           Label("Profile loaded", systemImage: "checkmark.circle").foregroundStyle(.secondary)
           Button("Remove") { model.importedProfile = nil }
         }
+        Spacer(minLength: 0)
+        Button("Refresh") {
+          model.onRefresh?()
+          model.loadPeers()
+        }
+        .disabled(model.isLoadingPeers)
+      }
+      .buttonStyle(.link).font(.system(size: 11))
+    }
+  }
+}
+
+private struct ConnectionChecklist: View {
+  @ObservedObject var model: DeviceSetupModel
+
+  var body: some View {
+    let selected = model.devices.contains { $0.identity.value == model.deviceID }
+    VStack(alignment: .leading, spacing: 12) {
+      Label {
+        Text("This Mac is running Debagr")
+      } icon: {
+        Image(systemName: "checkmark.circle").foregroundStyle(.green)
+      }
+      Label {
+        Text(
+          selected ? "A paired target device is selected" : "Select a device paired with this Mac")
+      } icon: {
+        Image(systemName: selected ? "checkmark.circle" : "circle")
+          .foregroundStyle(selected ? Color.green : Color.secondary)
+      }
+      Label("Connection readiness is verified after saving", systemImage: "circle.dotted")
+        .foregroundStyle(.secondary)
+    }
+    .font(.system(size: 12))
+  }
+}
+
+private struct ConnectionActions: View {
+  @ObservedObject var model: DeviceSetupModel
+
+  var body: some View {
+    HStack(spacing: 12) {
+      if model.isWorking || model.isLoadingPeers {
+        ProgressView().controlSize(.small)
+      }
+      Text(
+        model.isWorking
+          ? "Saving setup…"
+          : model.isLoadingPeers
+            ? "Finding devices…"
+            : model.canSave ? "Selections complete" : "Choose your device and connection"
+      )
+      .font(.system(size: 11)).foregroundStyle(.secondary)
+      Spacer(minLength: 0)
+      Button {
+        model.save()
+      } label: {
+        HStack {
+          Text("Connect device")
+          Image(systemName: "arrow.right").accessibilityHidden(true)
+        }
+      }
+      .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction)
+      .disabled(model.isWorking || !model.canSave)
+    }
+    .padding(.horizontal, 32).padding(.vertical, 18)
+  }
+}
+
+private struct AgentToolsView: View {
+  @ObservedObject var model: DeviceSetupModel
+  @State private var copied = false
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 26) {
+        SettingsHeading(
+          eyebrow: "From prompt to pocket",
+          title: "Let your agent\nhandle the handoff.",
+          subtitle: "The build and deployment run on your Mac.\nYou only need your device with you."
+        )
+        AgentStep(
+          number: "1", title: "On your build Mac",
+          detail:
+            "Install Debagr and Xcode. Pair over USB, grant trust, enable Developer Mode, and connect your VPN."
+        )
+        VStack(alignment: .leading, spacing: 10) {
+          AgentStep(
+            number: "2", title: "Where your coding agent runs",
+            detail: "Install the matching Debagr plugin. Give your agent access to the build Mac.")
+          HStack(spacing: 8) {
+            Link(
+              destination: URL(
+                string: "https://github.com/radeknovis/Debagr/blob/main/docs/PLUGINS.md#claude-code"
+              )!
+            ) {
+              Label("Claude Code", systemImage: "terminal")
+            }
+            Link(
+              destination: URL(
+                string: "https://github.com/radeknovis/Debagr/blob/main/docs/PLUGINS.md#codex")!
+            ) {
+              Label("Codex", systemImage: "terminal")
+            }
+            SettingsBadge(text: "CLI also available")
+          }
+          .controlSize(.small).buttonStyle(.bordered).padding(.leading, 35)
+          Button("Show bundled deployment skill…") { model.onShowSkill?() }
+            .buttonStyle(.link).font(.system(size: 11)).padding(.leading, 35)
+        }
+        VStack(alignment: .leading, spacing: 10) {
+          AgentStep(
+            number: "3", title: "Ask for your next build",
+            detail:
+              "Example agent prompt · Supply your build Mac's SSH alias and replace the app path.")
+          VStack(alignment: .leading, spacing: 12) {
+            Text(model.deploymentPrompt)
+              .font(.system(size: 11, design: .monospaced)).lineSpacing(6)
+              .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(14)
+              .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 8))
+              .overlay(RoundedRectangle(cornerRadius: 8).stroke(SettingsStyle.border, lineWidth: 1))
+            Button {
+              let pasteboard = NSPasteboard.general
+              pasteboard.clearContents()
+              copied = pasteboard.setString(model.deploymentPrompt, forType: .string)
+            } label: {
+              Label(
+                copied ? "Prompt copied" : "Copy deployment prompt",
+                systemImage: copied ? "checkmark" : "doc.on.doc")
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large)
+          }
+          .padding(.leading, 35)
+        }
+        Text("Current target devices: iPhone and iPad. Mac targets are not implemented.")
+          .font(.system(size: 11)).foregroundStyle(.secondary)
+      }
+      .frame(maxWidth: 660, alignment: .leading)
+      .padding(32).frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .onChange(of: model.deploymentPrompt) { _ in copied = false }
+  }
+}
+
+private struct AgentStep: View {
+  let number: String
+  let title: String
+  let detail: String
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Text(number).font(.system(size: 11, weight: .medium))
+        .frame(width: 23, height: 23)
+        .background(Color.primary.opacity(0.06), in: Circle())
+      VStack(alignment: .leading, spacing: 7) {
+        Text(title).font(.system(size: 13, weight: .semibold))
+        Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
 }
 
 private struct SetupSavedView: View {
+  @ObservedObject var model: DeviceSetupModel
+
   var body: some View {
     VStack(spacing: 18) {
       Image(systemName: "checkmark.circle.fill").font(.system(size: 48)).foregroundStyle(.green)
@@ -415,43 +682,9 @@ private struct SetupSavedView: View {
         "Keep Debagr running on this Mac and the target device unlocked, on Wi-Fi, and connected to its VPN."
       )
       .font(.callout).multilineTextAlignment(.center)
+      Button("Done") { model.onClose?() }.keyboardShortcut(.defaultAction)
+        .buttonStyle(.borderedProminent).controlSize(.large)
     }
     .padding(48).frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-}
-
-private struct SetupFooter: View {
-  @ObservedObject var model: DeviceSetupModel
-
-  var body: some View {
-    HStack(spacing: 12) {
-      if model.page == .setup {
-        Button("Setup Guide") {
-          model.error = nil
-          model.page = .guide
-        }
-        .disabled(model.isWorking)
-      }
-      if model.isWorking || model.isLoadingPeers {
-        ProgressView().controlSize(.small)
-        Text(model.isWorking ? "Saving setup…" : "Finding network devices…")
-          .font(.callout).foregroundStyle(.secondary)
-      }
-      Spacer()
-      Button(model.page == .saved ? "Close" : "Cancel") { model.onClose?() }
-        .keyboardShortcut(.cancelAction).disabled(model.isWorking)
-      Button(
-        model.page == .guide ? "Set Up a Device" : model.page == .saved ? "Done" : "Save & Connect"
-      ) {
-        switch model.page {
-        case .guide: model.page = .setup
-        case .setup: model.save()
-        case .saved: model.onClose?()
-        }
-      }
-      .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
-      .disabled(model.isWorking || (model.page == .setup && !model.canSave))
-    }
-    .padding(16)
   }
 }

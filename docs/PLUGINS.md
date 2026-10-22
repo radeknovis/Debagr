@@ -70,6 +70,10 @@ confirming the plugin loads.
 
 ## Request a remote deployment
 
+In Debagr Settings, open **Agent tools** for the setup steps, client installation
+guides, and **Copy deployment prompt**. Supply your build Mac's SSH alias and
+replace the example app path before asking your agent to deploy.
+
 Tell the agent the paired Mac's SSH alias, intended device, and either the project
 build instructions or an absolute path to a signed device `.app` on that Mac:
 
