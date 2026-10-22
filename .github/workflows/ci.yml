@@ -26,13 +26,13 @@ jobs:
         run: python3 scripts/check-release.py
       - name: Package and verify agent plugins
         run: python3 scripts/package-plugins.py
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: Debagr-agent-plugins
           path: |
             dist/debagr-*.zip
             dist/debagr-*.zip.sha256
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: Debagr-unsigned
           path: Debagr.app
