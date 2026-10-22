@@ -1,6 +1,6 @@
 ---
 name: debagr-deploy
-description: Deploy a signed iOS or iPadOS app to a physical device using Debagr on its paired Mac. Use when asked to install or launch a build on an iPhone, deploy through a remote Mac build server, or diagnose Debagr device readiness.
+description: Deploy a signed iOS or iPadOS app to a physical device using Debagr on its paired Mac, including across separate Wi-Fi networks through Tailscale. Use when asked to install or launch a build on an iPhone, deploy through a remote Mac build server, or diagnose Debagr device readiness.
 ---
 
 # Deploy with Debagr
@@ -8,6 +8,9 @@ description: Deploy a signed iOS or iPadOS app to a physical device using Debagr
 Debagr runs on the Mac that owns Apple's device pairing. The menu-bar app owns
 the remote-device relay. Invoke its CLI locally on that Mac or through existing
 SSH access; the AI caller does not need to see the iPhone in its own Xcode.
+The iPhone and paired Mac can be on separate Wi-Fi networks when connected
+through Tailscale. Complete USB pairing and local device configuration before
+taking the iPhone remote; keep Debagr running on the paired Mac.
 
 ## Deployment
 

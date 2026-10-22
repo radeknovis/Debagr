@@ -47,9 +47,13 @@ jobs:
           DEBAGR_WEBSITE_URL: ${{ vars.DEBAGR_WEBSITE_URL }}
           DEBAGR_SUPPORT_URL: ${{ vars.DEBAGR_SUPPORT_URL }}
         run: ./scripts/release-macos-app.sh
+      - name: Package and verify agent plugins
+        run: python3 scripts/package-plugins.py
       - uses: actions/upload-artifact@v4
         with:
           name: Debagr-${{ inputs.version }}
           path: |
             dist/Debagr-${{ inputs.version }}.dmg
             dist/Debagr-${{ inputs.version }}.dmg.sha256
+            dist/debagr-*.zip
+            dist/debagr-*.zip.sha256

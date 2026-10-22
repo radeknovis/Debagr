@@ -1,25 +1,39 @@
-# AI-first deployment milestone
+# Deploy remotely with your coding agent
 
 Install Debagr on the paired Build Server. The human configures the iPhone once
 in the menu bar; an agent uses the same app's CLI locally or through existing
-SSH access. No new network API, cloud account, or companion iPhone app is needed.
+SSH access. The iPhone and its paired Mac can be on separate Wi-Fi networks,
+connected through Tailscale. The agent can use a third computer with SSH access
+to that Mac. No companion iPhone app is needed.
+
+Install the [Claude Code or Codex plugin](PLUGINS.md) on the agent's computer;
+install Debagr separately on the paired Mac. The plugin provides the deployment
+skill, while the app provides device setup, the relay, and the CLI.
 
 ## Human setup
 
 1. Install Xcode, pair the device over USB, grant trust, and enable Developer Mode.
-2. Connect both endpoints to Tailscale. Keep the iPhone on Wi-Fi and unlocked.
+2. Connect the paired Mac and iPhone to Tailscale. Keep the iPhone on Wi-Fi and
+   unlocked. Complete initial configuration while its Bonjour service is
+   available locally, before taking the iPhone to a separate Wi-Fi network.
 3. Open Debagr and choose **Configure Remote iPhone…**. Select the Apple device,
    its real local Bonjour service, and the corresponding Tailscale device.
    Use **Import Private Profile…** to reuse a captured profile while remote.
 4. Leave Debagr running and optionally enable **Launch at Login**. It restores
    the enabled configuration at the next login. **Disconnect Remote Device**
    stops Debagr's relay; it does not disable native USB/Wi-Fi Apple connectivity.
-5. Use **Show AI Deployment Skill…** to locate
-   `Contents/Resources/Skills/debagr-deploy/SKILL.md`. Copy the enclosing
-   `debagr-deploy` folder into the skill directory of the AI client on the caller.
-   The skill contains instructions only; private device configuration stays on
-   the Build Server. Supply the agent with the Build Server's existing SSH alias
-   and project build instructions.
+5. Install the plugin using [the client-specific instructions](PLUGINS.md).
+   Supply the agent with the Build Server's existing SSH alias, intended device,
+   and project build instructions or the absolute path to a signed device `.app`
+   on that Mac. For example: “Use Debagr on `build-server` to install and launch
+   `/Users/me/Builds/MyApp.app` on my iPhone. The phone is on another Wi-Fi network.”
+
+For a standalone skill installation, use **Show AI Deployment Skill…** to locate
+`Contents/Resources/Skills/debagr-deploy/SKILL.md`. Copy the enclosing
+`debagr-deploy` folder into the skill directory of the AI client on the caller.
+The skill contains instructions only; private device configuration stays on
+the Build Server. Install either the plugin or the standalone skill to avoid
+duplicate discovery.
 
 ## Agent commands
 

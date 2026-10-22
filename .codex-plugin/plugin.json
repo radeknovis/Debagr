@@ -1,0 +1,8 @@
+{
+  "name": "debagr",
+  "version": "0.1.0",
+  "author": { "name": "Radek Novak" },
+  "description": "Install and launch signed iOS apps on an iPhone across separate Wi-Fi networks through its paired Mac and Tailscale.",
+  "skills": "./Skills/",
+  "requires_local_executor": true
+}

@@ -20,6 +20,14 @@ jobs:
         run: ./scripts/build-macos-app.sh release
       - name: Verify bundle
         run: ./scripts/verify-macos-app.sh
+      - name: Package and verify agent plugins
+        run: python3 scripts/package-plugins.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Debagr-agent-plugins
+          path: |
+            dist/debagr-*.zip
+            dist/debagr-*.zip.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: Debagr-unsigned

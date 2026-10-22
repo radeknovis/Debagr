@@ -1,0 +1,8 @@
+{
+  "name": "debagr-plugins",
+  "description": "Deploy signed iOS apps across separate networks with Debagr.",
+  "owner": { "name": "Radek Novak" },
+  "plugins": [
+    { "name": "debagr", "source": "./" }
+  ]
+}
