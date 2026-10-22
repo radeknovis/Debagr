@@ -1,29 +1,155 @@
-# Debagr
+<p align="center">
+  <img src="Marketing/AppIcon.png" alt="Debagr app icon" width="112" />
+</p>
 
-Debagr is an AI-operable deployment endpoint on the Mac that owns Apple's device
-pairing. Direct install and launch over Tailscale were verified on an iPhone on
-another Wi-Fi network. Cellular-only RemotePairing is excluded by iOS.
-See [direct-device evidence](docs/DIRECT_DEVICE.md) and the
-[AI deployment workflow](docs/AI_DEPLOYMENT.md).
+<h1 align="center">Debagr</h1>
 
-Debagr is a native macOS build-server agent for deploying signed iOS and iPadOS
-apps to devices paired with that Mac. Any computer, CI job, or agent that can
-SSH into the build server can invoke the same deployment command; the iPhone
-does not need to appear on the caller's machine.
+<p align="center">
+  <strong>Your Mac stays home. Your next build comes with you.</strong>
+</p>
 
-One app bundle ships the human setup UI, CLI, and companion deployment skill:
+<p align="center">
+  Ask Claude Code or Codex to install and launch your signed app on your iPhone.<br />
+  Even when your phone and its paired Mac are on separate Wi-Fi networks.
+</p>
 
-- The product UI merges Apple `devicectl` inventory with visible
-  `_remotepairing._tcp` services, shows human-readable Target Device details,
-  configures one remote device, owns its relay, restores enabled configuration
-  on launch, and shows verified readiness and the last successful deployment.
-- The command line preflights a specific paired device, installs a signed
-  device `.app` with Apple's `devicectl`, confirms the installed bundle ID, and
-  optionally launches it. `--json` provides versioned results and actionable failures.
-- The old cross-Mac RemotePairing relay remains only as a research lab. It is
-  not part of the deployment product.
+<p align="center">
+  <a href="#get-started">Get started</a> ·
+  <a href="docs/PLUGINS.md">Agent plugins</a> ·
+  <a href="docs/DIRECT_DEVICE.md">Real-device evidence</a> ·
+  <a href="#development">Build from source</a>
+</p>
 
-## Build and test
+---
+
+Leave your build Mac running at home or in the office. Take your iPhone to
+another Wi-Fi network, ask your coding agent for a deployment, and try the
+latest build on the phone in your hand.
+
+Debagr is a native macOS menu-bar app that connects this workflow through
+Tailscale. It runs on the Mac already paired with your iPhone; your agent invokes
+its CLI locally or through SSH. Your existing Xcode build and signing workflow
+stays in place.
+
+> **Technical preview.** Install and launch have been verified on an iPhone
+> across separate Wi-Fi networks. Initial USB pairing and local configuration
+> are required. Keep the paired Mac running with Debagr open, and the iPhone on
+> Wi-Fi with Tailscale connected. Cellular-only operation is unsupported.
+
+## How it works
+
+```mermaid
+flowchart LR
+    Agent["Claude Code or Codex<br/>Your computer"] -->|SSH| Mac["Your paired Mac<br/>Debagr + Xcode"]
+    Mac -->|Tailscale| Phone["Your iPhone<br/>On another Wi-Fi network"]
+```
+
+The agent can run on a third computer, or directly on the paired Mac. The Mac
+checks device readiness, installs your signed device `.app`, confirms its bundle
+identifier, and launches it. Results include recovery instructions when a device
+is locked or unavailable.
+
+| Component | What it does |
+| --- | --- |
+| **Debagr app** | Device setup, connection management, readiness, and the last successful deployment |
+| **Claude Code or Codex plugin** | Teaches your agent the deployment and recovery workflow |
+| **CLI** | The same deployment commands for agents, scripts, and CI, with structured JSON results |
+
+Apple pairing stays with its original Mac. Debagr deploys through that Mac;
+remote devices do not become Xcode run destinations on the agent's computer.
+
+## Get started
+
+### 1. Set up your Mac and iPhone once
+
+Build Debagr using the [source instructions below](#development), then install
+`Debagr.app` in `/Applications` on the Mac that will deploy your builds. The
+[release runbook](docs/RELEASE.md) covers Developer ID signing and notarization
+for distribution.
+
+Install Xcode, pair your iPhone over USB, grant trust, and enable Developer Mode.
+Connect the Mac and iPhone to Tailscale. While the phone's Bonjour service is
+available locally, open Debagr and choose **Configure Remote iPhone…**. Select
+the Apple device, its Bonjour service, and the same phone in Tailscale, then
+choose **Connect Remote Device**.
+
+Leave Debagr open in that user's logged-in session. **Launch at Login** restores
+the app after login. Your iPhone can then move to another Wi-Fi network.
+
+### 2. Install your agent plugin
+
+Follow the [Claude Code or Codex installation guide](docs/PLUGINS.md) on the
+computer running your agent. Both plugins share one deployment skill. Install
+Debagr separately on the paired Mac.
+
+For a standalone skill, **Show AI Deployment Skill…** reveals the copy bundled
+with the app. Use either the plugin or the standalone skill in each client.
+
+### 3. Ask for a deployment
+
+Give your agent the Mac's SSH alias, intended iPhone, and either the project's
+build instructions or the path to an existing signed device `.app` on that Mac:
+
+> Use Debagr on `build-server` to install and launch
+> `/Users/me/Builds/MyApp.app` on my iPhone. The phone is on another Wi-Fi network.
+
+The agent checks readiness before deploying and confirms installation and
+launch separately. A confirmed launch establishes that the app started;
+checking its UI and behavior is a separate step.
+
+## Requirements and current limits
+
+- **A paired Mac with Xcode and Debagr running.** Remote callers need existing
+  SSH access as the user who owns the pairing and runs Debagr.
+- **An iPhone on Wi-Fi, connected through Tailscale.** Complete initial pairing
+  and local device configuration before taking it remote. Unlock it for deployment.
+- **A signed device build on the paired Mac.** Use your project's existing build
+  workflow; simulator builds cannot be installed on an iPhone.
+- **One managed remote device.** Ordinary local Apple-device deployment remains
+  available. The full remote hardware acceptance matrix is still pending.
+
+See [direct-device evidence](docs/DIRECT_DEVICE.md) for tested configurations
+and [compatibility](docs/COMPATIBILITY.md) for supported and experimental scope.
+
+## Deploy from the terminal
+
+The CLI works locally on the paired Mac:
+
+```sh
+/Applications/Debagr.app/Contents/MacOS/Debagr \
+  --deploy-app /absolute/path/MyApp.app \
+  --device DEVICE_UDID \
+  --launch --json
+```
+
+Or invoke the same command through the Mac's existing SSH access:
+
+```sh
+ssh build-server \
+  "/Applications/Debagr.app/Contents/MacOS/Debagr \
+  --deploy-app /absolute/path/MyApp.app --device DEVICE_UDID --launch --json"
+```
+
+The `.app` path is on the paired Mac. Quote paths as single arguments; when
+using SSH, shell-quote each remote argument too. See the
+[deployment workflow](docs/AI_DEPLOYMENT.md) for inventory, readiness, diagnostics,
+JSON results, and failure recovery.
+
+## Documentation
+
+| Guide | What's inside |
+| --- | --- |
+| [Plugin onboarding](docs/PLUGINS.md) | Claude Code and Codex installation, first deployment, and package validation |
+| [Deployment workflow](docs/AI_DEPLOYMENT.md) | Human setup, agent commands, and recovery |
+| [Real-device evidence](docs/DIRECT_DEVICE.md) | Remote-network results and technical limits |
+| [Architecture](docs/ARCHITECTURE.md) | How Debagr fits together |
+| [Compatibility](docs/COMPATIBILITY.md) | Supported and experimental capabilities |
+| [Release runbook](docs/RELEASE.md) | Signing, notarization, and clean-Mac acceptance |
+| [Support](docs/SUPPORT.md) · [Security](docs/SECURITY.md) | Troubleshooting and security-policy drafts |
+| [Privacy](docs/PRIVACY.md) · [Terms](docs/EULA.md) | Release-policy drafts awaiting owner and legal review |
+
+## Development
+
 
 The menu-bar monitor supports macOS 13 or later. The experimental relay's exact
 Network.framework address binding requires macOS 26 or later.
@@ -35,7 +161,7 @@ swift test
 
 The executable is `.build/debug/debagr`.
 
-## Package the app
+### Package the app
 
 ```sh
 ./scripts/build-macos-app.sh release
@@ -60,58 +186,40 @@ That produces a notarized, stapled DMG and SHA-256 checksum in `dist/`. See
 [`docs/RELEASE.md`](docs/RELEASE.md) for the account-bound setup and clean-Mac
 acceptance checklist.
 
-## Menu-bar behavior
-
-Choose **Configure Remote iPhone…**, select the paired Apple device, its local
-Bonjour service, and the same physical device in Tailscale. Existing private
-profiles can be imported instead. Configuration is stored privately under
-`~/.config/debagr/managed-device.json`; it is never included in public CLI results.
-Use **Connect/Disconnect Remote Device** and **Launch at Login**. The app must
-remain running; the CLI does not create competing background relays.
-**Show AI Deployment Skill…** reveals the bundled skill for installation in
-your agent client's skills directory.
-
-On first launch Debagr explains the required Xcode, Developer Mode, USB trust,
-and wireless-device steps. Its menu then:
-
-- reports `Looking`, `No Target Devices found`, a Target Device count, or a
-  discovery failure;
-- lists each Target Device with kind, Bonjour host, identifier, and port;
-- shows Developer Tools and Tailscale prerequisite checks;
-- refreshes discovery, toggles Launch at Login, and opens native About;
-- copies an agent-ready deployment command for each Apple-identified device;
-- copies a support report containing app/system status and endpoints, but no
-  TXT records or RemotePairing payloads.
-
-“Visible” is intentional. A Bonjour record does not prove that Xcode can list,
-install, launch, or debug on a Target Device.
-
-## Build-server deployment
-
-Build a signed device `.app` on the paired Mac, then run:
+### Package the agent plugins
 
 ```sh
-/Applications/Debagr.app/Contents/MacOS/Debagr \
-  --deploy-app /absolute/path/MyApp.app \
-  --device DEVICE_UDID \
-  --launch --json
+python3 scripts/package-plugins.py
 ```
 
-Remote callers use the same command through the build server's existing SSH
-authentication. Tailscale is recommended as the private network, but Debagr
-does not require a custom client or expose its own network listener:
+This creates separate Claude Code and Codex ZIP packages and SHA-256 checksums
+in `dist/`. Both include the canonical `Skills/debagr-deploy` directory and
+onboarding instructions. Plugin versions live in `.claude-plugin/plugin.json`
+and `.codex-plugin/plugin.json` and must match. Packaging verifies archive
+contents and skill bytes. CI also produces the plugin archives.
 
-```sh
-ssh build-server \
-  "/Applications/Debagr.app/Contents/MacOS/Debagr \
-  --deploy-app /absolute/path/MyApp.app --device DEVICE_UDID --launch --json"
-```
+See [plugin installation and validation](docs/PLUGINS.md) for local testing.
 
-The `.app` must already exist on the build server and be signed for the Target
-Device. This keeps source checkout, signing, and build configuration under the
-project's existing Xcode or CI workflow.
+## Connection details
 
-## Experimental relay lab
+<details>
+<summary>Menu-bar controls and diagnostics</summary>
+
+Use **Connect/Disconnect Remote Device** to control the managed connection.
+Existing private profiles can be imported. Configuration is stored privately at
+`~/.config/debagr/managed-device.json` and excluded from public CLI results.
+The app owns its relay; CLI invocations use that running connection.
+
+The menu shows discovered devices and prerequisite checks, refreshes discovery,
+and copies deployment commands or support reports. Support reports include
+app/system status and endpoints, but exclude TXT records and RemotePairing
+payloads. A visible Bonjour service alone does not establish deployment readiness.
+
+</details>
+
+<details>
+<summary>Experimental cross-Mac relay lab</summary>
+
 
 Select a Tailscale peer and known RemotePairing port explicitly:
 
@@ -161,7 +269,11 @@ Before any future end-to-end experiment, require an honest relay-off baseline:
 The check refuses to continue when the Developer Mac can already reach the
 Target Device directly, which prevents a shared-LAN false positive.
 
-## Safety boundaries
+</details>
+
+<details>
+<summary>Relay safety boundaries</summary>
+
 
 - Tailscale is resolved only from fixed executable paths and a selected peer
   must be online.
@@ -180,24 +292,18 @@ deployment uses the original paired Build Server and relays its dynamic tunnel
 ports; it does not transfer Apple pairing or route a different Mac's negotiated
 link-local tunnel.
 
-## Product and launch material
+</details>
 
-- [`docs/LAUNCH_RESEARCH.md`](docs/LAUNCH_RESEARCH.md) — primary-source channel,
-  pricing, competitor, and risk research.
-- [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) — exact supported and
-  experimental claims.
-- [`docs/PRIVACY.md`](docs/PRIVACY.md), [`docs/EULA.md`](docs/EULA.md),
-  [`docs/SUPPORT.md`](docs/SUPPORT.md), and [`docs/SECURITY.md`](docs/SECURITY.md)
-  — release-policy drafts requiring owner/legal review.
-- [`Marketing/site/index.html`](Marketing/site/index.html) — dependency-free
-  launch site. Checkout remains closed until its hardware and security gates
-  pass; one URL in `config.js` opens it later.
+## Release status
 
-## Paid-launch gate
+Paid distribution remains gated on packaged install-and-launch tests through
+SSH on clean Macs with current iPhone and iPad hardware. Acceptance includes
+locked-device recovery, restart, sleep, network changes, revoked trust, and
+clear failure reporting. Developer ID, notarization, storefront, domain, and
+legal-owner setup remain release requirements.
 
-Debagr is not ready for paid distribution until the packaged app passes
-install-and-launch tests through SSH on clean build-server Macs with current
-iPhone and iPad hardware, including locked-device recovery, restart, sleep,
-network change, revoked trust, and deterministic failure reporting. Developer
-ID, notarization, storefront, domain, and legal-owner credentials remain
-account-bound release gates.
+The [launch research](docs/LAUNCH_RESEARCH.md) records channel and pricing
+hypotheses. The [launch-site draft](Marketing/site/index.html) keeps checkout
+closed until the release gates pass.
+
+Debagr is not affiliated with or endorsed by Apple or Tailscale.
