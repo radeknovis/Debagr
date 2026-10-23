@@ -11,8 +11,10 @@ Only Tailscale has prior remote iPhone install-and-launch evidence. iPad and alt
 
 **Download:** choose the versioned Debagr DMG from the attached assets; source-code ZIPs are not the app. Verify the matching SHA-256 file, open the disk image, then drag Debagr to Applications. The release workflow attaches a Developer ID signed, notarized and stapled app and DMG only after the Apple and Gatekeeper gates pass. No security bypass is required.
 
+The publisher-owned Homebrew cask is prepared in `radeknovis/homebrew-debagr`. After its public activation, use `brew install --cask radeknovis/debagr/debagr` to install the same notarized app and its `debagr` CLI link.
+
 Install the matching `debagr-claude-code` or `debagr-codex` plugin ZIP using the included instructions. Agent Tools in Debagr includes the setup steps and a deployment prompt.
 
 Report problems with the exact macOS, Xcode, and iOS versions. Review copied diagnostics and send them only through a private channel. Do not post pairing material or device identifiers.
 
-Updates are installed manually. There is no Debagr cloud, analytics, active paid checkout, or automatic updater. Sponsorship, when enabled, supports development and does not buy a license or guaranteed support.
+Updates use manual DMG replacement or `brew upgrade --cask radeknovis/debagr/debagr` after tap activation. There is no Debagr cloud, analytics, active paid checkout, or automatic updater. Sponsorship, when enabled, supports development and does not buy a license or guaranteed support.
