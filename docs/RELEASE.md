@@ -1,23 +1,31 @@
 # Debagr release runbook
 
-Updated 22 October 2026. See [SHIP_STATUS.md](SHIP_STATUS.md) for the current
+Updated 23 October 2026. See [SHIP_STATUS.md](SHIP_STATUS.md) for the current
 verification results and unresolved gates. The prepared preview is 0.2.0 for
 Apple silicon; managed remote deployment requires macOS 26 or later.
 
 ## Publisher credentials
 
-The selected publisher is the personal Apple Developer team **Radek Novak**.
-No Developer ID Application certificate or notarization credentials currently
-exist. Start with local Keychain setup; CI signing is optional and can follow
-after a successful local release. No private key has been exported or copied.
+The selected publisher is the personal Apple Developer team **Radek Novak**
+(`XBSPGPE6R6`). On 23 October 2026, a **Developer ID Application** certificate
+was issued through Apple's portal and imported into the local login Keychain.
+Its public key matches the locally generated CSR; its matching private key
+remains in Keychain and has not been exported or copied. The certificate expires
+on **22 November 2027**.
 
-The owner accepted the updated Program License Agreement on 22 October 2026;
-certificate access is restored. Xcode's certificate creation menu remains
-disabled, but the personal team's Apple Developer portal permits a new
-**Developer ID Application** request. No certificate has been issued yet.
+Release 0.2.0, build 2 was signed with
+`Developer ID Application: Radek Novak (XBSPGPE6R6)`. Strict signature and bundle
+verification passed, including Hardened Runtime, the Apple certificate chain
+and secure timestamp. This is signing evidence; Apple notarization and clean-Mac
+acceptance have not yet run. CI signing remains optional.
 
-The publisher's Apple Developer Account Holder must create that certificate
-and its matching private key. An Apple Development or Apple Distribution
+The owner accepted the updated Program License Agreement on 22 October 2026.
+Xcode's creation menu was disabled, so the certificate was created with Keychain
+Certificate Assistant and the personal team's portal using the G2 intermediary.
+No existing certificates were revoked.
+
+For a future certificate replacement, the publisher's Apple Developer Account
+Holder must create the certificate and its matching private key. An Apple Development or Apple Distribution
 certificate does not replace it.
 [Apple Developer ID certificate instructions](https://developer.apple.com/help/account/certificates/create-developer-id-certificates).
 
@@ -36,11 +44,16 @@ certificates, export keys, or provide passwords in chat. Check availability with
 security find-identity -v -p codesigning
 ```
 
-Then store notarization credentials in Keychain, using the publisher's own
-Apple ID/app-specific password or App Store Connect API key:
+The `debagr-notary` profile is not configured yet. The owner must generate an
+app-specific password at Apple Account → Sign-In and Security → App-Specific
+Passwords, then enter it only at the secure local prompt.
+[Apple app-specific password instructions](https://support.apple.com/en-ie/102654).
+Store credentials in Keychain using the publisher's Apple ID and team ID; omit
+`--password` so the command prompts without placing the secret in shell history:
 
 ```sh
-xcrun notarytool store-credentials debagr-notary
+xcrun notarytool store-credentials debagr-notary \
+  --apple-id YOUR_APPLE_ID --team-id XBSPGPE6R6
 xcrun notarytool history --keychain-profile debagr-notary
 ```
 
@@ -57,7 +70,7 @@ P12/P8 files, app-specific passwords, Keychain exports, or pairing profiles.
 ```sh
 VERSION=0.2.0 \
 BUILD_NUMBER=2 \
-CODESIGN_IDENTITY="Developer ID Application: PUBLISHER (TEAMID)" \
+CODESIGN_IDENTITY="Developer ID Application: Radek Novak (XBSPGPE6R6)" \
 NOTARY_PROFILE=debagr-notary \
 ./scripts/release-macos-app.sh
 ```

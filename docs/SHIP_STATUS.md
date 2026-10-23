@@ -1,11 +1,13 @@
 # Debagr 0.2.0 shipping status
 
-Checked 22 October 2026. **Prepared for review; not yet cleared for public release.**
+Checked 23 October 2026. **Prepared for review; not yet cleared for public release.**
 The app, launch kit and signing pipeline are prepared. No notarized customer
 release, public launch, paid checkout, or sponsorship channel has been activated.
 
-Publisher: the personal Apple Developer team **Radek Novak**. No existing
-Developer ID Application certificate or notarization credentials are available.
+Publisher: the personal Apple Developer team **Radek Novak**. Its Developer ID
+Application certificate is installed and has successfully signed build 2. The
+private key remains in the local login Keychain; notarization credentials are
+still pending owner setup.
 GitHub Sponsors and Ko-fi are the selected funding channels; their activation
 is explicitly deferred and does not block releasing the app.
 
@@ -15,7 +17,8 @@ is explicitly deferred and does not block releasing the app.
 | --- | --- |
 | Existing work | Original native settings/Agent tools changes preserved as a separate checkpoint on `release/0.2.0-preparation`; no device settings or profiles changed |
 | Swift | 41 tests passed, no warnings/errors; strict Swift format lint and diff whitespace checks pass |
-| App | Release build packaged as 0.2.0; app bundle, icon, embedded skill, plist and ad-hoc Hardened Runtime signature verified; arm64 |
+| App | Release 0.2.0, build 2, arm64; app bundle, icon, embedded skill and plist verified; Developer ID signature for Radek Novak (XBSPGPE6R6), Hardened Runtime and Apple timestamp verified |
+| Local signing identity | Developer ID Application certificate issued through the personal team, valid until 22 November 2027; issued public key matches the local CSR; matching private key stays in the login Keychain; no key exported |
 | Packaged CLI | Four read-only JSON smoke cases pass: inventory, unavailable-device readiness, missing artifact and missing device argument |
 | Local DMG | Created clearly labeled `Debagr-0.2.0-LOCAL-UNNOTARIZED.dmg`; mounted read-only, verified Applications link, copied app, verified signature/resources and ran its CLI; portable checksum created |
 | Signing pipeline | App notarization/stapling before DMG creation; signed/notarized/stapled DMG; both Gatekeeper checks; explicit Accepted gates and Apple logs; final artifact only after success; no overwriting an existing release |
@@ -37,7 +40,7 @@ browser has not been tested.
 
 | Gate | Current finding | Next concrete step |
 | --- | --- | --- |
-| Developer ID | Owner accepted the updated Program License Agreement; certificate access is restored. The personal team Radek Novak can request Developer ID Application through the Apple Developer portal. No certificate or notary credentials have been created yet. | Complete the prepared certificate request, keep its private key in the local login Keychain, then store notarization credentials locally; see RELEASE.md |
+| Notarization | Developer ID creation and app signing passed. Keychain profile `debagr-notary` does not yet exist; no Apple notarization submission has run. | Owner creates an app-specific password and enters it into the local `notarytool store-credentials` prompt; validate the profile, then run the app and DMG notarization pipeline; see RELEASE.md |
 | CI signing (optional) | No repository/environment release secrets configured | Configure the six secrets only if using hosted signing. A local notarized release can use Keychain credentials without exporting the private key to CI |
 | Fresh device acceptance | Current configured iPhone returned `device_unavailable` on a read-only readiness check | Connect/unlock that phone on Wi-Fi with its private VPN; get authenticated readiness and verify installation and launch with a known signed device build, including SSH and separate-network conditions |
 | Recovery and iPad | Restart/sleep/trust/permission matrix and current iPad remote acceptance are incomplete | Run and record the matrix in RELEASE.md; keep unverified providers and iPad labeled accordingly |
