@@ -16,8 +16,11 @@ on **22 November 2027**.
 Release 0.2.0, build 2 was signed with
 `Developer ID Application: Radek Novak (XBSPGPE6R6)`. Strict signature and bundle
 verification passed, including Hardened Runtime, the Apple certificate chain
-and secure timestamp. This is signing evidence; Apple notarization and clean-Mac
-acceptance have not yet run. CI signing remains optional.
+and secure timestamp. On 23 October, Apple accepted both app and DMG submissions
+without issues. Both tickets were stapled and validated, and both Gatekeeper
+assessments reported Notarized Developer ID. The final DMG passed a local
+read-only mount/copy, copied-app verification and JSON CLI check. Clean-Mac and
+fresh remote-device acceptance remain open. CI signing remains optional.
 
 The owner accepted the updated Program License Agreement on 22 October 2026.
 Xcode's creation menu was disabled, so the certificate was created with Keychain
@@ -44,9 +47,10 @@ certificates, export keys, or provide passwords in chat. Check availability with
 security find-identity -v -p codesigning
 ```
 
-The `debagr-notary` profile is not configured yet. The owner must generate an
-app-specific password at Apple Account → Sign-In and Security → App-Specific
-Passwords, then enter it only at the secure local prompt.
+The owner configured `debagr-notary` in the local Keychain and validation passed.
+For future setup, generate an app-specific password at Apple Account → Sign-In
+and Security → App-Specific Passwords, then enter it only at the secure local
+prompt.
 [Apple app-specific password instructions](https://support.apple.com/en-ie/102654).
 Store credentials in Keychain using the publisher's Apple ID and team ID; omit
 `--password` so the command prompts without placing the secret in shell history:
@@ -132,6 +136,17 @@ funding accounts, change repository visibility, or publish the static site.
 The `macos-26` runner is Apple silicon; Intel/universal builds are not promised.
 [GitHub runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 
+## Homebrew cask and binary channel
+
+The separate private [homebrew-debagr repository](https://github.com/radeknovis/homebrew-debagr)
+contains the pinned cask and a draft prerelease with the accepted DMG/checksum
+and matching plugins. Style, strict audit and temporary local
+install/reinstall/uninstall passed, including the CLI link and installed app's
+signature, ticket and Gatekeeper assessment. The private release download
+round-trip checksum passed. Public download and cask activation remain pending.
+See [DISTRIBUTION.md](DISTRIBUTION.md) for the maintenance and publication checks.
+Do not change the app source repository's visibility to activate this channel.
+
 ## Acceptance evidence
 
 Record exact Mac, macOS, Xcode, device, iOS/iPadOS, network/provider, artifact
@@ -153,18 +168,20 @@ private test record, not marketing assets or public issue reports.
   revoked/restored trust and denied local-network permission. Record failures.
 - Keep unsupported cellular-only operation explicit and one-device scope visible.
 
-A local ad-hoc DMG mount/copy check is useful packaging evidence, but is not a
-clean-Mac, Developer ID, Gatekeeper, offline-stapling, or hardware pass.
+Local mount/copy, signing, notarization and Gatekeeper checks have passed for
+0.2.0 build 2. They do not establish clean-Mac first launch, offline acceptance,
+or fresh device installation and launch.
 
 ## Launch materials and funding
 
 Open [`Marketing/index.html`](../Marketing/index.html) to review screenshots,
 both video cuts, captions, social graphics, copy and sponsorship drafts. The
 download link stays in preparation until the actual notarized installer is
-available. Funding activation is explicitly deferred; those links can remain
-in preparation when the app ships. The repository is private; a public release host or
-visibility/license decision is still required. Do not expose its history just
-to make download links work.
+published and anonymously downloadable. The notarized candidate exists locally;
+its separate `radeknovis/homebrew-debagr` cask/binary repository is still private
+and prepared for publication review. Keep the application source private.
+Funding activation is explicitly deferred; those links can remain in preparation
+when the app ships.
 
 Follow [`Marketing/sponsorship/README.md`](../Marketing/sponsorship/README.md)
 for the selected GitHub Sponsors and Ko-fi profiles and tiers. Resume account

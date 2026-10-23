@@ -1,6 +1,6 @@
-# Debagr distribution proposal
+# Debagr distribution
 
-Research checked 2026-10-11. This is a recommendation, not a published release.
+Prepared and locally checked 23 October 2026. Public distribution is not activated.
 
 ## Smallest useful route
 
@@ -26,11 +26,11 @@ Do not confuse GitHub's automatic source-code ZIP with the signed application.
 | Existing repository implementation | Still needed before distribution |
 | --- | --- |
 | App bundle contains menu UI, JSON CLI, and `Resources/Skills/debagr-deploy` | Fresh end-to-end install/launch and visual UI acceptance of this milestone |
-| `release-macos-app.sh` requires a Developer ID identity and notary profile; signs the app, creates a DMG, notarizes/staples/assesses it, and writes a checksum | Verify publisher credentials are available and perform a real notarized release; ad-hoc local signing is not evidence of this |
+| `release-macos-app.sh` requires a Developer ID identity and notary profile; signs the app, creates a DMG, notarizes/staples/assesses it, and writes a checksum | 0.2.0 build 2 passed app/DMG notarization, stapling and local Gatekeeper; clean-Mac acceptance remains open |
 | `release.yml` is manually triggered and uploads workflow artifacts | Publish approved artifacts to a tagged draft/prerelease GitHub Release, then promote deliberately |
 | `build-macos-app.sh` builds for its host architecture; the inspected local app is arm64 | Start with an explicitly Apple-silicon-only beta; do not claim Intel or universal support without builds and verification |
 | Swift package declares macOS 13 minimum | Publish the actually tested macOS/Xcode/iOS matrix, not merely the deployment target |
-| CLI works by absolute app-bundle path; menu reveals the skill folder | Optional Homebrew cask for a lowercase `debagr` on PATH; install the skill explicitly into the chosen client's discovery directory |
+| CLI works by absolute app-bundle path; menu reveals the skill folder | Homebrew cask is staged and locally tested; public activation remains pending; install the skill explicitly into the chosen client's discovery directory |
 
 Inspect the accepted notarization log, not only the submit exit status. Apple
 creates tickets for the DMG and nested app; stapling lets Gatekeeper verify
@@ -53,27 +53,43 @@ No shell profile edit, privileged helper, or PATH mutation is required.
 For SSH, use the absolute remote path too: noninteractive shells need not load
 the user's interactive PATH setup. Run as the paired user, not root.
 
-After the beta passes, an **optional publisher-owned Homebrew tap** can expose
-the same signed app and executable. A cask is appropriate for a native macOS
-app, and its `binary` artifact can link an executable inside an installed app
-into Homebrew's bin directory. [Homebrew package choice](https://docs.brew.sh/Adding-Software-to-Homebrew),
-[Cask app and binary artifacts](https://docs.brew.sh/Cask-Cookbook#stanza-binary),
-[Publisher-owned taps](https://docs.brew.sh/How-to-Create-and-Maintain-a-Tap).
+A **publisher-owned Homebrew cask** is prepared in the separate private
+[`radeknovis/homebrew-debagr`](https://github.com/radeknovis/homebrew-debagr)
+repository. Its draft prerelease contains the notarized DMG, checksum and
+matching plugin archives. The app source remains private. The cask pins 0.2.0
+and the final DMG SHA-256, requires Apple silicon and macOS 26 or later, installs
+`Debagr.app`, and links its existing executable as lowercase `debagr`.
+[Cask definition](https://github.com/radeknovis/homebrew-debagr/blob/main/Casks/debagr.rb),
+[Homebrew cask documentation](https://docs.brew.sh/Cask-Cookbook).
 
-Proposed cask artifacts, not an installed or published cask:
+After publication and anonymous-download verification, installation will be:
 
-```ruby
-app "Debagr.app"
-binary "#{appdir}/Debagr.app/Contents/MacOS/Debagr", target: "debagr"
+```sh
+brew install --cask radeknovis/debagr/debagr
 ```
 
-The full cask must pin the approved version, DMG URL, checksum, architecture,
-and supported macOS requirements. Do not install a separately compiled CLI or
-overwrite existing user commands. Homebrew handles the link; users must still
-have Homebrew's bin directory on PATH. Initial upgrades can be manual download
-or `brew upgrade --cask` once the cask exists; an in-app updater is not needed
-for this milestone. [Cask definition](https://docs.brew.sh/Cask-Cookbook),
+Homebrew style and strict audit passed. Install, reinstall and uninstall were
+tested in a temporary Applications directory using a local file URL for the
+exact final notarized DMG. The CLI symlink, JSON inventory, strict signature,
+stapled ticket and Gatekeeper acceptance passed after install and replacement.
+The temporary cask, link, trust entry and tap were removed. The uploaded draft
+DMG was downloaded with authenticated GitHub access and its checksum matched.
+Anonymous public fetching and a version-to-version upgrade have not been tested.
+
+For each release, update the cask's `version` and `sha256` from the final,
+notarized/stapled DMG. Keep the versioned URL immutable and retain the previous
+release for rollback. Use `brew style` and `brew audit --cask --strict`, then
+verify the public URL and install/replacement/uninstall path before promoting.
+For temporary local acceptance, set `HOMEBREW_NO_AUTO_UPDATE=1`,
+`HOMEBREW_NO_INSTALL_CLEANUP=1` and `HOMEBREW_NO_AUTOREMOVE=1` to avoid unrelated
+package maintenance. Do not overwrite an existing app or `debagr` command.
 [Tap maintenance](https://docs.brew.sh/How-to-Create-and-Maintain-a-Tap).
+
+The cask has no `zap` stanza and preserves profiles, pairing records, preferences
+and deployment receipts. It does not install skills globally. Homebrew handles
+the CLI link; its bin directory must be on PATH. Updates can use manual DMG
+replacement or `brew upgrade --cask radeknovis/debagr/debagr` after activation;
+an in-app updater is not required for this preview.
 
 For either upgrade path, quit Debagr before replacing its app bundle and relaunch
 afterward. Its owned relay stops during the upgrade; do not replace the executable
@@ -112,5 +128,6 @@ logged-in session, Tailscale at both endpoints, and remote **Wi-Fi**. Cellular
 RemotePairing remains unsupported. Do not advertise an iPhone companion app,
 zero-touch Apple trust, universal Mac support, or tested iPad support.
 
-No publishing, signing-credential setup, Homebrew/global skill installation,
-auto-updater, new service, or App Store submission is performed by this proposal.
+The app source, cask/binary repository and prerelease remain private. No public
+release, tap activation, global skill installation, auto-updater, new service or
+App Store submission has occurred.

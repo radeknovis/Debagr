@@ -74,6 +74,20 @@ it does not create provider accounts or configure tunnels. See the
 
 ## Get started
 
+### Homebrew distribution (prepared)
+
+The publisher-owned [Homebrew cask](https://github.com/radeknovis/homebrew-debagr)
+installs the same notarized app and links its CLI as `debagr`. Its repository and
+binary release are private drafts; public activation and anonymous-download
+verification are pending. Once activated, installation will be:
+
+```sh
+brew install --cask radeknovis/debagr/debagr
+```
+
+Apple silicon and macOS 26 or later are required. See the
+[distribution status and acceptance checks](docs/DISTRIBUTION.md).
+
 ### 1. Set up your Mac and device once
 
 Setup opens in a resizable Debagr window with a single form for network and device selection, inline
