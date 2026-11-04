@@ -1,7 +1,7 @@
-# Debagr privacy policy draft
+# Debagr privacy policy
 
-Draft updated: 22 October 2026. Owner and counsel review are required before
-publication.
+Technical-preview policy, updated 4 November 2026. Publisher: Radek Novak.
+Counsel review is required before any sale.
 
 Debagr's technical-preview app works locally. It does not include analytics,
 advertising, crash-reporting SDKs, customer accounts, or a Debagr cloud service.
@@ -44,5 +44,6 @@ Debagr data, first quit Debagr and back up any profiles you want to retain, then
 remove only `~/.config/debagr/`. This does not revoke Apple pairing, uninstall
 your VPN, or remove apps previously deployed to a device.
 
-Add the legal owner name, postal address, privacy contact, and jurisdiction
-before publication.
+Send privacy requests to the publisher through
+[private vulnerability reporting](https://github.com/radeknovis/homebrew-debagr/security/advisories/new).
+Add a postal address and jurisdiction before any sale.

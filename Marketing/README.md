@@ -1,7 +1,7 @@
 # Debagr launch kit
 
-Prepared 22 October 2026 for the **0.2.0 technical preview**. Open `index.html`
-for the local gallery. Public launch remains blocked by the items in
+Prepared 22 October 2026 for the **0.2.0 technical preview**, published
+4 November 2026. Open `index.html` for the local gallery. Remaining gaps are in
 [`../docs/SHIP_STATUS.md`](../docs/SHIP_STATUS.md).
 
 | Asset | Format | Use |
@@ -18,7 +18,7 @@ for the local gallery. Public launch remains blocked by the items in
 | `launch-copy.md` | Copy and storyboard | Social posts, product descriptions, voiceover |
 | `sponsorship/README.md` | Profile and tier drafts | GitHub Sponsors and Ko-fi setup |
 | `release-notes.md` | GitHub release body | Draft technical-preview release |
-| `site/` | Self-contained static site | Deployment-ready source, pending launch gates |
+| `site/` | Self-contained static site | Source of the live site at radeknovis.github.io/debagr-site |
 
 The captures use the real AppKit/SwiftUI views compiled in a temporary source
 copy. Only automatic peer discovery is disabled in that copy. The sample model
@@ -28,9 +28,9 @@ source version and view hash. Captures and videos illustrate the UI, not a fresh
 hardware deployment. The shipped app has no demo mode or fixture code.
 
 The website deliberately has no checkout, hard-coded subscription price,
-unverified payment destination, or invented success state. The download and
-funding links stay in preparation until verified HTTPS URLs are supplied in
-`site/config.js`. All runtime resources are local; the page has no tracker,
+unverified payment destination, or invented success state. The download link
+points at the published 0.2.0 DMG; funding links stay in preparation until
+verified HTTPS URLs are supplied in `site/config.js`. All runtime resources are local; the page has no tracker,
 external font, signup form, or dependency on a frontend build system.
 
 ## Regenerate from the repository checkout
@@ -55,9 +55,11 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory Marketing
 ```
 
 Open `http://127.0.0.1:8765/` for the gallery or `/site/` for the launch page.
-Deploy the contents of `site/` together only after the shipping report's gates
-are resolved. Configure an absolute `og:image` URL on the production domain;
-relative image metadata is only a local-preview default.
+The live site is a copy of `site/` in the public
+[`radeknovis/debagr-site`](https://github.com/radeknovis/debagr-site) repository,
+served by GitHub Pages at https://radeknovis.github.io/debagr-site/. To update it, copy the
+whole `site/` directory into that repository and push. Its `og:image` is an
+absolute URL on that host; change it if the site moves.
 
 The kit contains original product graphics and native UI. No stock, generated
 people, licensed music, third-party testimonials, or fabricated deployment

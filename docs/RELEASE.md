@@ -138,14 +138,21 @@ The `macos-26` runner is Apple silicon; Intel/universal builds are not promised.
 
 ## Homebrew cask and binary channel
 
-The separate private [homebrew-debagr repository](https://github.com/radeknovis/homebrew-debagr)
-contains the pinned cask and a draft prerelease with the accepted DMG/checksum
-and matching plugins. Style, strict audit and temporary local
+The public [homebrew-debagr repository](https://github.com/radeknovis/homebrew-debagr)
+contains the pinned cask and the published 0.2.0 prerelease with the accepted
+DMG/checksum and matching plugins. Style, strict audit and temporary local
 install/reinstall/uninstall passed, including the CLI link and installed app's
-signature, ticket and Gatekeeper assessment. The private release download
-round-trip checksum passed. Public download and cask activation remain pending.
+signature, ticket and Gatekeeper assessment. After publication, the anonymous
+download checksum and a public-tap install passed.
 See [DISTRIBUTION.md](DISTRIBUTION.md) for the maintenance and publication checks.
-Do not change the app source repository's visibility to activate this channel.
+Keep the app source repository private; this channel does not need it.
+
+To publish a later release, attach the accepted DMG, checksum and plugin ZIPs to
+a draft release in the tap, update the cask, and publish the draft. `gh release
+edit` cannot find a draft by its tag, so publish by release ID:
+`gh api -X PATCH repos/radeknovis/homebrew-debagr/releases/ID -F draft=false`.
+Then update `DEBAGR_DOWNLOAD_URL` in `Marketing/site/config.js` and copy the site
+to `radeknovis/debagr-site`.
 
 ## Acceptance evidence
 
@@ -170,18 +177,17 @@ private test record, not marketing assets or public issue reports.
 
 Local mount/copy, signing, notarization and Gatekeeper checks have passed for
 0.2.0 build 2. They do not establish clean-Mac first launch, offline acceptance,
-or fresh device installation and launch.
+or fresh device installation and launch. 0.2.0 shipped as a technical preview
+with these gaps listed in its release notes and on the site.
 
 ## Launch materials and funding
 
 Open [`Marketing/index.html`](../Marketing/index.html) to review screenshots,
 both video cuts, captions, social graphics, copy and sponsorship drafts. The
-download link stays in preparation until the actual notarized installer is
-published and anonymously downloadable. The notarized candidate exists locally;
-its separate `radeknovis/homebrew-debagr` cask/binary repository is still private
-and prepared for publication review. Keep the application source private.
-Funding activation is explicitly deferred; those links can remain in preparation
-when the app ships.
+site's download link points at the published, anonymously downloadable 0.2.0
+DMG, and the site is served from `radeknovis/debagr-site`. Keep the application
+source private. Funding activation is explicitly deferred; those links remain
+in preparation.
 
 Follow [`Marketing/sponsorship/README.md`](../Marketing/sponsorship/README.md)
 for the selected GitHub Sponsors and Ko-fi profiles and tiers. Resume account

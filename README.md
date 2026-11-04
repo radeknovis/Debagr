@@ -74,12 +74,11 @@ it does not create provider accounts or configure tunnels. See the
 
 ## Get started
 
-### Homebrew distribution (prepared)
+### Install
 
 The publisher-owned [Homebrew cask](https://github.com/radeknovis/homebrew-debagr)
-installs the same notarized app and links its CLI as `debagr`. Its repository and
-binary release are private drafts; public activation and anonymous-download
-verification are pending. Once activated, installation will be:
+installs the notarized 0.2.0 technical preview and links its CLI as `debagr`.
+The signed DMG and its checksum are also on the [release page](https://github.com/radeknovis/homebrew-debagr/releases/tag/v0.2.0).
 
 ```sh
 brew install --cask radeknovis/debagr/debagr
@@ -94,8 +93,8 @@ Setup opens in a resizable Debagr window with a single form for network and devi
 validation, and progress. Tailscale and Headscale device lists load automatically
 when selected; other providers use an address field.
 
-Build Debagr using the [source instructions below](#development), then install
-`Debagr.app` in `/Applications` on the Mac that will deploy your builds. The
+Install Debagr on the Mac that will deploy your builds, or build it using the
+[source instructions below](#development) and copy `Debagr.app` to `/Applications`. The
 [release runbook](docs/RELEASE.md) covers Developer ID signing and notarization
 for distribution.
 
@@ -342,17 +341,23 @@ link-local tunnel.
 
 ## Release status
 
+The 0.2.0 technical preview was published on 4 November 2026 through the public
+[Homebrew tap and release](https://github.com/radeknovis/homebrew-debagr) and the
+[launch site](https://radeknovis.github.io/debagr-site/). The app source stays private. Clean-Mac first launch,
+a fresh remote install and launch, iPad, the recovery matrix and Homebrew
+upgrades are not yet verified for 0.2.0.
+
 Paid distribution remains gated on packaged install-and-launch tests through
 SSH on clean Macs with current iPhone and iPad hardware. Acceptance includes
 locked-device recovery, restart, sleep, network changes, revoked trust, and
-clear failure reporting. Developer ID, notarization, storefront, domain, and
-legal-owner setup remain release requirements.
+clear failure reporting. Storefront, domain, and legal review remain
+requirements for paid distribution.
 
 The [shipping report](docs/SHIP_STATUS.md) records completed checks and remaining
-release gates. The [launch kit](Marketing/README.md) includes native screenshots,
+gaps. The [launch kit](Marketing/README.md) includes native screenshots,
 landscape and vertical promo videos, launch copy, and sponsorship drafts.
-The [launch-site preview](Marketing/site/index.html) keeps download and funding
-links in preparation until their destinations are verified. Earlier pricing
+The [launch site](Marketing/site/index.html) keeps funding links in preparation
+until they are activated. Earlier pricing
 hypotheses in [launch research](docs/LAUNCH_RESEARCH.md) are not an announced price.
 
 Debagr is not affiliated with or endorsed by Apple or Tailscale.

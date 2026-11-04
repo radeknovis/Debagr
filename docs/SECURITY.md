@@ -26,6 +26,9 @@ and revocation practices. Do not expose Remote Login directly to the internet.
 
 ## Reporting
 
-Do not file public issues containing device identifiers, hostnames, tailnet
-addresses, pairing material, logs, or diagnostics. Add a monitored private
-security-reporting address and response policy before public distribution.
+Report vulnerabilities through GitHub
+[private vulnerability reporting](https://github.com/radeknovis/homebrew-debagr/security/advisories/new)
+on the public tap repository, which also publishes this policy as `SECURITY.md`.
+Responses are best effort during the technical preview, and only the latest
+release receives fixes. Do not file public issues containing device identifiers,
+hostnames, tailnet addresses, pairing material, logs, or diagnostics.

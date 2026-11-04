@@ -1,6 +1,7 @@
 # Debagr distribution
 
-Prepared and locally checked 23 October 2026. Public distribution is not activated.
+Updated 4 November 2026. The 0.2.0 technical preview is public through the
+Homebrew tap and its GitHub release; the app source stays private.
 
 ## Smallest useful route
 
@@ -53,16 +54,16 @@ No shell profile edit, privileged helper, or PATH mutation is required.
 For SSH, use the absolute remote path too: noninteractive shells need not load
 the user's interactive PATH setup. Run as the paired user, not root.
 
-A **publisher-owned Homebrew cask** is prepared in the separate private
+A **publisher-owned Homebrew cask** is published in the separate public
 [`radeknovis/homebrew-debagr`](https://github.com/radeknovis/homebrew-debagr)
-repository. Its draft prerelease contains the notarized DMG, checksum and
+repository. Its 0.2.0 prerelease contains the notarized DMG, checksum and
 matching plugin archives. The app source remains private. The cask pins 0.2.0
 and the final DMG SHA-256, requires Apple silicon and macOS 26 or later, installs
 `Debagr.app`, and links its existing executable as lowercase `debagr`.
 [Cask definition](https://github.com/radeknovis/homebrew-debagr/blob/main/Casks/debagr.rb),
 [Homebrew cask documentation](https://docs.brew.sh/Cask-Cookbook).
 
-After publication and anonymous-download verification, installation will be:
+Install with:
 
 ```sh
 brew install --cask radeknovis/debagr/debagr
@@ -74,7 +75,13 @@ exact final notarized DMG. The CLI symlink, JSON inventory, strict signature,
 stapled ticket and Gatekeeper acceptance passed after install and replacement.
 The temporary cask, link, trust entry and tap were removed. The uploaded draft
 DMG was downloaded with authenticated GitHub access and its checksum matched.
-Anonymous public fetching and a version-to-version upgrade have not been tested.
+After publication on 4 November 2026, an anonymous download of the release DMG
+matched its checksum, and `brew install --cask` from the public tap into a
+temporary Applications directory passed the same signature, ticket, Gatekeeper
+and JSON checks before uninstall and untap. `brew audit --cask --strict --online`
+reports two expected findings: the release is a GitHub prerelease, and the
+cask's macOS 26 floor is deliberately above the app's macOS 13 minimum.
+A version-to-version upgrade has not been tested.
 
 For each release, update the cask's `version` and `sha256` from the final,
 notarized/stapled DMG. Keep the versioned URL immutable and retain the previous
@@ -88,7 +95,7 @@ package maintenance. Do not overwrite an existing app or `debagr` command.
 The cask has no `zap` stanza and preserves profiles, pairing records, preferences
 and deployment receipts. It does not install skills globally. Homebrew handles
 the CLI link; its bin directory must be on PATH. Updates can use manual DMG
-replacement or `brew upgrade --cask radeknovis/debagr/debagr` after activation;
+replacement or `brew upgrade --cask radeknovis/debagr/debagr`;
 an in-app updater is not required for this preview.
 
 For either upgrade path, quit Debagr before replacing its app bundle and relaunch
@@ -128,6 +135,7 @@ logged-in session, Tailscale at both endpoints, and remote **Wi-Fi**. Cellular
 RemotePairing remains unsupported. Do not advertise an iPhone companion app,
 zero-touch Apple trust, universal Mac support, or tested iPad support.
 
-The app source, cask/binary repository and prerelease remain private. No public
-release, tap activation, global skill installation, auto-updater, new service or
-App Store submission has occurred.
+The cask/binary repository, the 0.2.0 prerelease and the
+[launch site](https://radeknovis.github.io/debagr-site/), served from the public `radeknovis/debagr-site`
+repository, are public. The app source remains private. No global skill
+installation, auto-updater, new service or App Store submission has occurred.

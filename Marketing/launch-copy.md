@@ -1,8 +1,8 @@
 # Debagr launch copy
 
-Prepared for the technical preview. Publication is gated on the release report.
-Use the notarized download URL only after it exists. Replace bracketed links
-before posting; never post these drafts with placeholder links.
+Prepared for the technical preview, published 4 November 2026. Preview links
+point at https://radeknovis.github.io/debagr-site/. Funding links stay bracketed until
+activation; never post these drafts with placeholder links.
 
 ## Positioning
 
@@ -29,7 +29,7 @@ through your paired Mac on another Wi-Fi network.
 
 Technical preview. VPN + Wi-Fi required. No cellular-only support.
 
-[Preview link]
+https://radeknovis.github.io/debagr-site/
 
 Attach `video/debagr-promo-landscape.mp4` or `social/launch-card.png`. Shorten or
 split the text to fit the destination's current limits before posting.
@@ -51,7 +51,7 @@ Wi-Fi required, and cellular-only operation unsupported. Tailscale has prior
 remote iPhone install-and-launch evidence; the broader provider and iPad
 hardware matrix is still being tested.
 
-Preview and setup: [Preview link]
+Preview and setup: https://radeknovis.github.io/debagr-site/
 Optional support for testing and compatibility work: [Verified funding link]
 
 ## Developer community post
@@ -72,7 +72,7 @@ I would particularly value reproducible reports about setup, recovery after
 network changes, and clarity of failure messages. Please include OS/Xcode
 versions and redact personal device data.
 
-[Preview link] · [Compatibility notes]
+https://radeknovis.github.io/debagr-site/ · Requirements: https://radeknovis.github.io/debagr-site/#requirements
 
 Share only in communities that permit author promotion and after reviewing the
 community's current rules. Do not mass-post, message users, or imply community
@@ -110,9 +110,10 @@ they are not a new recording of a successful hardware deployment.
 ## Claims checklist
 
 Use: paired Mac, private VPN, separate Wi-Fi networks, signed device builds,
-structured JSON, prior Tailscale/iPhone evidence, technical preview.
+structured JSON, prior Tailscale/iPhone evidence, technical preview, notarized
+download, Homebrew install.
 
 Do not claim: cellular support, Apple endorsement, transparent cross-Mac Xcode,
-validated iPad or alternative VPN deployments, Intel/universal support, a live
-notarized download, active funding pages, or a completed recovery matrix until
+validated iPad or alternative VPN deployments, Intel/universal support, active
+funding pages, a clean-Mac or fresh 0.2.0 hardware result, or a completed recovery matrix until
 that specific result has been verified and recorded.
