@@ -1,6 +1,6 @@
 # Debagr compatibility
 
-Updated 22 September 2026.
+Updated 22 October 2026.
 
 ## Provider support update — 22 October 2026
 
@@ -16,6 +16,7 @@ See [provider setup and address restrictions](NETWORK_PROVIDERS.md).
 | Capability | Status | Supported environment |
 | --- | --- | --- |
 | Menu-bar Target Device inventory | Implemented and locally verified through `devicectl` plus Bonjour | Apple-silicon Mac, macOS 13 or later |
+| Managed remote deployment transport | Implemented; prior Tailscale/iPhone evidence, fresh acceptance pending | Apple-silicon Mac, macOS 26 or later; current Xcode; device Wi-Fi and private VPN |
 | Multiple iPhone/iPad Bonjour records | Implemented; parser/model tests pass | Local Bonjour-compatible network |
 | First-run guide, Launch at Login, About, diagnostics | Implemented | Packaged macOS app |
 | Paired-Mac `.app` install and optional launch | Implemented; automated tests pass, live install requires an unlocked device | Current Xcode and a locally paired physical device |

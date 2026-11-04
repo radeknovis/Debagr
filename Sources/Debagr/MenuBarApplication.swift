@@ -122,7 +122,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
     helpItem.submenu = helpMenu
     menu.addItem(helpItem)
     let gettingStartedMenuItem = NSMenuItem(
-      title: "Setup & Troubleshooting…",
+      title: "Agent Tools & Setup Guide…",
       action: #selector(showGettingStarted),
       keyEquivalent: ""
     )
@@ -593,6 +593,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
       let controller = DeviceSetupWindowController(configured: try? managedRuntime.store.load())
       controller.model.onRefresh = { [weak self] in self?.startDiscovery() }
       controller.model.onSaved = { [weak self] in self?.refreshManagedDevice() }
+      controller.model.onShowSkill = { [weak self] in self?.showDeploymentSkill() }
       setupWindowController = controller
     }
     setupWindowController?.model.updateDevices(

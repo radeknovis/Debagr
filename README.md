@@ -74,14 +74,27 @@ it does not create provider accounts or configure tunnels. See the
 
 ## Get started
 
+### Install
+
+The publisher-owned [Homebrew cask](https://github.com/radeknovis/homebrew-debagr)
+installs the notarized 0.2.0 technical preview and links its CLI as `debagr`.
+The signed DMG and its checksum are also on the [release page](https://github.com/radeknovis/homebrew-debagr/releases/tag/v0.2.0).
+
+```sh
+brew install --cask radeknovis/debagr/debagr
+```
+
+Apple silicon and macOS 26 or later are required. See the
+[distribution status and acceptance checks](docs/DISTRIBUTION.md).
+
 ### 1. Set up your Mac and device once
 
 Setup opens in a resizable Debagr window with a single form for network and device selection, inline
 validation, and progress. Tailscale and Headscale device lists load automatically
 when selected; other providers use an address field.
 
-Build Debagr using the [source instructions below](#development), then install
-`Debagr.app` in `/Applications` on the Mac that will deploy your builds. The
+Install Debagr on the Mac that will deploy your builds, or build it using the
+[source instructions below](#development) and copy `Debagr.app` to `/Applications`. The
 [release runbook](docs/RELEASE.md) covers Developer ID signing and notarization
 for distribution.
 
@@ -90,7 +103,8 @@ Connect the Mac and device through your chosen private VPN. While the device's B
 available locally, open Debagr and choose **Set Up Remote Device…**. Select
 your VPN provider, the Apple device, its Bonjour service, and the same device’s
 VPN device or private IPv4 address, then
-choose **Connect Remote Device**.
+choose **Connect device**. **Agent tools** includes the plugin guides and a
+copyable deployment prompt.
 
 Leave Debagr open in that user's logged-in session. **Launch at Login** restores
 the app after login. Your device can then move to another Wi-Fi network.
@@ -128,7 +142,7 @@ checking its UI and behavior is a separate step.
 the device receiving the app. The current pairing and deployment flow supports
 iOS and iPadOS; a Mac target will need a separate deployment path.
 
-- **A paired Mac with Xcode and Debagr running.** Remote callers need existing
+- **An Apple-silicon Mac with macOS 26+, Xcode and Debagr running.** Remote callers need existing
   SSH access as the user who owns the pairing and runs Debagr.
 - **A supported device on Wi-Fi, connected through a private VPN.** Complete initial pairing
   and local device configuration before taking it remote. Unlock it for deployment.
@@ -180,8 +194,9 @@ JSON results, and failure recovery.
 ## Development
 
 
-The menu-bar monitor supports macOS 13 or later. The experimental relay's exact
-Network.framework address binding requires macOS 26 or later.
+The local menu-bar inventory supports macOS 13 or later. Remote deployment and
+the experimental relay require macOS 26 or later for exact Network.framework
+address binding. The preview package targets Apple silicon.
 
 ```sh
 swift build
@@ -326,14 +341,23 @@ link-local tunnel.
 
 ## Release status
 
+The 0.2.0 technical preview was published on 4 November 2026 through the public
+[Homebrew tap and release](https://github.com/radeknovis/homebrew-debagr) and the
+[launch site](https://radeknovis.github.io/debagr-site/). The app source stays private. Clean-Mac first launch,
+a fresh remote install and launch, iPad, the recovery matrix and Homebrew
+upgrades are not yet verified for 0.2.0.
+
 Paid distribution remains gated on packaged install-and-launch tests through
 SSH on clean Macs with current iPhone and iPad hardware. Acceptance includes
 locked-device recovery, restart, sleep, network changes, revoked trust, and
-clear failure reporting. Developer ID, notarization, storefront, domain, and
-legal-owner setup remain release requirements.
+clear failure reporting. Storefront, domain, and legal review remain
+requirements for paid distribution.
 
-The [launch research](docs/LAUNCH_RESEARCH.md) records channel and pricing
-hypotheses. The [launch-site draft](Marketing/site/index.html) keeps checkout
-closed until the release gates pass.
+The [shipping report](docs/SHIP_STATUS.md) records completed checks and remaining
+gaps. The [launch kit](Marketing/README.md) includes native screenshots,
+landscape and vertical promo videos, launch copy, and sponsorship drafts.
+The [launch site](Marketing/site/index.html) keeps funding links in preparation
+until they are activated. Earlier pricing
+hypotheses in [launch research](docs/LAUNCH_RESEARCH.md) are not an announced price.
 
 Debagr is not affiliated with or endorsed by Apple or Tailscale.

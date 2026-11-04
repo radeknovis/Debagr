@@ -79,4 +79,13 @@ final class DeviceSetupTests: XCTestCase {
     XCTAssertTrue(model.peerIP.isEmpty)
     XCTAssertFalse(model.canSave)
   }
+  func testDeploymentPromptUsesStableTargetAndSeparateConfirmation() {
+    let model = DeviceSetupModel(configured: nil)
+    XCTAssertTrue(model.deploymentPrompt.contains("my target device"))
+    model.deviceID = "test-device-id"
+    XCTAssertTrue(model.deploymentPrompt.contains("device test-device-id"))
+    XCTAssertTrue(model.deploymentPrompt.contains("/absolute/path/MyApp.app"))
+    XCTAssertTrue(model.deploymentPrompt.contains("Confirm installation and launch separately"))
+  }
+
 }

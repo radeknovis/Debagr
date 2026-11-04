@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 — Technical preview (4 November 2026)
+
+- Added native macOS settings for device setup and agent onboarding.
+- Added a JSON CLI for inventory, readiness, diagnostics, installation, and launch.
+- Added Claude Code and Codex plugin archives with the same deployment workflow.
+- Added Tailscale and Headscale peer discovery, plus manual private IPv4 entry
+  for ZeroTier, NetBird, and WireGuard.
+- Published a Developer ID signed, notarized Apple-silicon DMG and the
+  `radeknovis/debagr/debagr` Homebrew cask.
+- Not yet verified for this release: clean-Mac first launch, a fresh remote
+  install and launch, iPad, and the recovery matrix.
+
 ## 0.1.0 — Technical preview
 
 - Added a native menu-bar inventory that merges physical iPhone/iPad results

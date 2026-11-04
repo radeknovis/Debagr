@@ -1,5 +1,9 @@
 # Debagr launch research
 
+> Historical pricing research. The 22 October launch kit uses an unpriced
+> technical preview with optional sponsorship drafts. No checkout, subscription
+> price, or funding channel is active. See [shipping status](SHIP_STATUS.md).
+
 _Verified 22 September 2026. Prices and platform rules can change; recheck linked first-party pages before launch._
 
 ## Decision
