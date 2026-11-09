@@ -168,6 +168,43 @@ final class TailscaleClient {
     }.sorted { $0.dnsName < $1.dnsName }
   }
 
+  func isPersonalMeshConnection(localAddress: String, remoteAddress: String) -> Bool {
+    guard NetworkSupport.isAllowedTailscaleIPv4(localAddress),
+      NetworkSupport.isAllowedTailscaleIPv4(remoteAddress),
+      let path = Self.installedExecutablePath(), let data = try? statusJSON(at: path)
+    else { return false }
+    return Self.isPersonalMeshConnection(
+      status: data, localAddress: localAddress, remoteAddress: remoteAddress)
+  }
+
+  static func isPersonalMeshConnection(
+    status data: Data, localAddress: String, remoteAddress: String
+  ) -> Bool {
+    // Trust the daemon's network map and the actual socket endpoints, never a discovery name.
+    guard NetworkSupport.isAllowedTailscaleIPv4(localAddress),
+      NetworkSupport.isAllowedTailscaleIPv4(remoteAddress), localAddress != remoteAddress,
+      let status = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      status["BackendState"] as? String == "Running",
+      let tailnet = status["CurrentTailnet"] as? [String: Any],
+      let suffix = tailnet["MagicDNSSuffix"] as? String, !suffix.isEmpty,
+      let local = status["Self"] as? [String: Any],
+      (local["TailscaleIPs"] as? [String])?.contains(localAddress) == true,
+      let localID = local["ID"] as? String, !localID.isEmpty,
+      let peers = status["Peer"] as? [String: [String: Any]]
+    else { return false }
+    let domain =
+      "." + suffix.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) + "."
+    return peers.values.contains { peer in
+      guard let id = peer["ID"] as? String, !id.isEmpty, id != localID,
+        peer["InNetworkMap"] as? Bool == true, peer["Online"] as? Bool == true,
+        (peer["TailscaleIPs"] as? [String])?.contains(remoteAddress) == true,
+        let dnsName = peer["DNSName"] as? String
+      else { return false }
+      return (dnsName.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) + ".")
+        .hasSuffix(domain)
+    }
+  }
+
   private func executablePath() throws -> String {
     guard let path = Self.installedExecutablePath() else {
       throw TailscaleError.executableNotFound
@@ -191,6 +228,9 @@ final class TailscaleClient {
       throw TailscaleError.commandFailed(-1)
     }
 
+    let timeout = DispatchWorkItem { if process.isRunning { process.terminate() } }
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 3, execute: timeout)
+    defer { timeout.cancel() }
     let data = output.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()
 

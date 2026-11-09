@@ -42,7 +42,7 @@ enum CLIError: LocalizedError {
         "Use --capture-device-profile with --peer and --bonjour-host, or --direct-device with --peer and a captured --profile. These modes cannot be combined with deployment, discovery, menu-bar, or relay options."
     case .conflictingCommands:
       return
-        "Select one command. --json supports --devices, --status, --diagnose, --configure, or --deploy-app."
+        "Select one command. --json supports --devices, --status, --diagnose, --configure, --deploy-app, --usb-services, or --usb-profile."
     }
   }
 }
@@ -107,7 +107,7 @@ struct CommandLineOptions {
         directDevice = true
       case "--menu-bar":
         menuBar = true
-      case "--devices", "--status", "--diagnose", "--configure":
+      case "--devices", "--status", "--diagnose", "--configure", "--usb-services", "--usb-profile":
         guard agentCommand == nil else { throw CLIError.conflictingCommands }
         agentCommand = String(argument.dropFirst(2))
       case "--json":
@@ -182,10 +182,19 @@ struct CommandLineOptions {
       guard deployAppURL == nil, !discover, !menuBar, !forwardRemote, !watchTunnels,
         !allowLANClients, remotePort == nil, bonjourName == nil, !launchAfterInstall
       else { throw CLIError.conflictingCommands }
-      if agentCommand != "devices" && deviceIdentifier == nil { throw CLIError.missingDevice }
-      if agentCommand == "devices" && deviceIdentifier != nil { throw CLIError.conflictingCommands }
+      let needsDevice = ["status", "diagnose", "configure"].contains(agentCommand!)
+      if needsDevice && deviceIdentifier == nil { throw CLIError.missingDevice }
+      if !needsDevice && deviceIdentifier != nil { throw CLIError.conflictingCommands }
       if agentCommand == "configure" && peerName == nil { throw CLIError.missingPeer }
-      if agentCommand != "configure"
+      if agentCommand == "usb-profile" && (peerName == nil || bonjourHost == nil) {
+        throw CLIError.invalidDirectDeviceOptions
+      }
+      if agentCommand?.hasPrefix("usb-") == true
+        && (!json || arguments.contains("--profile") || arguments.contains("--interface"))
+      {
+        throw CLIError.conflictingCommands
+      }
+      if agentCommand != "configure" && agentCommand != "usb-profile"
         && (peerName != nil || bonjourHost != nil || arguments.contains("--profile"))
       {
         throw CLIError.conflictingCommands
@@ -201,7 +210,7 @@ struct CommandLineOptions {
     }
 
     if arguments.contains("--provider"),
-      !captureDeviceProfile && agentCommand != "configure"
+      !captureDeviceProfile && agentCommand != "configure" && agentCommand != "usb-profile"
     {
       throw CLIError.conflictingCommands
     }
@@ -533,6 +542,7 @@ func printUsage() {
   print(
     """
     Usage:
+      debagr --usbip help
       debagr --devices --json
       debagr --status --device <UDID> --timeout 30 --json
       debagr --diagnose --device <UDID> --json
@@ -544,6 +554,8 @@ func printUsage() {
       debagr --forward-remote --peer <tailscale-hostname> [options]
       debagr --discover [--timeout <seconds>]
       debagr --menu-bar
+      debagr --usb-services --json
+      debagr --usb-profile --peer <VPN-IP> --bonjour-host <host> --provider <name> --json
 
     Options:
       --devices             List stable Apple device IDs and saved configuration; not a readiness check
@@ -552,7 +564,8 @@ func printUsage() {
       --configure           Save one remote device, capturing Bonjour or importing --profile
       --provider <name>     Setup/capture provider: tailscale (default), headscale, zerotier, netbird, wireguard
                             --peer is a device name for Tailscale/Headscale, a private IPv4 for other providers
-      --json                Emit one versioned JSON result on stdout; failures have nonzero exit codes
+      --json                Emit JSON on stdout; failures have nonzero exit codes
+                            Agent commands use versioned results; private USB helpers return their typed payload
       --capture-device-profile Capture the local Target Device service before roaming
       --direct-device       Proxy to the device's VPN IP using the provider saved in its profile
       --deploy-app <path>   Install a signed device .app from this paired Mac
@@ -566,6 +579,8 @@ func printUsage() {
       --watch-tunnels       Watch remotepairingd and add TCP/UDP tunnel relays
       --allow-lan           Allow clients other than this Mac's en0 address
       --menu-bar            Run the automatic multi-device menu-bar inventory
+      --usb-services       Private SSH helper: list nearby wireless services without TXT payloads
+      --usb-profile        Private SSH helper: export a captured profile to stdout; keep it private
       --help                Show this help
 
     Direct-device profiles require an explicitly selected private VPN IPv4 address.
@@ -583,6 +598,10 @@ atexit {
 }
 
 do {
+  if rawArguments.first == "--usbip" {
+    try USBIPCommand(Array(rawArguments.dropFirst())).run()
+    exit(EXIT_SUCCESS)
+  }
   let options = try CommandLineOptions.parse(rawArguments)
   operation = options.agentCommand ?? (options.deployAppURL != nil ? "deploy" : "command")
   if options.showHelp {

@@ -1,5 +1,37 @@
 # Direct Target Device transport
 
+## USB/IP refresh and relay deployment, 6 November 2026
+
+The referenced RemotePairingd research thread records a newer physical-device
+experiment on the MacBook Air, Mac mini, and iPhone 16 Pro:
+
+1. Longcable on the Air exported the phone to usbip-macos on the mini. Initial
+   USB enumeration succeeded but configuration stalled. A local Longcable patch
+   allowed nonzero `SET_CONFIGURATION` values beyond the initially captured one.
+2. With configuration 6, usbmux and NCM appeared. CoreDevice reported a connected
+   wired device and an authenticated tunnel; Debagr readiness returned `ok: true`,
+   `state: ready` with a longer timeout.
+3. **The mini's existing Apple pairing was accepted. No new Trust prompt occurred.**
+   This demonstrates a pairing-refresh experiment, not creation of a new pairing.
+4. The user stopped both USB processes and confirmed unplugging the phone.
+   With the Debagr relay running and the iPhone reachable through Tailscale,
+   readiness passed again. A signed LightApp build was installed and launched:
+   the thread records `ok: true`, `installed: true`, and `launched: true`.
+
+The source is the recorded experiment in
+<t3-thread://v2/c44be434-b944-4980-839b-9296d0114a88/9737cbd3-c5a9-4f98-bf38-936f0d9abfcd>
+(messages around positions 138–196). It was reviewed during consolidation, not
+repeated. The exact OS/tool/backend commit matrix was not captured in that result,
+and app UI behavior was not checked. Do not apply the older October version matrix
+below to this November experiment, or treat it as acceptance of the newly combined
+Debagr build, first-ever Apple trust, VirtualHere, iPad, or cellular transport.
+
+The patched backend remains outside Debagr; neither Longcable nor usbip-macos is
+redistributed by the app. See [USB/IP setup](usbip.md) for its privilege and capability
+requirements, and [connection design](CONNECTION_DESIGN.md) for the two native paths.
+
+## Original direct-device transport
+
 The product must keep the original Build Server's Apple pairing usable when
 the Target Device moves to another network. Tailscale runs on both endpoints.
 

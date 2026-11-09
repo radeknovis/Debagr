@@ -26,6 +26,8 @@ swift build -c "$configuration" 2>&1 | xcsift -f toon -w -e -E
 
 mkdir -p "$staged_app/Contents/MacOS" "$staged_app/Contents/Resources"
 cp "$binary_path" "$staged_app/Contents/MacOS/Debagr"
+cp "$project_directory/.build/$configuration/USBIPProbe" "$staged_app/Contents/MacOS/USBIPProbe"
+cp "docs/usbip.md" "$staged_app/Contents/Resources/USB-IP-Setup.md"
 cp "Packaging/Debagr.app/Contents/Info.plist" "$staged_app/Contents/Info.plist"
 cp "Packaging/Resources/AppIcon.icns" "$staged_app/Contents/Resources/AppIcon.icns"
 mkdir -p "$staged_app/Contents/Resources/Skills"
@@ -45,6 +47,7 @@ signing_arguments=(--force --options runtime --sign "$signing_identity")
 if [[ "$signing_identity" != "-" ]]; then
   signing_arguments+=(--timestamp)
 fi
+codesign "${signing_arguments[@]}" "$staged_app/Contents/MacOS/USBIPProbe"
 codesign "${signing_arguments[@]}" "$staged_app"
 codesign --verify --deep --strict --verbose=2 "$staged_app"
 plutil -lint "$staged_app/Contents/Info.plist"

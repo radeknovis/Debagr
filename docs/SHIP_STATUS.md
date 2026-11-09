@@ -1,5 +1,22 @@
 # Debagr 0.2.0 shipping status
 
+## Unreleased consolidation, 7 November 2026
+
+The launch work is already part of this branch through merge `519fcd8` (launch
+commit `36aeec4`). The current source combines Builder/Client discovery and role
+trust, temporary USB/IP setup, illustrated wireless setup, and a VirtualHere/SSH
+alternative. These changes are **not** in the notarized 0.2.0 build described below.
+The local app is ad-hoc signed; no release asset, public site, tap, installed app,
+or signing credential was changed by consolidation.
+
+The research thread records a newer unplugged iPhone relay install-and-launch
+after a USB/IP refresh of existing trust. [Recorded hardware evidence](DIRECT_DEVICE.md)
+preserves its limits. The combined UI, first-ever Apple pairing, VirtualHere,
+clean-Mac installation, iPad, and the recovery matrix still require acceptance.
+See [consolidation details](CONSOLIDATION.md) before preparing the next release.
+
+## Published release baseline
+
 Updated 4 November 2026. **Published as a technical preview.** The notarized
 0.2.0 build 2 is public through the
 [`radeknovis/homebrew-debagr`](https://github.com/radeknovis/homebrew-debagr) tap

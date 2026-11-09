@@ -32,8 +32,10 @@ its CLI locally or through SSH. Your existing Xcode build and signing workflow
 stays in place.
 
 > **Technical preview.** Install and launch have been verified on an iPhone
-> across separate Wi-Fi networks. Initial USB pairing and local configuration
-> are required. Keep the paired Mac running with Debagr open, and the device on
+> across separate Wi-Fi networks. Initial Apple pairing and configuration
+> are required. This source build adds experimental USB setup using USB/IP,
+> with VirtualHere over SSH as an alternative; the combined app still needs hardware acceptance.
+> Keep the paired Mac running with Debagr open, and the device on
 > Wi-Fi with its VPN connected. Cellular-only operation is unsupported.
 
 ## How it works
@@ -89,21 +91,41 @@ Apple silicon and macOS 26 or later are required. See the
 
 ### 1. Set up your Mac and device once
 
-Setup opens in a resizable Debagr window with a single form for network and device selection, inline
-validation, and progress. Tailscale and Headscale device lists load automatically
-when selected; other providers use an address field.
+In this source build, **Builder** means the Mac that compiles and deploys apps;
+**Client** means the Mac beside your physical iPhone. **Set Up Remote Device…**
+opens initial pairing on a new setup, or wireless configuration on a configured Builder.
+
+- **Initial device pairing:** click the Builder or Client card to select Macs.
+  Roles synchronize, plugged-in devices appear in the diagram, and temporary USB/IP
+  sharing has explicit Start, Stop, and Check Device actions. The backends are
+  separately installed. Both currently need administrator approval; the Builder
+  also needs a successful USB controller capability probe. The current unentitled
+  importer uses an experimental SIP-off path. Read the [USB/IP guide](docs/usbip.md).
+- **Everyday wireless deployment:** after stopping temporary USB, choose
+  **Set up wireless deployment…** on the Builder. Select the device, private network,
+  and profile, then review and check readiness. Existing Apple pairing stays on that Builder.
+- **VirtualHere alternative:** **Use VirtualHere instead…** opens the SSH-based
+  USB workflow, including Apple pairing and wireless profile handoff. It requires
+  VirtualHere Client on the Builder, a licensed VirtualHere Server and this Debagr
+  build on the Client Mac, and existing SSH access. See the [connection guide](docs/CONNECTION_DESIGN.md).
+
+These setup additions are not included in the published 0.2.0 release. The combined
+source build is covered by automated tests; the [recorded USB/IP experiment](docs/DIRECT_DEVICE.md#usbip-refresh-and-relay-deployment-6-november-2026)
+used an existing Apple pairing, not a first-ever trust relationship.
 
 Install Debagr on the Mac that will deploy your builds, or build it using the
 [source instructions below](#development) and copy `Debagr.app` to `/Applications`. The
 [release runbook](docs/RELEASE.md) covers Developer ID signing and notarization
 for distribution.
 
-Install Xcode, pair your device over USB, grant trust, and enable Developer Mode.
+Install Xcode, pair your device over USB directly or through the new pairing workflow,
+grant trust, and enable Developer Mode. For an existing pairing:
 Connect the Mac and device through your chosen private VPN. While the device's Bonjour service is
-available locally, open Debagr and choose **Set Up Remote Device…**. Select
+available locally, open **Wireless Deployment → Configure Wireless Connection…**
+(or **Set up wireless deployment…** from initial pairing). Select
 your VPN provider, the Apple device, its Bonjour service, and the same device’s
 VPN device or private IPv4 address, then
-choose **Connect device**. **Agent tools** includes the plugin guides and a
+choose **Save & check connection**. **Agent tools** includes the plugin guides and a
 copyable deployment prompt.
 
 Leave Debagr open in that user's logged-in session. **Launch at Login** restores
@@ -331,9 +353,11 @@ Target Device directly, which prevents a shared-LAN false positive.
 - Owned child processes receive argument arrays directly and are stopped by
   process identifier.
 
-These controls do not replace the missing mutual Debagr authorization design.
+Mac role synchronization now has signed, pinned peer identities; verified personal
+Tailscale mesh connections can establish that trust without a pairing code. This
+authorizes role changes only and does not authorize remote privileged USB controls.
 Do not sell or publicly promise transparent cross-Mac Xcode access. Direct-device
-deployment uses the original paired Build Server and relays its dynamic tunnel
+deployment uses the original paired Builder and relays its dynamic tunnel
 ports; it does not transfer Apple pairing or route a different Mac's negotiated
 link-local tunnel.
 

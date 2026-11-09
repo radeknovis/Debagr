@@ -1,6 +1,15 @@
 # Debagr compatibility
 
-Updated 22 October 2026.
+Updated 7 November 2026.
+
+## USB pairing update — 6 November 2026
+
+The source build combines the Builder/Client USB/IP flow with everyday wireless
+setup and an optional VirtualHere-over-SSH path. These additions are not in the
+published 0.2.0 app. The recorded USB/IP experiment refreshed an existing pairing
+and was followed by a successful unplugged relay install/launch. First-ever Apple
+trust, the final combined UI on hardware, and VirtualHere hardware acceptance
+remain unverified. See [setup and acceptance](CONNECTION_DESIGN.md).
 
 ## Provider support update — 22 October 2026
 
@@ -21,10 +30,12 @@ See [provider setup and address restrictions](NETWORK_PROVIDERS.md).
 | First-run guide, Launch at Login, About, diagnostics | Implemented | Packaged macOS app |
 | Paired-Mac `.app` install and optional launch | Implemented; automated tests pass, live install requires an unlocked device | Current Xcode and a locally paired physical device |
 | Remote invocation | Uses the build server's existing SSH authentication | Any SSH-capable caller; Tailscale optional |
+| USB/IP setup and pairing refresh | Implemented UI/CLI; prior manual hardware refresh evidence; integrated UI acceptance pending | External patched Longcable and usbip-macos, private VPN, admin approval, successful Builder HCI probe; current unentitled importer uses SIP off |
+| VirtualHere USB pairing alternative | Implemented; automated coverage; hardware acceptance pending | VirtualHere Client and licensed macOS Server, SSH, USB cable to Client; macOS 26+ Builder for wireless handoff |
 | Manual TCP/UDP relay lab | Implemented; not a customer promise | macOS 26 or later, Tailscale CLI, explicit peer and port |
-| Cross-Mac Xcode or local `devicectl` use | Blocked in the current layer-4 architecture | CoreDevice requires per-Mac pairing and a negotiated link-local IPv6 tunnel |
+| Cross-Mac Xcode through the layer-4 relay | Blocked; separate from the USB pairing workflow above | CoreDevice requires per-Mac pairing and a negotiated link-local IPv6 tunnel |
 | Automatic per-device routing and recovery | Not implemented | — |
-| Mutual Mac authorization and revocation | Not implemented | — |
+| Mac role linking and local unpair | Signed role updates, pinned keys, tested mesh identity checks or LAN code confirmation | Authorizes role synchronization; does not grant remote privileged USB process control |
 
 Debagr is not affiliated with or endorsed by Apple or Tailscale. Apple documents
 wireless use on the same network and does not document cross-Mac RemotePairing

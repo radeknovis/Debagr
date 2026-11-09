@@ -29,8 +29,10 @@
   <key>NSBonjourServices</key>
   <array>
     <string>_remotepairing._tcp</string>
+    <string>_debagr._tcp</string>
+    <string>_debagr-role._tcp</string>
   </array>
   <key>NSLocalNetworkUsageDescription</key>
-  <string>Debagr discovers Target Devices available to this Mac.</string>
+  <string>Debagr discovers Target Devices and running Debagr clients and servers on your private network.</string>
 </dict>
 </plist>

@@ -2,7 +2,7 @@ import Foundation
 
 enum AgentCLI {
   static let recovery =
-    "Open Debagr on the paired Build Server and connect the configured device. Keep the device unlocked, on Wi-Fi, with its selected VPN connected. Re-pair over USB if trust was revoked."
+    "Open Debagr on the paired Builder and connect the configured device. Keep the device unlocked, on Wi-Fi, with its selected VPN connected. Re-pair over USB if trust was revoked."
 
   static func waitUntilReady(
     deviceIdentifier: String, timeout: TimeInterval,
@@ -27,6 +27,10 @@ enum AgentCLI {
 
   static func run(_ options: CommandLineOptions) throws {
     let command = options.agentCommand!
+    if command == "usb-services" || command == "usb-profile" {
+      try USBProfileTransfer.run(options)
+      return
+    }
     let store = ManagedDeviceStore()
     let configured = try store.load()
     switch command {
@@ -130,7 +134,7 @@ enum AgentCLI {
     case DeviceDeploymentError.invalidApp:
       code = "invalid_app"
       message = error.localizedDescription
-      recovery = "Build a signed iphoneos .app on the Build Server for this device."
+      recovery = "Build a signed iphoneos .app on the Builder for this device."
       exitCode = 65
     case DeviceDeploymentError.launchFailed(let identifier):
       code = "launch_failed"
@@ -172,7 +176,7 @@ enum AgentCLI {
       exitCode = 2
     case is NetworkSupportError:
       code = "network_unavailable"
-      recovery = "Connect the Build Server to Wi-Fi or Ethernet."
+      recovery = "Connect the Builder to Wi-Fi or Ethernet."
       exitCode = 2
     default:
       if operation == "status" || operation == "diagnose" {
