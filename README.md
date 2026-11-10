@@ -41,8 +41,8 @@ These changes have not yet been released in the published 0.2.0 binary.
 
 ## Scope and evidence
 
-One managed remote device is supported. Tailscale has prior remote iPhone
-install-and-launch evidence. Headscale, ZeroTier, NetBird, WireGuard and remote
+One managed remote device is supported. Tailscale has fresh 0.3.0 candidate remote iPhone
+installation and OS-confirmed launch evidence. Headscale, ZeroTier, NetBird, WireGuard and remote
 iPad acceptance still need hardware validation. Local tests and a VPN connection
 alone do not establish a working Apple deployment path.
 

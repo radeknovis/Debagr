@@ -189,9 +189,13 @@ struct DeviceDeployer {
       let error = object["error"] as? [String: Any],
       let code = error["code"] as? Int, let domain = error["domain"] as? String
     else { return nil }
+    let info = error["userInfo"] as? [String: Any]
+    let typedDescription = info?["NSLocalizedDescription"] as? [String: Any]
     return .appleError(
       code: code, domain: domain,
       message: error["localizedDescription"] as? String
+        ?? typedDescription?["string"] as? String
+        ?? info?["NSLocalizedDescription"] as? String
         ?? "Apple device command failed (\(domain), \(code)).")
   }
 

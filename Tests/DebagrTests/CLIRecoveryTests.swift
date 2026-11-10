@@ -3,6 +3,18 @@ import XCTest
 @testable import Debagr
 
 final class CLIRecoveryTests: XCTestCase {
+  func testTypedAppleUserInfoDescriptionIsPreserved() throws {
+    let data = Data(
+      #"{"error":{"code":4016,"domain":"com.apple.dt.CoreDeviceError","userInfo":{"NSLocalizedDescription":{"string":"The device is not able to fulfill the requested usage assertion requirements."}}}}"#
+        .utf8)
+    let error = try XCTUnwrap(DeviceDeployer.appleError(from: data))
+    XCTAssertEqual(
+      error.localizedDescription,
+      "The device is not able to fulfill the requested usage assertion requirements.")
+    let failure = AgentCLI.failure(error, operation: "status")
+    XCTAssertEqual((failure.object["error"] as? [String: Any])?["underlyingCode"] as? Int, 4016)
+  }
+
   func testCommandsRejectOptionsTheyCannotUse() throws {
     for args in [
       ["--devices", "--timeout", "5"], ["--menu-bar", "--peer", "phone"],

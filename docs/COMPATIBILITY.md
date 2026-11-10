@@ -16,7 +16,7 @@ See [provider setup and address restrictions](NETWORK_PROVIDERS.md).
 | Capability | Status | Supported environment |
 | --- | --- | --- |
 | Menu-bar Target Device inventory | Implemented and locally verified through `devicectl` plus Bonjour | Apple-silicon Mac, macOS 13 or later |
-| Managed remote deployment transport | Implemented; prior Tailscale/iPhone evidence, fresh acceptance pending | Apple-silicon Mac, macOS 26 or later; current Xcode; device Wi-Fi and private VPN |
+| Managed remote deployment transport | Implemented; fresh 0.3.0 build 2 remote iPhone install/launch passed; iPad pending | Apple-silicon Mac, macOS 26 or later; current Xcode; device Wi-Fi and private VPN |
 | Multiple iPhone/iPad Bonjour records | Implemented; parser/model tests pass | Local Bonjour-compatible network |
 | First-run guide, Launch at Login, About, diagnostics | Implemented | Packaged macOS app |
 | Paired-Mac `.app` install and optional launch | Implemented; automated tests pass, live install requires an unlocked device | Current Xcode and a locally paired physical device |
@@ -34,8 +34,8 @@ alone does not transfer another Mac's pairing state.
 The source branch uses requiredLocalEndpoint without a macOS 26 API guard.
 This does not lower the advertised remote support floor: macOS 13–15 runtime
 acceptance remains unverified. The shared listener, native Bonjour, new CLI
-recovery tools and local MCP endpoint pass local automated checks; no new
-remote-device acceptance is implied.
+recovery tools and local MCP endpoint pass local automated checks; fresh remote iPhone installation and OS-confirmed launch are recorded in
+[hardware evidence](DIRECT_DEVICE.md). Other hardware claims remain pending.
 
 ## Evidence required before paid access
 

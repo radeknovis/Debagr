@@ -5,6 +5,14 @@ import XCTest
 
 final class AuditRegressionTests: XCTestCase {
   func testNativeBonjourRegistrationAppearsAndStops() throws {
+    try verifyNativeRegistration(allInterfaces: false)
+  }
+
+  func testNativeBonjourRegistrationMatchesProductionShape() throws {
+    try verifyNativeRegistration(allInterfaces: true)
+  }
+
+  private func verifyNativeRegistration(allInterfaces: Bool) throws {
     let binding: InterfaceBinding
     do { binding = try NetworkSupport.resolveInterface(named: "auto") } catch {
       throw XCTSkip("Bonjour integration needs an active network interface")
@@ -18,8 +26,9 @@ final class AuditRegressionTests: XCTestCase {
     }
     defer { capture.stop() }
     let proxy = try BonjourProxy(
-      interfaceName: binding.name, instanceName: name,
-      localPort: 45678, localHost: "\(name.lowercased()).local.", localIP: binding.ipv4Address,
+      interfaceName: allInterfaces ? "0" : binding.name, instanceName: name,
+      localPort: 45678, localHost: "\(name.lowercased()).local" + (allInterfaces ? "" : "."),
+      localIP: binding.ipv4Address,
       txt: ["test": "native"])
     try proxy.start()
     defer { proxy.stop() }

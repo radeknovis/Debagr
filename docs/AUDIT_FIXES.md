@@ -2,7 +2,7 @@
 
 Source candidate: 0.3.0. Work is committed in focused batches on
 `t3/project-improvements`; the published app and public site still serve 0.2.0.
-No real-device install or public release was performed during the source fixes.
+A remote iPhone install and OS-confirmed launch were verified; no public release was performed.
 
 ## Implemented
 
@@ -40,7 +40,7 @@ No real-device install or public release was performed during the source fixes.
 
 ## Verification
 
-- 62 Swift tests passed, with zero compile warnings or errors.
+- 64 Swift tests passed, with zero compile warnings or errors.
 - TCP and UDP tests send data through real local relay sockets; these do not
   establish CoreDevice or remote-device acceptance. A native Bonjour integration
   test verifies the advertised service is visible and registration stops.
@@ -81,8 +81,11 @@ No real-device install or public release was performed during the source fixes.
 - A clean complete-concurrency build recorded 111 diagnostic emissions / 58
   unique warnings. The reviewed baseline blocks new diagnostics; this is not a
   completed Swift 6 migration and existing warnings were not suppressed.
-- The configured physical iPhone readiness probe returned device_locked (exit 2).
-  The device panel exposes simulators only; neither proves remote hardware acceptance.
+- Early iPhone probes returned device_locked / CoreDevice 4016. A matching orphaned
+  legacy advertisement was stopped after checking its owner, service identity,
+  hostname and port. Two app copies were also found running. The installed copy
+  was stopped and the candidate was verified as the only control-port owner.
+  Readiness then passed; no Apple daemons, trust or signing credentials were reset.
 
 ## Signed candidate evidence
 
@@ -92,10 +95,25 @@ service, stapled, validated and accepted by Gatekeeper as Notarized Developer ID
 The versioned DMG and SHA-256 are in `dist/`; no public binary was uploaded.
 This establishes distribution integrity, not device deployment behavior.
 
+## Remote iPhone acceptance
+
+Using the signed 0.3.0 build 2 candidate as relay owner and CLI, SmartSaver
+SSStaging was built from the separate checkout's clean main branch. Its device
+build signature was verified and its provisioning profile included the selected
+Radek's iPhone 16 Pro. The owner confirmed different Wi-Fi networks and no USB.
+Readiness returned ready; deployment returned ok, the expected bundle identifier,
+installed true and launched true. This is a fresh remote iPhone installation and
+OS-confirmed launch, not visual verification of SmartSaver's screen behavior.
+No SmartSaver source changes were made. Private result JSON stays under .build/.
+
+Real devicectl errors use typed userInfo.NSLocalizedDescription.string values;
+the CLI now preserves those descriptions, with a captured-shape regression test.
+Native Bonjour tests also exercise the all-interface, non-trailing-dot hostname
+shape used in production.
+
 ## Remaining external acceptance and delivery
 
-- A signed device artifact and the intended unlocked device are needed for real
-  remote iPhone/iPad installation and launch. The owner has been asked to select them.
+- Remote iPad installation and launch remain unverified; the iPhone acceptance above is complete.
 - Sleep/wake, trust revocation, alternative VPNs, older macOS and clean-Mac /
   Homebrew-upgrade acceptance require an appropriate controlled test environment.
   The advertised remote support floor remains unchanged.

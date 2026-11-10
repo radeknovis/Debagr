@@ -104,3 +104,19 @@ The existing two-Mac relay lab does not implement this direct-device path.
 
 Bundle identifiers in the historical examples above are redacted as `com.example.MyApp`.
 Those records are prior evidence, not acceptance of the 0.3.0 source candidate.
+
+## 0.3.0 candidate acceptance — 10 November 2026
+
+A freshly built, signed SmartSaver SSStaging device app was deployed to Radek's
+iPhone 16 Pro using the signed 0.3.0 build 2 candidate. Signature verification
+and provisioning inclusion passed. The owner confirmed a different Wi-Fi network
+and disconnected USB. Readiness returned ready, then the deployment JSON
+confirmed the expected bundle identifier, installed true and launched true.
+The separate SmartSaver checkout stayed clean. No device screen inspection was
+available; the launch is OS-confirmed. iPad and recovery-matrix acceptance remain pending.
+
+The initial environment contained a matching orphaned legacy advertisement and
+two running Debagr copies. Only the exact matching orphan and installed app copy
+were stopped. A single candidate relay owner was verified before the successful
+check. This recovery sequence is evidence of the observed setup; it does not
+prove that every prior failure had the same cause.
