@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 enum ProductSupport {
@@ -27,6 +28,18 @@ enum ProductSupport {
       return nil
     }
     return URL(string: value)
+  }
+
+  static func shellQuote(_ value: String) -> String {
+    "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+  }
+
+  static func deployCommand(
+    deviceIdentifier: String,
+    executablePath: String = Bundle.main.executablePath ?? CommandLine.arguments[0]
+  ) -> String {
+    shellQuote(executablePath) + " --deploy-app '/path/to/App.app' --device "
+      + shellQuote(deviceIdentifier) + " --launch --json"
   }
 
   static func diagnostics(devices: [TargetDevice]) -> String {
@@ -70,14 +83,20 @@ enum ProductSupport {
     process.standardOutput = pipe
     process.standardError = FileHandle.nullDevice
 
+    let finished = DispatchSemaphore(value: 0)
+    process.terminationHandler = { _ in finished.signal() }
     do {
       try process.run()
     } catch {
       return nil
     }
 
+    guard finished.wait(timeout: .now() + 3) == .success else {
+      process.terminate()
+      if finished.wait(timeout: .now() + 1) != .success { kill(process.processIdentifier, SIGKILL) }
+      return nil
+    }
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
     guard process.terminationStatus == 0 else { return nil }
     return String(data: data, encoding: .utf8)?
       .trimmingCharacters(in: .whitespacesAndNewlines)

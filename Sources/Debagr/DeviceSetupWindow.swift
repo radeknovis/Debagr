@@ -4,14 +4,22 @@ import SwiftUI
 final class DeviceSetupModel: ObservableObject {
   enum Page { case guide, setup, saved }
 
+  @Published var developerToolsAvailable: Bool?
+  @Published var confirmedSelection = false
+  @Published var configured: ConfiguredDevice?
   @Published var page = Page.setup
   @Published var provider = NetworkProvider.tailscale
   @Published var address = ""
-  @Published var deviceID = ""
-  @Published var serviceHost = ""
+  @Published var deviceID = "" { didSet { if oldValue != deviceID { confirmedSelection = false } } }
+  @Published var serviceHost = "" {
+    didSet { if oldValue != serviceHost { confirmedSelection = false } }
+  }
   @Published var peerIP = "" {
     didSet {
-      if oldValue != peerIP { importedProfile = nil }
+      if oldValue != peerIP {
+        importedProfile = nil
+        confirmedSelection = false
+      }
     }
   }
   @Published var devices: [TargetDevice] = []
@@ -21,6 +29,7 @@ final class DeviceSetupModel: ObservableObject {
   @Published var isWorking = false
   @Published var isLoadingPeers = false
   @Published var error: String?
+  @Published var connectionStatus = "Checking connection…"
   @Published var discoveryStatus = "Looking for devices…"
   var onSaved: (() -> Void)?
   var onRefresh: (() -> Void)?
@@ -31,16 +40,28 @@ final class DeviceSetupModel: ObservableObject {
   private var discoveryGeneration = 0
 
   init(configured: ConfiguredDevice?) {
+    self.configured = configured
     if let configured {
       provider = NetworkProvider(rawValue: configured.profile.provider) ?? .tailscale
       address = provider.discoversPeers ? "" : configured.profile.peerIP
       deviceID = configured.deviceIdentifier
       peerIP = configured.profile.peerIP
+      importedProfile = configured.profile
+      confirmedSelection = true
     }
   }
 
   func updateDevices(_ inventory: [TargetDevice], services: [BonjourDevice], status: String) {
     devices = inventory.filter { $0.identity.source == .appleIdentifier }
+    if let configured,
+      !devices.contains(where: { $0.identity.value == configured.deviceIdentifier })
+    {
+      devices.append(
+        TargetDevice(
+          identity: .apple(pairedMacNodeID: "local", identifier: configured.deviceIdentifier),
+          displayName: configured.displayName, kind: configured.kind ?? .unknown, service: nil,
+          status: .unavailable))
+    }
     serviceHosts = Array(
       Set(
         services.filter {
@@ -49,15 +70,30 @@ final class DeviceSetupModel: ObservableObject {
     ).sorted()
     discoveryStatus = status
     if deviceID.isEmpty, devices.count == 1 { deviceID = devices[0].identity.value }
-    if !serviceHosts.contains(serviceHost) {
+    if serviceHost.isEmpty {
       serviceHost = serviceHosts.count == 1 ? serviceHosts[0] : ""
     }
   }
 
   var canSave: Bool {
-    devices.contains { $0.identity.value == deviceID }
+    confirmedSelection && devices.contains { $0.identity.value == deviceID }
       && peers.contains { $0.ipAddress == peerIP }
       && (importedProfile != nil || serviceHosts.contains(serviceHost))
+  }
+
+  var addressValidationMessage: String? {
+    guard !provider.discoversPeers, !address.isEmpty,
+      !provider.allowsAddress(address.trimmingCharacters(in: .whitespacesAndNewlines))
+    else { return nil }
+    return
+      "Enter this device's private VPN IPv4 address, for example 10.20.0.2. Public and IPv6 addresses are unsupported."
+  }
+
+  func refreshDeveloperTools() {
+    queue.async { [weak self] in
+      let available = ProductSupport.developerToolsAvailable
+      DispatchQueue.main.async { self?.developerToolsAvailable = available }
+    }
   }
 
   var deploymentPrompt: String {
@@ -72,7 +108,6 @@ final class DeviceSetupModel: ObservableObject {
     let generation = discoveryGeneration
     let provider = provider
     error = nil
-    importedProfile = nil
     peers = []
     if !provider.discoversPeers {
       isLoadingPeers = false
@@ -89,9 +124,32 @@ final class DeviceSetupModel: ObservableObject {
         self.isLoadingPeers = false
         switch result {
         case .success(let peers):
-          self.peers = peers
-          if !peers.contains(where: { $0.ipAddress == self.peerIP }) {
-            self.peerIP = peers.count == 1 ? peers[0].ipAddress : ""
+          self.peers = peers.sorted {
+            let left =
+              $0.hostname.lowercased().contains("iphone")
+              || $0.hostname.lowercased().contains("ipad")
+            let right =
+              $1.hostname.lowercased().contains("iphone")
+              || $1.hostname.lowercased().contains("ipad")
+            return left != right ? left : $0.hostname < $1.hostname
+          }
+          if let configured = self.configured, configured.profile.provider == provider.rawValue,
+            !self.peers.contains(where: { $0.ipAddress == configured.profile.peerIP })
+          {
+            self.peers.append(
+              SelectedNetworkPeer(
+                hostname: configured.displayName,
+                dnsName: configured.peerName, ipAddress: configured.profile.peerIP, online: false))
+          }
+          if !self.peers.contains(where: { $0.ipAddress == self.peerIP }) {
+            let selectedName = self.devices.first { $0.identity.value == self.deviceID }?
+              .displayName
+            let matches = peers.filter {
+              $0.hostname.localizedCaseInsensitiveCompare(selectedName ?? "") == .orderedSame
+            }
+            self.peerIP =
+              matches.count == 1
+              ? matches[0].ipAddress : (peers.count == 1 ? peers[0].ipAddress : "")
           }
           if peers.isEmpty {
             self.error =
@@ -130,6 +188,18 @@ final class DeviceSetupModel: ObservableObject {
     return configured
   }
 
+  func removeDevice() {
+    guard !isWorking else { return }
+    do {
+      try ManagedDeviceStore().remove()
+      configured = nil
+      importedProfile = nil
+      deviceID = ""
+      peerIP = ""
+      onSaved?()
+    } catch { self.error = error.localizedDescription }
+  }
+
   func save() {
     guard !isWorking, canSave,
       let device = devices.first(where: { $0.identity.value == deviceID }),
@@ -150,12 +220,14 @@ final class DeviceSetupModel: ObservableObject {
         let configured = try Self.configuration(
           device: device, provider: provider, peer: peer, profile: profile)
         try ManagedDeviceStore().save(configured)
+        return configured
       }
       DispatchQueue.main.async {
         guard let self else { return }
         self.isWorking = false
         switch result {
-        case .success:
+        case .success(let configured):
+          self.configured = configured
           self.page = .saved
           self.onSaved?()
         case .failure(let error): self.error = error.localizedDescription
@@ -329,12 +401,13 @@ private struct SettingsNavigationItem: View {
       Label(title, systemImage: symbol)
         .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10).padding(.vertical, 10)
-        .foregroundStyle(isSelected ? SettingsStyle.accent : Color.primary)
+        .foregroundStyle(Color.primary)
         .background(
           isSelected ? SettingsStyle.accent.opacity(0.09) : Color.clear,
           in: RoundedRectangle(cornerRadius: 7))
     }
     .buttonStyle(.plain).accessibilityValue(isSelected ? "Selected" : "")
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 }
 
@@ -392,9 +465,27 @@ private struct DeviceConnectionView: View {
           eyebrow: "A little setup. A lot of freedom.",
           title: "Your Mac stays home.\nYour next build comes with you.",
           subtitle: "Connect your paired device over a private VPN.")
+        if let configured = model.configured {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Saved device: \(configured.displayName)").font(.headline)
+            Text("\(configured.profile.provider) · \(configured.profile.peerIP)").foregroundStyle(
+              .secondary)
+            Button("Remove saved device", role: .destructive) { model.removeDevice() }
+          }
+        }
         NetworkSelection(model: model)
+        Text(model.discoveryStatus).font(.caption).foregroundStyle(.secondary)
+        if model.developerToolsAvailable == false {
+          Text("Install Xcode and select its developer tools before pairing or discovery.")
+        }
         TargetSelection(model: model)
         NearbyConnection(model: model)
+        Text(
+          "Confirm that the paired device, nearby service and VPN selection all belong to the same physical device. Names are hints, not proof of identity."
+        )
+        .font(.caption).foregroundStyle(.secondary)
+        Toggle(
+          "These selections refer to the same physical device", isOn: $model.confirmedSelection)
         Divider()
         ConnectionChecklist(model: model)
       }
@@ -402,7 +493,10 @@ private struct DeviceConnectionView: View {
       .padding(32).frame(maxWidth: .infinity, alignment: .leading)
     }
     .disabled(model.isWorking)
-    .onAppear { model.loadPeers() }
+    .onAppear {
+      model.refreshDeveloperTools()
+      model.loadPeers()
+    }
     .onChange(of: model.provider) { _ in model.loadPeers() }
     .onChange(of: model.address) { _ in model.updateManualPeer() }
   }
@@ -438,6 +532,9 @@ private struct NetworkSelection: View {
           TextField("Device VPN IPv4 address", text: $model.address, prompt: Text("e.g. 10.20.0.2"))
             .textFieldStyle(.plain)
         }
+      }
+      if let validation = model.addressValidationMessage {
+        Text(validation).font(.caption).foregroundStyle(.red).accessibilityLabel(validation)
       }
       Text(
         model.provider == .tailscale
@@ -595,14 +692,14 @@ private struct AgentToolsView: View {
           HStack(spacing: 8) {
             Link(
               destination: URL(
-                string: "https://github.com/radeknovis/Debagr/blob/main/docs/PLUGINS.md#claude-code"
+                string: "https://github.com/radeknovis/homebrew-debagr/releases"
               )!
             ) {
               Label("Claude Code", systemImage: "terminal")
             }
             Link(
               destination: URL(
-                string: "https://github.com/radeknovis/Debagr/blob/main/docs/PLUGINS.md#codex")!
+                string: "https://github.com/radeknovis/homebrew-debagr/releases")!
             ) {
               Label("Codex", systemImage: "terminal")
             }
@@ -675,7 +772,7 @@ private struct SetupSavedView: View {
       Image(systemName: "checkmark.circle.fill").font(.system(size: 48)).foregroundStyle(.green)
       Text("Your device setup is saved").font(.title2.weight(.semibold))
       Text(
-        "Debagr is checking the connection. Look in the menu bar for device readiness before deploying."
+        model.connectionStatus
       )
       .multilineTextAlignment(.center).foregroundStyle(.secondary)
       Text(

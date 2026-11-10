@@ -29,11 +29,14 @@ enum MenuBarViewState: Equatable {
   }
 }
 
-final class MenuBarApplication: NSObject, NSApplicationDelegate {
+final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate {
   private static let initialDiscoveryWindow: TimeInterval = 5
   private static let didShowWelcomeKey = "didShowWelcome-v1"
 
   private let capture = BonjourCapture()
+  private var toolsAvailable: Bool?
+  private var checksMenu: NSMenu?
+  private var terminating = false
   private var statusItem: NSStatusItem?
   private var statusMenu: NSMenu?
   private var statusMenuItem: NSMenuItem?
@@ -52,6 +55,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
   private let managedQueue = DispatchQueue(label: "debagr.managed-device")
   private var managedTimer: Timer?
   private var managedBusy = false
+  private var managedRefreshPending = false
   private var managedStatusItem: NSMenuItem?
   private var managedToggleItem: NSMenuItem?
   private var lastDeploymentItem: NSMenuItem?
@@ -60,6 +64,30 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     let application = NSApplication.shared
     application.setActivationPolicy(.accessory)
+    let mainMenu = NSMenu()
+    let appMenu = NSMenu()
+    let appItem = NSMenuItem()
+    appItem.submenu = appMenu
+    mainMenu.addItem(appItem)
+    appMenu.addItem(
+      withTitle: "Quit Debagr", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+    let edit = NSMenu()
+    for (title, action, key) in [
+      ("Cut", "cut:", "x"), ("Copy", "copy:", "c"), ("Paste", "paste:", "v"),
+      ("Select All", "selectAll:", "a"),
+    ] {
+      edit.addItem(withTitle: title, action: NSSelectorFromString(action), keyEquivalent: key)
+    }
+    let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+    editItem.submenu = edit
+    mainMenu.addItem(editItem)
+    let windowMenu = NSMenu()
+    windowMenu.addItem(
+      withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+    let windowItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
+    windowItem.submenu = windowMenu
+    mainMenu.addItem(windowItem)
+    application.mainMenu = mainMenu
 
     let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     statusItem.button?.image = NSImage(
@@ -69,6 +97,8 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
     statusItem.button?.toolTip = "Debagr · Remote app deployment"
 
     let menu = NSMenu()
+    menu.autoenablesItems = false
+    menu.delegate = self
     menu.minimumWidth = 300
     menu.addItem(brandHeader())
     menu.addItem(.separator())
@@ -131,7 +161,10 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
     helpMenu.addItem(gettingStartedMenuItem)
 
     let systemCheckMenuItem = NSMenuItem(title: "System Check", action: nil, keyEquivalent: "")
-    systemCheckMenuItem.submenu = systemCheckMenu()
+    let checks = systemCheckMenu()
+    checks.delegate = self
+    checksMenu = checks
+    systemCheckMenuItem.submenu = checks
     systemCheckMenuItem.image = menuImage("checkmark.shield")
     helpMenu.addItem(systemCheckMenuItem)
 
@@ -191,13 +224,28 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
     self.refreshMenuItem = refreshMenuItem
     self.launchAtLoginMenuItem = launchAtLoginMenuItem
 
+    refreshSystemCheck()
     render()
     startDiscovery()
     showWelcomeIfNeeded()
     refreshManagedDevice()
-    managedTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+    managedTimer = Timer(timeInterval: 10, repeats: true) { [weak self] _ in
       self?.refreshManagedDevice()
     }
+    if let managedTimer { RunLoop.main.add(managedTimer, forMode: .common) }
+    NSWorkspace.shared.notificationCenter.addObserver(
+      self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
+  }
+
+  @objc private func didWake() {
+    refreshManagedDevice()
+    startDiscovery()
+  }
+
+  func menuWillOpen(_ menu: NSMenu) {
+    refreshSystemCheck()
+    launchAtLoginMenuItem?.state = SMAppService.mainApp.status == .enabled ? .on : .off
+    refreshManagedDevice()
   }
 
   private func brandHeader() -> NSMenuItem {
@@ -251,7 +299,18 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
   func applicationWillTerminate(_ notification: Notification) {
     capture.stop()
     managedTimer?.invalidate()
-    managedQueue.sync { managedRuntime.stop() }
+  }
+
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    guard !terminating else { return .terminateLater }
+    terminating = true
+    DeviceDeployer.cancelPendingCommands()
+    managedTimer?.invalidate()
+    managedQueue.async {
+      self.managedRuntime.stop()
+      DispatchQueue.main.async { sender.reply(toApplicationShouldTerminate: true) }
+    }
+    return .terminateLater
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool
@@ -284,24 +343,37 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
   }
 
   @objc private func copyDiagnostics() {
-    let report = ProductSupport.diagnostics(devices: registry.orderedDevices)
-    let pasteboard = NSPasteboard.general
-    pasteboard.clearContents()
-    pasteboard.setString(report, forType: .string)
-    statusMenuItem?.title = "Diagnostics copied"
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-      self?.render()
+    let devices = registry.orderedDevices
+    let managedTitle = managedStatusItem?.title ?? "unknown"
+    let discovery = failureDetails
+    DispatchQueue.global(qos: .utility).async { [self] in
+      var report = ProductSupport.diagnostics(devices: devices)
+      report += "\nRemote deployment: \(managedTitle)"
+      if let discovery { report += "\nDiscovery: \(discovery)" }
+      if let receipt = DeploymentReceipt.latest() {
+        report +=
+          "\nLast deployment: \(receipt.launched ? "installed and launched" : "installed") at \(receipt.completedAt.formatted())"
+      }
+      DispatchQueue.main.async {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(report, forType: .string)
+        self.statusMenuItem?.title = "Diagnostics copied"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+          self?.render()
+        }
+      }
     }
   }
 
   @objc private func copyDeployCommand(_ sender: NSMenuItem) {
     guard let identifier = sender.representedObject as? String else { return }
-    let command =
-      "'/Applications/Debagr.app/Contents/MacOS/Debagr' "
-      + "--deploy-app '/path/to/App.app' --device '\(identifier)' --launch --json"
+    let command = ProductSupport.deployCommand(deviceIdentifier: identifier)
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
     pasteboard.setString(command, forType: .string)
+    sender.title = "Deploy command copied"
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { sender.title = "Copy Deploy Command" }
   }
 
   @objc private func openSupport() {
@@ -428,7 +500,8 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
 
   private func render() {
     setupWindowController?.model.updateDevices(
-      registry.orderedDevices, services: bonjourServices, status: state.statusTitle)
+      registry.orderedDevices, services: bonjourServices,
+      status: failureDetails ?? state.statusTitle)
     statusMenuItem?.title = state.statusTitle
     statusMenuItem?.toolTip = failureDetails
     refreshMenuItem?.isEnabled = state != .discovering
@@ -456,6 +529,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
 
   private func detailsMenu(for device: TargetDevice) -> NSMenu {
     let menu = NSMenu()
+    menu.autoenablesItems = false
     let identifier = device.identity.value.replacingOccurrences(of: "bonjour:", with: "")
     let details: [String]
     if let service = device.service {
@@ -492,11 +566,29 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
     return menu
   }
 
+  private func refreshSystemCheck() {
+    DispatchQueue.global(qos: .utility).async { [weak self] in
+      let available = ProductSupport.developerToolsAvailable
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.toolsAvailable = available
+        let items = self.systemCheckMenu().items
+        self.checksMenu?.removeAllItems()
+        for item in items {
+          item.menu?.removeItem(item)
+          self.checksMenu?.addItem(item)
+        }
+        self.setupWindowController?.model.developerToolsAvailable = available
+      }
+    }
+  }
+
   private func systemCheckMenu() -> NSMenu {
     let menu = NSMenu()
+    menu.autoenablesItems = false
     let checks = [
-      ProductSupport.developerToolsAvailable
-        ? "Developer tools available" : "Developer tools not detected",
+      toolsAvailable.map { $0 ? "Developer tools available" : "Developer tools not detected" }
+        ?? "Checking developer tools…",
       ProductSupport.tailscaleExecutablePath != nil
         ? "Tailscale / Headscale client installed"
         : "Tailscale / Headscale client not installed; other VPNs can be used",
@@ -530,7 +622,11 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
   }
 
   private func refreshManagedDevice() {
-    guard !managedBusy else { return }
+    guard !terminating else { return }
+    guard !managedBusy else {
+      managedRefreshPending = true
+      return
+    }
     managedBusy = true
     managedQueue.async { [weak self] in
       guard let self else { return }
@@ -544,12 +640,32 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
           self.managedStatusItem?.title = title
           self.managedStatusItem?.toolTip = nil
         case .failure(let error):
-          self.managedStatusItem?.title = "Remote device needs attention"
-          let failure =
-            AgentCLI.failure(error, operation: "status").object["error"] as? [String: Any]
-          self.managedStatusItem?.toolTip = failure?["recovery"] as? String
+          switch error {
+          case DeviceDeploymentError.deviceLocked:
+            self.managedStatusItem?.title = "\(configured?.displayName ?? "Device") is locked"
+          case is ProfileError, is CLIError, is DecodingError:
+            self.managedStatusItem?.title = "Saved setup is invalid — set up again"
+          case is ManagedDeviceError:
+            self.managedStatusItem?.title = "Another Debagr relay is running"
+          case is NetworkSupportError:
+            self.managedStatusItem?.title = "This Mac needs Wi-Fi or Ethernet"
+          default:
+            self.managedStatusItem?.title = error.localizedDescription
+          }
+          self.managedStatusItem?.toolTip =
+            "\(error.localizedDescription)\nKeep the device unlocked on Wi-Fi with its VPN connected. Check saved setup in Settings; grant USB trust again if needed."
         }
-        self.managedToggleItem?.isEnabled = configured != nil
+        self.setupWindowController?.model.connectionStatus =
+          self.managedStatusItem?.title ?? "Checking connection…"
+        self.statusItem?.button?.image = NSImage(
+          systemSymbolName: (try? result.get())?.contains("Ready") == true
+            ? "checkmark.circle" : "antenna.radiowaves.left.and.right",
+          accessibilityDescription: self.managedStatusItem?.title)
+        if self.managedRefreshPending {
+          self.managedRefreshPending = false
+          self.refreshManagedDevice()
+        }
+        self.managedToggleItem?.isEnabled = configured != nil && !self.managedBusy
         self.managedToggleItem?.title =
           configured?.enabled == true ? "Disconnect Remote Device" : "Connect Remote Device"
         self.managedToggleItem?.image = self.menuImage(
@@ -568,6 +684,8 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
     do {
       let store = ManagedDeviceStore()
       try store.toggleEnabled()
+      managedStatusItem?.title = "Updating connection…"
+      managedToggleItem?.isEnabled = false
       refreshManagedDevice()
     } catch { presentSetupError(error) }
   }
@@ -597,7 +715,8 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate {
       setupWindowController = controller
     }
     setupWindowController?.model.updateDevices(
-      registry.orderedDevices, services: bonjourServices, status: state.statusTitle)
+      registry.orderedDevices, services: bonjourServices,
+      status: failureDetails ?? state.statusTitle)
     setupWindowController?.present(page: page)
   }
 

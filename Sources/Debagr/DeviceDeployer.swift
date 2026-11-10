@@ -43,6 +43,16 @@ struct DeploymentResult: Codable, Equatable {
 }
 
 struct DeviceDeployer {
+  private static let commands = LockedValue((cancelled: false, processes: [Process]()))
+
+  static func cancelPendingCommands() {
+    let processes = commands.withValue { state in
+      state.cancelled = true
+      return state.processes
+    }
+    for process in processes where process.isRunning { process.terminate() }
+  }
+
   var run: ([String], TimeInterval) throws -> Data = DeviceDeployer.runDevicectl
 
   func checkReady(deviceIdentifier: String, timeout: TimeInterval = 5) throws {
@@ -167,7 +177,12 @@ struct DeviceDeployer {
     process.standardError = FileHandle.nullDevice
     let finished = DispatchSemaphore(value: 0)
     process.terminationHandler = { _ in finished.signal() }
-    try process.run()
+    try commands.withValue { state in
+      guard !state.cancelled else { throw CocoaError(.userCancelled) }
+      try process.run()
+      state.processes.append(process)
+    }
+    defer { commands.withValue { $0.processes.removeAll { $0 === process } } }
     guard finished.wait(timeout: .now() + timeout) == .success else {
       process.terminate()
       if finished.wait(timeout: .now() + 1) != .success {

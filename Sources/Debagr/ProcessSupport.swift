@@ -9,6 +9,12 @@ final class LockedValue<Value> {
     self.value = value
   }
 
+  func withValue<Result>(_ body: (inout Value) throws -> Result) rethrows -> Result {
+    lock.lock()
+    defer { lock.unlock() }
+    return try body(&value)
+  }
+
   func get() -> Value {
     lock.lock()
     defer { lock.unlock() }
