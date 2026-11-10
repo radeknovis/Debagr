@@ -168,11 +168,13 @@ final class AuditRegressionTests: XCTestCase {
   func testUnknownDeviceFailsWithoutRetrying() {
     var calls = 0
     XCTAssertThrowsError(
-      try AgentCLI.waitUntilReady(deviceIdentifier: "missing", timeout: 30) { _, _ in
-        calls += 1
-        throw DeviceDeploymentError.appleError(
-          code: 1000, domain: "com.apple.dt.CoreDeviceError", message: "Missing")
-      })
+      try AgentCLI.waitUntilReady(
+        deviceIdentifier: "missing", timeout: 30,
+        check: { _, _ in
+          calls += 1
+          throw DeviceDeploymentError.appleError(
+            code: 1000, domain: "com.apple.dt.CoreDeviceError", message: "Missing")
+        }))
     XCTAssertEqual(calls, 1)
   }
 

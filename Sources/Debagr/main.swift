@@ -72,6 +72,7 @@ struct CommandLineOptions {
   var captureDeviceProfile: Bool = false
   var directDevice: Bool = false
   var agentCommand: String?
+  var launchBundleIdentifier: String?
   var json: Bool = false
   var provider: NetworkProvider = .tailscale
 
@@ -96,6 +97,7 @@ struct CommandLineOptions {
     var captureDeviceProfile = false
     var directDevice = false
     var agentCommand: String?
+    var launchBundleIdentifier: String?
     var json = false
     var provider = NetworkProvider.tailscale
 
@@ -117,7 +119,12 @@ struct CommandLineOptions {
         directDevice = true
       case "--menu-bar":
         menuBar = true
-      case "--devices", "--status", "--diagnose", "--configure":
+      case "--launch-app":
+        guard agentCommand == nil else { throw CLIError.conflictingCommands }
+        agentCommand = "launch"
+        launchBundleIdentifier = try requiredValue(
+          for: argument, arguments: arguments, index: &index)
+      case "--devices", "--status", "--diagnose", "--configure", "--installed-apps", "--mcp":
         guard agentCommand == nil else { throw CLIError.conflictingCommands }
         agentCommand = String(argument.dropFirst(2))
       case "--json":
@@ -168,53 +175,53 @@ struct CommandLineOptions {
       index += 1
     }
 
-    if captureDeviceProfile || directDevice {
-      guard !(captureDeviceProfile && directDevice),
-        peerName?.isEmpty == false,
-        !captureDeviceProfile || bonjourHost?.isEmpty == false,
-        !forwardRemote, !watchTunnels, !allowLANClients, !menuBar, !discover,
-        deployAppURL == nil, deviceIdentifier == nil, !launchAfterInstall,
-        remotePort == nil, bonjourName == nil, agentCommand == nil, !json
-      else { throw CLIError.invalidDirectDeviceOptions }
+    let commands = seenOptions.intersection([
+      "--devices", "--status", "--diagnose", "--configure",
+      "--installed-apps", "--launch-app", "--deploy-app", "--discover", "--menu-bar",
+      "--capture-device-profile", "--direct-device", "--forward-remote", "--mcp", "--help", "-h",
+      "--version",
+    ])
+    guard commands.count <= 1 else { throw CLIError.conflictingCommands }
+    let mode = commands.first ?? "relay"
+    let allowed: Set<String>
+    switch mode {
+    case "--help", "-h", "--version": allowed = [mode]
+    case "--devices": allowed = [mode, "--json"]
+    case "--status", "--diagnose", "--installed-apps":
+      allowed = [mode, "--device", "--timeout", "--json"]
+    case "--launch-app": allowed = [mode, "--device", "--json"]
+    case "--deploy-app": allowed = [mode, "--device", "--launch", "--json"]
+    case "--configure":
+      allowed = [
+        mode, "--device", "--peer", "--provider", "--bonjour-host", "--profile", "--interface",
+        "--timeout", "--json",
+      ]
+    case "--capture-device-profile":
+      allowed = [mode, "--peer", "--provider", "--bonjour-host", "--profile", "--timeout"]
+    case "--direct-device": allowed = [mode, "--peer", "--profile", "--interface"]
+    case "--forward-remote":
+      allowed = [mode, "--peer", "--profile", "--bonjour-host", "--remote-port", "--timeout"]
+    case "--discover": allowed = [mode, "--timeout"]
+    case "--menu-bar", "--mcp": allowed = [mode]
+    default:
+      allowed = [
+        "--peer", "--remote-port", "--bonjour-name", "--interface", "--profile", "--watch-tunnels",
+        "--allow-lan",
+      ]
     }
-
-    if deployAppURL == nil {
-      if deviceIdentifier != nil && agentCommand == nil {
-        throw CLIError.deployOptionRequiresApp("--device")
-      }
-      if launchAfterInstall {
-        throw CLIError.deployOptionRequiresApp("--launch")
-      }
-    } else if deviceIdentifier == nil {
+    guard seenOptions.isSubset(of: allowed) else { throw CLIError.conflictingCommands }
+    if [
+      "--status", "--diagnose", "--configure", "--installed-apps", "--launch-app", "--deploy-app",
+    ].contains(mode), deviceIdentifier == nil {
       throw CLIError.missingDevice
     }
-
-    if agentCommand != nil {
-      guard deployAppURL == nil, !discover, !menuBar, !forwardRemote, !watchTunnels,
-        !allowLANClients, remotePort == nil, bonjourName == nil, !launchAfterInstall
-      else { throw CLIError.conflictingCommands }
-      if agentCommand != "devices" && deviceIdentifier == nil { throw CLIError.missingDevice }
-      if agentCommand == "devices" && deviceIdentifier != nil { throw CLIError.conflictingCommands }
-      if agentCommand == "configure" && peerName == nil { throw CLIError.missingPeer }
-      if agentCommand != "configure"
-        && (peerName != nil || bonjourHost != nil || arguments.contains("--profile"))
-      {
-        throw CLIError.conflictingCommands
-      }
-    }
-    if deployAppURL != nil {
-      guard !discover, !menuBar, !forwardRemote, !watchTunnels, peerName == nil,
-        bonjourName == nil, bonjourHost == nil, remotePort == nil, !allowLANClients,
-        !arguments.contains("--timeout")
-      else { throw CLIError.conflictingCommands }
-    }
-    if json && agentCommand == nil && deployAppURL == nil && !showHelp {
-      throw CLIError.conflictingCommands
-    }
-
-    if arguments.contains("--provider"),
-      !captureDeviceProfile && agentCommand != "configure"
+    if ["--configure", "--capture-device-profile", "--direct-device", "--forward-remote"].contains(
+      mode), peerName == nil
     {
+      throw CLIError.missingPeer
+    }
+    if captureDeviceProfile, bonjourHost == nil { throw CLIError.invalidDirectDeviceOptions }
+    if agentCommand == "configure", bonjourHost != nil, seenOptions.contains("--profile") {
       throw CLIError.conflictingCommands
     }
 
@@ -239,6 +246,7 @@ struct CommandLineOptions {
       captureDeviceProfile: captureDeviceProfile,
       directDevice: directDevice,
       agentCommand: agentCommand,
+      launchBundleIdentifier: launchBundleIdentifier,
       json: json,
       provider: provider
     )
@@ -546,6 +554,9 @@ func printUsage() {
   print(
     """
     Usage:
+      debagr --installed-apps --device <UDID> --json
+      debagr --launch-app <bundleID> --device <UDID> --json
+      debagr --mcp
       debagr --devices --json
       debagr --status --device <UDID> --timeout 30 --json
       debagr --diagnose --device <UDID> --json
@@ -559,6 +570,9 @@ func printUsage() {
       debagr --menu-bar
 
     Options:
+      --mcp                 Serve local JSON-RPC tools over stdin/stdout; no network listener
+      --installed-apps      List installed developer apps on an explicit device
+      --launch-app <id>     Launch an installed bundle without reinstalling
       --devices             List stable Apple device IDs and saved configuration; not a readiness check
       --status              Verify trusted connectivity and unlocked state, retrying until --timeout
       --diagnose            Same verified check, with recovery instructions on failure

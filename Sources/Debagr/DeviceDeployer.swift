@@ -110,6 +110,40 @@ struct DeviceDeployer {
     return DeploymentResult(bundleIdentifier: bundleIdentifier, launched: launch)
   }
 
+  func launch(bundleIdentifier: String, deviceIdentifier: String) throws {
+    guard !bundleIdentifier.isEmpty, !bundleIdentifier.hasPrefix("-"),
+      bundleIdentifier.rangeOfCharacter(from: .whitespacesAndNewlines) == nil
+    else {
+      throw CLIError.missingValue("--launch-app bundle identifier")
+    }
+    try checkReady(deviceIdentifier: deviceIdentifier)
+    _ = try run(
+      [
+        "device", "process", "launch", "--device", deviceIdentifier,
+        "--terminate-existing", "--timeout", "30", bundleIdentifier,
+      ], 35)
+  }
+
+  func installedApps(deviceIdentifier: String, timeout: TimeInterval) throws -> [[String: Any]] {
+    let data = try run(
+      [
+        "device", "info", "apps", "--device", deviceIdentifier,
+        "--timeout", String(max(5, Int(timeout.rounded(.up)))),
+      ], timeout)
+    guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let result = object["result"] as? [String: Any], let apps = result["apps"] as? [[String: Any]]
+    else {
+      throw DeviceDeploymentError.invalidResult
+    }
+    return apps.map { app in
+      var summary: [String: Any] = [:]
+      for key in ["bundleIdentifier", "name", "version", "bundleVersion"] {
+        if let value = app[key] as? String { summary[key] = value }
+      }
+      return summary
+    }
+  }
+
   static func bundleIdentifier(at appURL: URL) throws -> String {
     var isDirectory: ObjCBool = false
     guard appURL.pathExtension == "app",
