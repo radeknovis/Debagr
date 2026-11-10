@@ -186,3 +186,6 @@ func localBonjourHostName() -> String {
 
   return rawName + ".local."
 }
+
+// Access to the stored value is serialized by NSLock.
+extension LockedValue: @unchecked Sendable where Value: Sendable {}

@@ -46,7 +46,7 @@ enum CLIError: LocalizedError {
         "Use --capture-device-profile with --peer and --bonjour-host, or --direct-device with --peer and a captured --profile. These modes cannot be combined with deployment, discovery, menu-bar, or relay options."
     case .conflictingCommands:
       return
-        "Select one command. --json supports --devices, --status, --diagnose, --configure, or --deploy-app."
+        "Select one command. --json supports --devices, --status, --diagnose, --configure, --deploy-app, --usb-services, or --usb-profile."
     }
   }
 }
@@ -124,7 +124,8 @@ struct CommandLineOptions {
         agentCommand = "launch"
         launchBundleIdentifier = try requiredValue(
           for: argument, arguments: arguments, index: &index)
-      case "--devices", "--status", "--diagnose", "--configure", "--installed-apps", "--mcp":
+      case "--devices", "--status", "--diagnose", "--configure", "--installed-apps", "--mcp",
+        "--usb-services", "--usb-profile":
         guard agentCommand == nil else { throw CLIError.conflictingCommands }
         agentCommand = String(argument.dropFirst(2))
       case "--json":
@@ -179,14 +180,15 @@ struct CommandLineOptions {
       "--devices", "--status", "--diagnose", "--configure",
       "--installed-apps", "--launch-app", "--deploy-app", "--discover", "--menu-bar",
       "--capture-device-profile", "--direct-device", "--forward-remote", "--mcp", "--help", "-h",
-      "--version",
+      "--version", "--usb-services", "--usb-profile",
     ])
     guard commands.count <= 1 else { throw CLIError.conflictingCommands }
     let mode = commands.first ?? "relay"
     let allowed: Set<String>
     switch mode {
     case "--help", "-h", "--version": allowed = [mode]
-    case "--devices": allowed = [mode, "--json"]
+    case "--devices", "--usb-services": allowed = [mode, "--json"]
+    case "--usb-profile": allowed = [mode, "--peer", "--bonjour-host", "--provider", "--json"]
     case "--status", "--diagnose", "--installed-apps":
       allowed = [mode, "--device", "--timeout", "--json"]
     case "--launch-app": allowed = [mode, "--device", "--json"]
@@ -219,6 +221,10 @@ struct CommandLineOptions {
       mode), peerName == nil
     {
       throw CLIError.missingPeer
+    }
+    if agentCommand?.hasPrefix("usb-") == true, !json { throw CLIError.conflictingCommands }
+    if agentCommand == "usb-profile", peerName == nil || bonjourHost == nil {
+      throw CLIError.invalidDirectDeviceOptions
     }
     if captureDeviceProfile, bonjourHost == nil { throw CLIError.invalidDirectDeviceOptions }
     if agentCommand == "configure", bonjourHost != nil, seenOptions.contains("--profile") {
@@ -557,6 +563,7 @@ func printUsage() {
       debagr --installed-apps --device <UDID> --json
       debagr --launch-app <bundleID> --device <UDID> --json
       debagr --mcp
+      debagr --usbip help
       debagr --devices --json
       debagr --status --device <UDID> --timeout 30 --json
       debagr --diagnose --device <UDID> --json
@@ -568,6 +575,8 @@ func printUsage() {
       debagr --forward-remote --peer <tailscale-hostname> [options]
       debagr --discover [--timeout <seconds>]
       debagr --menu-bar
+      debagr --usb-services --json
+      debagr --usb-profile --peer <VPN-IP> --bonjour-host <host> --provider <name> --json
 
     Options:
       --mcp                 Serve local JSON-RPC tools over stdin/stdout; no network listener
@@ -579,7 +588,8 @@ func printUsage() {
       --configure           Save one remote device, capturing Bonjour or importing --profile
       --provider <name>     Setup/capture provider: tailscale (default), headscale, zerotier, netbird, wireguard
                             --peer is a device name for Tailscale/Headscale, a private IPv4 for other providers
-      --json                Emit one versioned JSON result on stdout; failures have nonzero exit codes
+      --json                Emit JSON on stdout; failures have nonzero exit codes
+                            Agent commands use versioned results; private USB helpers return their typed payload
       --capture-device-profile Capture the local Target Device service before roaming
       --direct-device       Proxy to the device's VPN IP using the provider saved in its profile
       --deploy-app <path>   Install a signed device .app from this paired Mac
@@ -598,6 +608,8 @@ func printUsage() {
       --remote-port <port>  Remote control port, 1 through 65535
       --discover            Discover supported Apple and Bonjour devices
       --version             Show the app version
+      --usb-services       Private SSH helper: list nearby wireless services without TXT payloads
+      --usb-profile        Private SSH helper: export a captured profile to stdout; keep it private
       --help                Show this help
 
     Exit codes: 0 success, 1 command failure, 2 device/network attention,
@@ -618,6 +630,10 @@ atexit {
 }
 
 do {
+  if rawArguments.first == "--usbip" {
+    try USBIPCommand(Array(rawArguments.dropFirst())).run()
+    exit(EXIT_SUCCESS)
+  }
   let options = try CommandLineOptions.parse(rawArguments)
   operation = options.agentCommand ?? (options.deployAppURL != nil ? "deploy" : "command")
   if options.showVersion {
@@ -677,7 +693,7 @@ do {
     && (options.menuBar
       || (rawArguments.isEmpty && Bundle.main.bundleIdentifier == "com.debagr.app"))
   {
-    runMenuBarApplication()
+    MainActor.assumeIsolated { runMenuBarApplication() }
     exit(EXIT_SUCCESS)
   }
 

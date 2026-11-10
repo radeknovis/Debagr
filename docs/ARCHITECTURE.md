@@ -127,3 +127,20 @@ and can project a Bonjour control service. It does not authenticate Debagr
 callers, inspect RemotePairing payloads, or reproduce Apple's negotiated
 link-local tunnel and pairing state. It must not be presented as transparent
 cross-Mac Xcode access.
+
+## Restored connection interface
+
+`DeviceSetupView` keeps one root view and window for both pairing paths.
+`DeviceSetupModel` and `InitialPairingPresentation` drive the shared sidebar,
+diagram, progress and footer. `InitialPairingCoordinator` provides native Mac and
+device controls, confirmation sheets and USB/IP actions. Existing-pairing setup
+uses the audited managed-device runtime, retaining explicit identity confirmation,
+saved profiles, asynchronous developer-tool checks and editable invalid addresses.
+
+UI models and menu actions are main-actor owned. Discovery and signed role-message
+state belong to their serial queues; inventory work uses its own worker queue.
+Temporary VirtualHere operations belong to the USB pairing serial queue; only
+command cancellation crosses from the UI. Mac role linking, Apple trust, USB
+process state, wireless readiness, installation and launch are separate evidence.
+See [the connection design](CONNECTION_DESIGN.md) for the workflows and hardware
+acceptance boundaries.

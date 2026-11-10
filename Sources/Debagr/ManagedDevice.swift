@@ -164,7 +164,7 @@ final class RelayLease {
 }
 
 /// Owned by the menu-bar app and called only on its serial work queue.
-final class ManagedDeviceRuntime {
+final class ManagedDeviceRuntime: @unchecked Sendable {
   private var relay: DirectDeviceApplication?
   private var activeDevice: ConfiguredDevice?
   private var activeAddress: String?

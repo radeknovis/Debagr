@@ -3,8 +3,10 @@
 Run: python3 scripts/check-agent-cli.py [path/to/Debagr]
 """
 import json
+from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 
 def main():
@@ -31,7 +33,23 @@ def main():
     for arguments, expected in cases:
         result = subprocess.run([binary, *arguments], capture_output=True, text=True, timeout=20)
         output = json.loads(result.stdout)
-        assert result.returncode == expected, (arguments[0], result.returncode)
+        if result.returncode != expected and arguments[0] == "--devices":
+            # Preserve the real hosted-runner failure before changing inventory behavior.
+            try:
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "inventory.json"
+                    probe = subprocess.run(
+                        ["/usr/bin/xcrun", "devicectl", "list", "devices", "--json-output", str(path)],
+                        capture_output=True, text=True, timeout=20)
+                    inventory = json.loads(path.read_text()) if path.exists() else {}
+                    print("CoreDevice inventory diagnostic:", json.dumps({
+                        "exitCode": probe.returncode, "stderr": probe.stderr,
+                        "resultKeys": sorted(inventory.get("result", {})),
+                        "error": inventory.get("error"),
+                    }), flush=True)
+            except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                print("CoreDevice inventory diagnostic unavailable:", str(error), flush=True)
+        assert result.returncode == expected, (arguments[0], result.returncode, output)
         assert output["schemaVersion"] == 1
         assert output["ok"] == (expected == 0)
         if arguments[0] == "--status" and "--device" in arguments:
