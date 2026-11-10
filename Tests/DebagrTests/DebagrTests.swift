@@ -44,7 +44,9 @@ final class ParserTests: XCTestCase {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
     defer { try? FileManager.default.removeItem(at: directory) }
     try PropertyListSerialization.data(
-      fromPropertyList: ["CFBundleIdentifier": "com.example.agent"],
+      fromPropertyList: [
+        "CFBundleIdentifier": "com.example.agent", "CFBundleSupportedPlatforms": ["iPhoneOS"],
+      ],
       format: .xml, options: 0
     ).write(to: directory.appendingPathComponent("Info.plist"))
     var calls: [[String]] = []
@@ -244,7 +246,9 @@ final class ParserTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: appURL) }
 
     let plist = try PropertyListSerialization.data(
-      fromPropertyList: ["CFBundleIdentifier": "com.example.test"],
+      fromPropertyList: [
+        "CFBundleIdentifier": "com.example.test", "CFBundleSupportedPlatforms": ["iPhoneOS"],
+      ],
       format: .xml,
       options: 0
     )
@@ -671,30 +675,12 @@ final class ParserTests: XCTestCase {
     XCTAssertEqual(registry.orderedDevices[0].service?.hostName, "Jane--iPhone.local")
   }
 
-  func testBonjourProxyArgumentsAreAnArgumentArray() {
-    let arguments = BonjourProxy.makeArguments(
-      interfaceName: "en0",
-      instanceName: "Remote iPhone",
-      serviceType: "_remotepairing._tcp",
-      domain: "local",
-      localPort: 55_000,
-      localHost: "mac.local.",
-      localIP: "192.168.1.10",
-      txt: ["flags": "1"]
-    )
-
-    XCTAssertEqual(
-      arguments.prefix(9),
-      [
-        "-i", "en0", "-P", "Remote iPhone", "_remotepairing._tcp",
-        "local", "55000", "mac.local.", "192.168.1.10",
-      ])
-    XCTAssertEqual(arguments.last, "flags=1")
-    let allInterfaces = BonjourProxy.makeArguments(
-      interfaceName: "0", instanceName: "Remote iPhone",
-      serviceType: "_remotepairing._tcp", domain: "local", localPort: 55_000,
-      localHost: "mac.local.", localIP: "192.168.1.10", txt: [:])
-    XCTAssertEqual(allInterfaces.first, "-P")
-    XCTAssertFalse(allInterfaces.contains("-i"))
+  func testBonjourProxyRejectsOversizedTXTBeforeRegistration() throws {
+    let proxy = try BonjourProxy(
+      interfaceName: "0", instanceName: "test", localPort: 55000,
+      localHost: "test.local.", localIP: "192.168.1.10",
+      txt: ["key": String(repeating: "a", count: 256)])
+    XCTAssertThrowsError(try proxy.start())
+    XCTAssertFalse(proxy.isHealthy)
   }
 }

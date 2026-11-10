@@ -7,6 +7,8 @@ enum DeviceDeploymentError: LocalizedError {
   case invalidResult
   case installedBundleNotConfirmed(String)
   case timedOut
+  case installationTimedOut
+  case appleError(code: Int, domain: String, message: String)
   case launchFailed(String)
   case deviceLocked
 
@@ -20,6 +22,11 @@ enum DeviceDeploymentError: LocalizedError {
       return "devicectl returned an unreadable installation result."
     case .installedBundleNotConfirmed(let bundleIdentifier):
       return "devicectl did not confirm installation of \(bundleIdentifier)."
+    case .appleError(_, _, let message):
+      return message
+    case .installationTimedOut:
+      return
+        "Installation exceeded its deadline; the installation outcome is unknown. Inspect installed apps before retrying."
     case .timedOut:
       return "Apple's device command exceeded its deadline."
     case .launchFailed(let identifier):
@@ -42,7 +49,7 @@ struct DeviceDeployer {
     let data = try run(
       [
         "device", "info", "lockState", "--device", deviceIdentifier,
-        "--timeout", String(max(1, Int(timeout))),
+        "--timeout", String(max(5, Int(timeout.rounded(.up)))),
       ], timeout)
     guard let output = try JSONSerialization.jsonObject(with: data) as? [String: Any],
       let result = output["result"] as? [String: Any],
@@ -56,13 +63,18 @@ struct DeviceDeployer {
     let bundleIdentifier = try Self.bundleIdentifier(at: appURL)
 
     try checkReady(deviceIdentifier: deviceIdentifier)
-    let resultData = try run(
-      [
-        "device", "install", "app",
-        "--device", deviceIdentifier,
-        appURL.path,
-        "--timeout", "120",
-      ], 120)
+    let resultData: Data
+    do {
+      resultData = try run(
+        [
+          "device", "install", "app",
+          "--device", deviceIdentifier,
+          appURL.path,
+          "--timeout", "120",
+        ], 125)
+    } catch DeviceDeploymentError.timedOut {
+      throw DeviceDeploymentError.installationTimedOut
+    }
     guard let result = try JSONSerialization.jsonObject(with: resultData) as? [String: Any]
     else {
       throw DeviceDeploymentError.invalidResult
@@ -81,7 +93,7 @@ struct DeviceDeployer {
             "--terminate-existing",
             "--timeout", "30",
             bundleIdentifier,
-          ], 30)
+          ], 35)
       } catch { throw DeviceDeploymentError.launchFailed(bundleIdentifier) }
     }
 
@@ -106,6 +118,12 @@ struct DeviceDeployer {
     else {
       throw DeviceDeploymentError.invalidApp("Info.plist has no CFBundleIdentifier")
     }
+    let platforms = dictionary["CFBundleSupportedPlatforms"] as? [String] ?? []
+    guard platforms.contains("iPhoneOS") || dictionary["DTPlatformName"] as? String == "iphoneos"
+    else {
+      throw DeviceDeploymentError.invalidApp(
+        "expected a device iPhoneOS build, not a simulator or macOS app")
+    }
     return identifier
   }
 
@@ -120,6 +138,17 @@ struct DeviceDeployer {
       return dictionary.values.contains { contains(expected, in: $0) }
     }
     return false
+  }
+
+  static func appleError(from data: Data) -> DeviceDeploymentError? {
+    guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let error = object["error"] as? [String: Any],
+      let code = error["code"] as? Int, let domain = error["domain"] as? String
+    else { return nil }
+    return .appleError(
+      code: code, domain: domain,
+      message: error["localizedDescription"] as? String
+        ?? "Apple device command failed (\(domain), \(code)).")
   }
 
   static func runDevicectl(_ arguments: [String], timeout: TimeInterval) throws -> Data {
@@ -147,6 +176,9 @@ struct DeviceDeployer {
       throw DeviceDeploymentError.timedOut
     }
     guard process.terminationStatus == 0 else {
+      if let data = try? Data(contentsOf: resultURL), let error = Self.appleError(from: data) {
+        throw error
+      }
       throw DeviceDeploymentError.commandFailed(
         arguments: arguments, status: process.terminationStatus)
     }

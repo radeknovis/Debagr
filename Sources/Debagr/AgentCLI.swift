@@ -18,6 +18,11 @@ enum AgentCLI {
         try check(deviceIdentifier, min(5, remaining))
         return
       } catch {
+        if case DeviceDeploymentError.appleError(let code, let domain, _) = error,
+          domain == "com.apple.dt.CoreDeviceError", code == 1000
+        {
+          throw error
+        }
         let remaining = deadline - ProcessInfo.processInfo.systemUptime
         guard remaining > 1 else { throw error }
         Thread.sleep(forTimeInterval: min(1, remaining))
@@ -28,7 +33,7 @@ enum AgentCLI {
   static func run(_ options: CommandLineOptions) throws {
     let command = options.agentCommand!
     let store = ManagedDeviceStore()
-    let configured = try store.load()
+    let configured = try? store.load()
     switch command {
     case "devices":
       var devices = try CoreDeviceInventory.load(pairedMacNodeID: "local")
@@ -69,7 +74,7 @@ enum AgentCLI {
       let identifier = options.deviceIdentifier!
       let devices = try CoreDeviceInventory.load(pairedMacNodeID: "local")
       guard let device = devices.first(where: { $0.identity.value == identifier }) else {
-        throw CLIError.missingDevice
+        throw CLIError.deviceNotFound
       }
       let peer = try options.provider.resolvePeer(options.peerName!)
       let profile: DeviceProfile
@@ -116,12 +121,28 @@ enum AgentCLI {
   static func failure(_ error: Error, operation: String) -> (object: [String: Any], exitCode: Int32)
   {
     var code = "command_failed"
-    var message = "The device command failed."
-    var recovery = "Run --diagnose --device <UDID> --json and check Xcode signing and device trust."
+    var message = error.localizedDescription
+    var recovery =
+      "Run --diagnose --device <UDID> --timeout 30 --json and check Xcode signing and device trust."
     var exitCode: Int32 = 1
     var installed = false
     var bundleIdentifier: String?
     switch error {
+    case CLIError.discoveryTimedOut, CLIError.deviceNotFound:
+      code = "device_not_found"
+      recovery = "Run --devices --json and select a listed Apple device identifier."
+      exitCode = 2
+    case DeviceDeploymentError.installationTimedOut:
+      code = "installation_timed_out"
+      recovery =
+        "Installation outcome is unknown. Inspect installed apps with devicectl before retrying."
+    case DeviceDeploymentError.appleError:
+      code = operation == "deploy" ? "installation_failed" : "apple_device_error"
+      recovery =
+        operation == "deploy"
+        ? "Check signing, provisioning, device storage and connectivity before retrying."
+        : Self.recovery
+      exitCode = operation == "deploy" ? 1 : 2
     case is CLIError:
       code = "invalid_arguments"
       message = error.localizedDescription
@@ -143,6 +164,9 @@ enum AgentCLI {
       message = error.localizedDescription
       recovery = "Unlock the selected device and keep it awake, then retry --status."
       exitCode = 2
+    case DeviceDeploymentError.commandFailed(_, 64):
+      code = "internal_device_command_error"
+      recovery = "Report this device-command compatibility error with the installed Xcode version."
     case DeviceDeploymentError.commandFailed(let arguments, _):
       if arguments.contains("lockState") {
         code = "device_unavailable"
@@ -184,6 +208,13 @@ enum AgentCLI {
     var detail: [String: Any] = [
       "code": code, "message": message, "recovery": recovery, "installationConfirmed": installed,
     ]
+    if case DeviceDeploymentError.appleError(let code, let domain, _) = error {
+      detail["underlyingCode"] = code
+      detail["underlyingDomain"] = domain
+    }
+    if operation == "deploy", case DeviceDeploymentError.installationTimedOut = error {
+      detail["installationOutcome"] = "unknown"
+    }
     if let bundleIdentifier { detail["bundleIdentifier"] = bundleIdentifier }
     if installed { detail["installed"] = true }
     var object: [String: Any] = [

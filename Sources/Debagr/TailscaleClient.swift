@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 struct SelectedNetworkPeer: Equatable {
@@ -97,8 +98,14 @@ final class TailscaleClient {
   func selectPeer(named requestedName: String, provider: NetworkProvider = .tailscale) throws
     -> SelectedNetworkPeer
   {
-    let path = try executablePath()
-    let data = try statusJSON(at: path)
+    try Self.selectPeer(
+      named: requestedName, from: statusJSON(at: executablePath()), provider: provider)
+  }
+
+  static func selectPeer(
+    named requestedName: String, from data: Data,
+    provider: NetworkProvider = .tailscale
+  ) throws -> SelectedNetworkPeer {
 
     let status: Status
     do {
@@ -182,17 +189,23 @@ final class TailscaleClient {
     process.standardInput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
 
-    let output = Pipe()
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "debagr-tailscale-\(UUID().uuidString)")
+    FileManager.default.createFile(
+      atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600])
+    defer { try? FileManager.default.removeItem(at: url) }
+    let output = try FileHandle(forWritingTo: url)
+    defer { try? output.close() }
     process.standardOutput = output
-
-    do {
-      try process.run()
-    } catch {
-      throw TailscaleError.commandFailed(-1)
+    let finished = DispatchSemaphore(value: 0)
+    process.terminationHandler = { _ in finished.signal() }
+    do { try process.run() } catch { throw TailscaleError.commandFailed(-1) }
+    guard finished.wait(timeout: .now() + 10) == .success else {
+      process.terminate()
+      if finished.wait(timeout: .now() + 1) != .success { kill(process.processIdentifier, SIGKILL) }
+      throw DeviceDeploymentError.timedOut
     }
-
-    let data = output.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
+    let data = try Data(contentsOf: url)
 
     guard process.terminationStatus == 0 else {
       throw TailscaleError.commandFailed(process.terminationStatus)
@@ -200,7 +213,7 @@ final class TailscaleClient {
     return data
   }
 
-  private func normalizeHostName(_ name: String) -> String {
+  private static func normalizeHostName(_ name: String) -> String {
     name
       .trimmingCharacters(in: .whitespacesAndNewlines)
       .trimmingCharacters(in: CharacterSet(charactersIn: "."))

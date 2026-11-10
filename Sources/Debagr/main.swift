@@ -6,6 +6,7 @@ enum CLIError: LocalizedError {
   case unknownOption(String)
   case missingPeer
   case missingRemotePort
+  case deviceNotFound
   case missingDevice
   case deployOptionRequiresApp(String)
   case invalidPort(String)
@@ -25,6 +26,9 @@ enum CLIError: LocalizedError {
       return "An explicit peer selection is required: --peer <hostname-or-private-IPv4>."
     case .missingRemotePort:
       return "Provide --remote-port <port> initially, or use a profile containing remotePort."
+    case .deviceNotFound:
+      return
+        "The selected Apple device was not found. Refresh the device list and select its identifier."
     case .missingDevice:
       return "Provide --device <UDID> when deploying an app."
     case .deployOptionRequiresApp(let option):
@@ -63,6 +67,7 @@ struct CommandLineOptions {
   var launchAfterInstall: Bool
   var timeout: TimeInterval
   var allowLANClients: Bool
+  var showVersion: Bool = false
   var showHelp: Bool
   var captureDeviceProfile: Bool = false
   var directDevice: Bool = false
@@ -87,16 +92,21 @@ struct CommandLineOptions {
     var timeout: TimeInterval = 5
     var allowLANClients = false
     var showHelp = false
+    var showVersion = false
     var captureDeviceProfile = false
     var directDevice = false
     var agentCommand: String?
     var json = false
     var provider = NetworkProvider.tailscale
 
+    var seenOptions = Set<String>()
     var index = 0
     while index < arguments.count {
       let argument = arguments[index]
+      guard seenOptions.insert(argument).inserted else { throw CLIError.conflictingCommands }
       switch argument {
+      case "--version":
+        showVersion = true
       case "-h", "--help":
         showHelp = true
       case "--discover":
@@ -116,6 +126,7 @@ struct CommandLineOptions {
         deployAppURL = expandedURL(
           try requiredValue(for: argument, arguments: arguments, index: &index))
       case "--device":
+        guard deviceIdentifier == nil else { throw CLIError.conflictingCommands }
         deviceIdentifier = try requiredValue(for: argument, arguments: arguments, index: &index)
       case "--launch":
         launchAfterInstall = true
@@ -193,7 +204,8 @@ struct CommandLineOptions {
     }
     if deployAppURL != nil {
       guard !discover, !menuBar, !forwardRemote, !watchTunnels, peerName == nil,
-        bonjourName == nil, bonjourHost == nil, remotePort == nil, !allowLANClients
+        bonjourName == nil, bonjourHost == nil, remotePort == nil, !allowLANClients,
+        !arguments.contains("--timeout")
       else { throw CLIError.conflictingCommands }
     }
     if json && agentCommand == nil && deployAppURL == nil && !showHelp {
@@ -222,6 +234,7 @@ struct CommandLineOptions {
       launchAfterInstall: launchAfterInstall,
       timeout: timeout,
       allowLANClients: allowLANClients,
+      showVersion: showVersion,
       showHelp: showHelp,
       captureDeviceProfile: captureDeviceProfile,
       directDevice: directDevice,
@@ -566,7 +579,15 @@ func printUsage() {
       --watch-tunnels       Watch remotepairingd and add TCP/UDP tunnel relays
       --allow-lan           Allow clients other than this Mac's en0 address
       --menu-bar            Run the automatic multi-device menu-bar inventory
+      --timeout <seconds>   Discovery/readiness deadline, >0 through 60 (default: 5); not for deployment
+      --peer <name-or-IP>    Explicit VPN destination
+      --remote-port <port>  Remote control port, 1 through 65535
+      --discover            Discover supported Apple and Bonjour devices
+      --version             Show the app version
       --help                Show this help
+
+    Exit codes: 0 success, 1 command failure, 2 device/network attention,
+                64 invalid arguments, 65 invalid app.
 
     Direct-device profiles require an explicitly selected private VPN IPv4 address.
     Tailscale profiles and the experimental relay lab keep the 100.64.0.0/10 policy.
@@ -585,6 +606,10 @@ atexit {
 do {
   let options = try CommandLineOptions.parse(rawArguments)
   operation = options.agentCommand ?? (options.deployAppURL != nil ? "deploy" : "command")
+  if options.showVersion {
+    print(ProductSupport.version)
+    exit(EXIT_SUCCESS)
+  }
   if options.showHelp {
     printUsage()
     exit(EXIT_SUCCESS)
@@ -672,5 +697,5 @@ do {
   if error is CLIError {
     printUsage()
   }
-  exit(EXIT_FAILURE)
+  exit(AgentCLI.failure(error, operation: operation).exitCode)
 }

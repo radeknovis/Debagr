@@ -2,6 +2,7 @@ import Foundation
 import Network
 
 final class RelayPair {
+  var isHealthy: Bool { tcp.isHealthy && udp.isHealthy }
   let localPort: UInt16
 
   private let tcp: TCPRelay

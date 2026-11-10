@@ -148,10 +148,6 @@ struct ProfileStore {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(profile)
-    try data.write(to: url, options: .atomic)
-    try FileManager.default.setAttributes(
-      [.posixPermissions: 0o600],
-      ofItemAtPath: url.path
-    )
+    try ManagedDeviceStore.writePrivate(data, to: url)
   }
 }

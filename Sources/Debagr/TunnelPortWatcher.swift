@@ -53,12 +53,21 @@ final class TunnelPortWatcher {
         "--predicate",
         Self.predicate,
       ],
-      label: "debagr.tunnel-log-process"
-    ) { [weak self] line in
-      self?.queue.async { [weak self] in
-        self?.consume(line, generation: currentGeneration)
-      }
-    }
+      label: "debagr.tunnel-log-process",
+      terminationHandler: { [weak self] _ in
+        self?.queue.asyncAfter(deadline: .now() + 2) { [weak self] in
+          guard let self, self.isActive(currentGeneration) else { return }
+          self.stateLock.lock()
+          let callback = self.callback
+          self.stateLock.unlock()
+          if let callback { try? self.start(onNewPort: callback) }
+        }
+      },
+      lineHandler: { [weak self] line in
+        self?.queue.async { [weak self] in
+          self?.consume(line, generation: currentGeneration)
+        }
+      })
 
     stateLock.lock()
     self.process = process
@@ -70,6 +79,12 @@ final class TunnelPortWatcher {
       stop()
       throw error
     }
+  }
+
+  func forget(port: UInt16) {
+    stateLock.lock()
+    seenPorts.remove(port)
+    stateLock.unlock()
   }
 
   func stop() {
