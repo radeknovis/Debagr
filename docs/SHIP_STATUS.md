@@ -1,5 +1,16 @@
 # Debagr 0.2.0 shipping status
 
+## Unreleased source restoration, 10 November 2026
+
+Audit PR #15 is merged. The restored connection interface is based on that
+audited source, retaining the runtime, CLI, licence, version and CI safeguards.
+It includes Builder/Client discovery and role linking, guided existing pairing,
+and optional temporary USB setup. These additions are not in the published 0.2.0
+app or the earlier notarized 0.3.0 build 3 candidate. See
+[restoration and validation](CONSOLIDATION.md). No public release is part of this change.
+
+## Published release baseline
+
 Updated 4 November 2026. **Published as a technical preview.** The notarized
 0.2.0 build 2 is public through the
 [`radeknovis/homebrew-debagr`](https://github.com/radeknovis/homebrew-debagr) tap

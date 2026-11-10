@@ -103,6 +103,12 @@ struct ConnectionDiagram: View {
   var deviceName = "Your iPhone"
   var usbLinkLabel = "USB over SSH"
 
+  var topologyDescription: String {
+    path == .existing
+      ? "Connection diagram. Your device connects over a private VPN to the Builder that already owns its Apple pairing. No Client Mac is required."
+      : "Connection diagram. Your iPhone connects by USB cable to a Client Mac. The Client forwards USB to the remote Builder using \(usbLinkLabel). Approve new trust on the iPhone. The cable is required during pairing."
+  }
+
   var body: some View {
     VStack(spacing: 12) {
       HStack {
@@ -136,11 +142,7 @@ struct ConnectionDiagram: View {
     .frame(height: 202)
     .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 14))
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel(
-      path == .existing
-        ? "Connection diagram. Your device connects over a private VPN to the Builder that already owns its Apple pairing. No Client Mac is required."
-        : "Connection diagram. Your iPhone connects by USB cable to a Client Mac. VirtualHere forwards USB through SSH to the remote Builder. Approve new trust on the iPhone. The cable is required during pairing."
-    )
+    .accessibilityLabel(topologyDescription)
   }
 }
 

@@ -220,14 +220,14 @@ final class USBPairingTests: XCTestCase {
     let commands = FakeUSBCommands()
     let tunnel = FakeUSBTunnel()
     let session = makeSession(commands, tunnel)
-    var saved: ConfiguredDevice?
+    let saved = LockedValue<ConfiguredDevice?>(nil)
     var delivered: ConfiguredDevice?
-    var failSave = true
+    let failSave = LockedValue(true)
     let model = USBPairingModel(
       makeSession: { session },
       saveConfiguration: {
-        if failSave { throw USBPairingError("Disk write failed") }
-        saved = $0
+        if failSave.get() { throw USBPairingError("Disk write failed") }
+        saved.set($0)
       })
     model.host = "nearby"
     let advance = { model.advance { delivered = $0 } }
@@ -239,7 +239,7 @@ final class USBPairingTests: XCTestCase {
     advance()
     await settle(model)
     XCTAssertEqual(model.stage, .trust)
-    XCTAssertNil(saved)
+    XCTAssertNil(saved.get())
     advance()
     await settle(model)
     XCTAssertEqual(model.stage, .wireless)
@@ -253,11 +253,11 @@ final class USBPairingTests: XCTestCase {
     XCTAssertEqual(model.error, "Disk write failed")
     XCTAssertNil(delivered)
     XCTAssertFalse(tunnel.isRunning)
-    failSave = false
+    failSave.set(false)
     advance()
     await settle(model)
     XCTAssertNil(model.error)
-    XCTAssertEqual(saved?.deviceIdentifier, delivered?.deviceIdentifier)
+    XCTAssertEqual(saved.get()?.deviceIdentifier, delivered?.deviceIdentifier)
     XCTAssertNotNil(delivered)
     XCTAssertFalse(model.hasSession)
     XCTAssertFalse(tunnel.isRunning)

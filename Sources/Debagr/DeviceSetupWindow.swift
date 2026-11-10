@@ -127,7 +127,7 @@ final class DeviceSetupModel: ObservableObject {
   func refreshDeveloperTools() {
     queue.async { [weak self] in
       let available = ProductSupport.developerToolsAvailable
-      DispatchQueue.main.async { self?.developerToolsAvailable = available }
+      DispatchQueue.main.async { [weak self] in self?.developerToolsAvailable = available }
     }
   }
 
@@ -224,7 +224,7 @@ final class DeviceSetupModel: ObservableObject {
     isLoadingPeers = true
     queue.async { [weak self] in
       let result = Result { try TailscaleClient().onlinePeers(provider: provider) }
-      DispatchQueue.main.async {
+      DispatchQueue.main.async { [weak self] in
         guard let self, self.discoveryGeneration == generation, self.provider == provider else {
           return
         }
@@ -329,7 +329,7 @@ final class DeviceSetupModel: ObservableObject {
         try ManagedDeviceStore().save(configured)
         return configured
       }
-      DispatchQueue.main.async {
+      DispatchQueue.main.async { [weak self] in
         guard let self else { return }
         self.isWorking = false
         switch result {

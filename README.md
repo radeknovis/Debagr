@@ -39,6 +39,18 @@ The source branch also provides `--installed-apps`, `--launch-app`, deeper
 `--diagnose` checks, and an optional [local MCP interface](docs/MCP.md).
 These changes have not yet been released in the published 0.2.0 binary.
 
+## Connection interface in source
+
+The source app restores the shared Connections window, illustrated pairing paths,
+Builder/Client selection, status menu, Agent tools and Preferences. Existing Apple
+pairing uses a guided Device → Connection → Review flow, with explicit confirmation
+that the device, wireless service and VPN endpoint describe the same physical device.
+Agent tools provides the shared Debagr skill and installation links.
+
+Temporary USB/IP and VirtualHere setup remain separate from everyday wireless
+deployment. Their final integrated hardware acceptance is pending; see
+[requirements and evidence boundaries](docs/CONNECTION_DESIGN.md).
+
 ## Scope and evidence
 
 One managed remote device is supported. Tailscale has fresh 0.3.0 candidate remote iPhone
@@ -51,4 +63,5 @@ alone do not establish a working Apple deployment path.
 - [Distribution](docs/DISTRIBUTION.md), [support](docs/SUPPORT.md) and [security](docs/SECURITY.md)
 - [Privacy](docs/PRIVACY.md) and [preview licence](docs/EULA.md): free personal/internal evaluation, no redistribution
 - [Development and packaging](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [release runbook](docs/RELEASE.md)
+- [Connection design](docs/CONNECTION_DESIGN.md), [USB setup prerequisites](docs/usbip.md), and [restoration provenance](docs/CONSOLIDATION.md)
 - [Audit implementation and validation status](docs/AUDIT_FIXES.md)

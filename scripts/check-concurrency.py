@@ -14,6 +14,8 @@ def normalize_warning(message):
 
 
 def warnings(text):
+    # SwiftBuild can splice progress output into a compiler diagnostic path.
+    text = re.sub(r"\[\d+\s*/\s*\d+\] [^\n]*\n", "", text)
     found = set()
     for file, message in re.findall(r"^(.+?\.swift):\d+:\d+: warning: (.+)$", text, re.MULTILINE):
         path = Path(file)

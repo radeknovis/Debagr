@@ -28,6 +28,13 @@ class ConcurrencyGateTests(unittest.TestCase):
         after = checker.warnings(self.diagnostic("DifferentWarning"))
         self.assertTrue(after - before)
 
+    def test_progress_spliced_into_a_diagnostic_keeps_its_original_identity(self):
+        diagnostic = self.diagnostic("SendingRisksDataRace")
+        split = len(str(ROOT)) - 2
+        interleaved = diagnostic[:split] + "[6\u2009/\u20099] debagr-product\n" + diagnostic[split:]
+        self.assertEqual(checker.warnings(interleaved), checker.warnings(diagnostic))
+        self.assertEqual(len(checker.warnings(interleaved)), 1)
+
     def test_unknown_warning_fails_the_real_gate(self):
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / "compiler.log"

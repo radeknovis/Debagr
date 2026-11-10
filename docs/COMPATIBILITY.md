@@ -1,6 +1,6 @@
 # Debagr compatibility
 
-Updated 10 November 2026. Published binary: 0.2.0; audit source changes are unreleased.
+Updated 10 November 2026. Published binary: 0.2.0; audit and restored interface source changes are unreleased.
 
 ## Provider support
 
@@ -21,10 +21,12 @@ See [provider setup and address restrictions](NETWORK_PROVIDERS.md).
 | First-run guide, Launch at Login, About, diagnostics | Implemented | Packaged macOS app |
 | Paired-Mac `.app` install and optional launch | Implemented; automated tests pass, live install requires an unlocked device | Current Xcode and a locally paired physical device |
 | Remote invocation | Uses the build server's existing SSH authentication | Any SSH-capable caller; Tailscale optional |
+| USB/IP initial setup and pairing refresh | Restored UI/CLI; integrated hardware acceptance pending | External patched Longcable and usbip-macos, private VPN, admin approval, successful capability probe; current unentitled importer uses SIP off |
+| VirtualHere USB pairing alternative | Restored guided flow; automated coverage; hardware acceptance pending | Separately installed VirtualHere Client and licensed macOS Server, SSH and a USB cable to the Client |
 | Manual TCP/UDP relay lab | Implemented; not a customer promise | macOS 26 or later, Tailscale CLI, explicit peer and port |
 | Cross-Mac Xcode or local `devicectl` use | Blocked in the current layer-4 architecture | CoreDevice requires per-Mac pairing and a negotiated link-local IPv6 tunnel |
 | Managed relay recovery | Rebuilds unhealthy listeners and refreshes after wake; hardware recovery acceptance pending | One managed device |
-| Mutual Mac authorization and revocation | Not implemented | — |
+| Mac role linking and local unpair | Signed role updates and pinned peer keys; mesh identity checks or LAN code confirmation | Authorizes role synchronization; each Mac approves its own privileged USB process |
 
 Debagr is not affiliated with or endorsed by Apple or Tailscale. Apple documents
 wireless use on the same network and does not document cross-Mac RemotePairing

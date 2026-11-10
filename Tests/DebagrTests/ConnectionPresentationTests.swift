@@ -29,4 +29,14 @@ final class ConnectionPresentationTests: XCTestCase {
     XCTAssertFalse(message.contains("TECHNICAL_BACKEND_LOG"))
     XCTAssertTrue(session.diagnostics.contains("TECHNICAL_BACKEND_LOG"))
   }
+  func testDiagramAccessibilityDescribesTheSelectedUSBRoute() {
+    let usbip = ConnectionDiagram(path: .usb, usbLinkLabel: "USB over VPN")
+    XCTAssertTrue(usbip.topologyDescription.contains("USB over VPN"))
+    XCTAssertFalse(usbip.topologyDescription.contains("VirtualHere"))
+    let alternative = ConnectionDiagram(path: .usb)
+    XCTAssertTrue(alternative.topologyDescription.contains("USB over SSH"))
+    XCTAssertTrue(
+      ConnectionDiagram(path: .existing).topologyDescription.contains("No Client Mac is required"))
+  }
+
 }
