@@ -38,6 +38,8 @@ jobs:
         run: ./scripts/verify-macos-app.sh
       - name: Smoke-check packaged JSON CLI
         run: python3 scripts/check-agent-cli.py
+      - name: Check menu-bar shutdown
+        run: python3 scripts/check-menu-bar-shutdown.py
       - name: Check release safety
         run: python3 scripts/check-release.py
       - name: Check documentation links

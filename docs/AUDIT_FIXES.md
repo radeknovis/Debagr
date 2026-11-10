@@ -73,7 +73,7 @@ A remote iPhone install and OS-confirmed launch were verified; no public release
 ## Additional verification
 
 - Native Settings was inspected visually. Paste/select-all, invalid-address
-  feedback, valid-address recovery, selection reset and Cmd-Q passed. The
+  feedback, valid-address recovery and selection reset passed. The
   computer-use observer reopens a closed accessory window, so Cmd-W closure was
   not independently confirmed by that observer.
 - Pinned CI tool installer rehearsed locally with verified archive SHA-256 and
@@ -121,3 +121,14 @@ shape used in production.
   Plugin archives contain public-safe metadata and canonical instructions but
   public marketplace-source publication has not been performed.
 - Full Swift 6 migration remains tracked by .ci/concurrency-baseline.json.
+
+## Deferred-quit regression
+
+The remote test's cleanup exposed a real deferred-quit issue: the process had
+released its relay resources but remained inside AppKit's nested termination
+loop. A process sample showed terminate running inside the main dispatch queue.
+The reply is now scheduled through the main run loop, which can deliver it in
+that nested loop. The signal entry point uses the run loop as well.
+`scripts/check-menu-bar-shutdown.py` reproduced the old bundle's failure (no exit
+within eight seconds after SIGTERM), then passed with the rebuilt bundle. It
+launches and signals only its own child process and is included in CI.

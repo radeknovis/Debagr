@@ -308,7 +308,10 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     managedTimer?.invalidate()
     managedQueue.async {
       self.managedRuntime.stop()
-      DispatchQueue.main.async { sender.reply(toApplicationShouldTerminate: true) }
+      // AppKit's nested deferred-quit loop must be able to deliver this completion.
+      RunLoop.main.perform(inModes: [.common, .modalPanel]) {
+        MainActor.assumeIsolated { sender.reply(toApplicationShouldTerminate: true) }
+      }
     }
     return .terminateLater
   }
@@ -732,7 +735,9 @@ func runMenuBarApplication() {
   let delegate = MenuBarApplication()
   application.delegate = delegate
   let signals = SignalHandler {
-    DispatchQueue.main.async { application.terminate(nil) }
+    RunLoop.main.perform(inModes: [.common, .modalPanel]) {
+      MainActor.assumeIsolated { application.terminate(nil) }
+    }
   }
   application.run()
   signals.stop()

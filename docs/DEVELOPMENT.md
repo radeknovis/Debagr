@@ -223,3 +223,7 @@ after reviewing each warning, using `scripts/check-concurrency.py LOG --update-b
 The canonical source version is `VERSION`; packaging checks both manifests, the
 Info.plist template and changelog against it. Published site/download links stay
 on 0.2.0 until the candidate is accepted and released.
+
+Run `python3 scripts/check-menu-bar-shutdown.py` after packaging to verify
+normal SIGTERM exit through AppKit deferred termination. It owns and cleans up
+its test child; it never signals an existing Debagr instance.
