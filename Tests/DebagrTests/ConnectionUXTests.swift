@@ -27,7 +27,8 @@ final class ConnectionUXTests: XCTestCase {
       defaults: defaults, identityURL: folder.appendingPathComponent("key"))
     defer { discovery.stop() }
     let controller = InitialPairingCoordinator(
-      discovery: discovery, session: USBIPSessionController(defaults: defaults))
+      discovery: discovery, session: USBIPSessionController(defaults: defaults),
+      connectedDevices: { [] })
     let window = try XCTUnwrap(controller.window)
     defer { window.close() }
     window.setContentSize(NSSize(width: 720, height: 518))
@@ -73,6 +74,7 @@ final class ConnectionUXTests: XCTestCase {
       localNodeID: discovery.localNodeID)
     remote.machineRole = .client
     remote.pairedNodeID = discovery.localNodeID
+    remote.connectedDeviceNames = ["Example iPhone", "Example iPad", "Backup iPhone", "Test iPad"]
     discovery.onChange?(
       [DiscoveredDebagrPeer(peer: remote, address: "10.0.0.2", source: "Test")], "Confirmed")
     content.layoutSubtreeIfNeeded()
@@ -85,7 +87,12 @@ final class ConnectionUXTests: XCTestCase {
       buttons.first { ["Set Up USB Support…", "Start Setup Connection"].contains($0.title) })
     XCTAssertTrue(start.isEnabled)
     XCTAssertEqual(start.keyEquivalent, "\r")
-    XCTAssertTrue(content.bounds.contains(start.convert(start.bounds, to: content)))
+    let scroll = try XCTUnwrap(start.enclosingScrollView)
+    let document = try XCTUnwrap(scroll.documentView)
+    XCTAssertTrue(document.bounds.contains(start.convert(start.bounds, to: document)))
+    // The standalone window scrolls when device inventories make the cards taller.
+    start.scrollToVisible(start.bounds)
+    XCTAssertTrue(scroll.documentVisibleRect.contains(start.convert(start.bounds, to: document)))
     XCTAssertEqual(
       controller.machineMenu(for: .client).items.first { $0.title == "MacBook Air" }?.state, .on)
   }

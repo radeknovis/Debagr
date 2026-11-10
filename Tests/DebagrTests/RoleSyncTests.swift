@@ -117,31 +117,33 @@ final class RoleSyncTests: XCTestCase {
       completion(false)
     }
     let ready = expectation(description: "mesh receiver ready")
-    var port: NWEndpoint.Port!
+    let port = LockedValue<NWEndpoint.Port?>(nil)
     b.start(port: .any) {
-      port = $0
+      port.set($0)
       ready.fulfill()
     }
     wait(for: [ready], timeout: 5)
     var peer = DebagrPeer(protocolVersion: 1, nodeID: "B", name: "Air", roles: ["app"])
     peer.roleSyncPublicKey = b.identity.publicKey.base64EncodedString()
     let paired = expectation(description: "mesh pair")
-    var progress = ""
+    let progress = LockedValue("")
     a.assign(
-      role: .builder, peer: peer, endpoint: .hostPort(host: "127.0.0.1", port: port),
-      progress: { progress = $0 },
+      role: .builder, peer: peer,
+      endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(port.get())),
+      progress: { progress.set($0) },
       completion: { result in
         if case .failure(let error) = result { XCTFail(error.localizedDescription) }
         paired.fulfill()
       })
     wait(for: [paired], timeout: 5)
-    XCTAssertFalse(progress.contains("code:"))
+    XCTAssertFalse(progress.get().contains("code:"))
     XCTAssertEqual(try MachineRoleStore(defaults: aDefaults).load()?.role, .builder)
     XCTAssertEqual(try MachineRoleStore(defaults: bDefaults).load()?.role, .client)
     peer.roleSyncPublicKey = Data(repeating: 9, count: 32).base64EncodedString()
     let rejected = expectation(description: "mesh does not bypass pinned key")
     a.assign(
-      role: .client, peer: peer, endpoint: .hostPort(host: "127.0.0.1", port: port),
+      role: .client, peer: peer,
+      endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(port.get())),
       progress: { _ in },
       completion: { result in
         if case .success = result { XCTFail("A changed pinned key must be rejected") }
@@ -164,9 +166,9 @@ final class RoleSyncTests: XCTestCase {
       a.stop()
       b.stop()
     }
-    var approvals = 0
-    var receivedCode = ""
-    var sentCode = ""
+    let approvals = LockedValue(0)
+    let receivedCode = LockedValue("")
+    let sentCode = LockedValue("")
     a.canChangeRoles = { true }
     b.canChangeRoles = { true }
     a.approvePair = { _, _, _, complete in
@@ -174,21 +176,21 @@ final class RoleSyncTests: XCTestCase {
       complete(false)
     }
     b.approvePair = { _, code, role, complete in
-      approvals += 1
-      receivedCode = code
+      approvals.withValue { $0 += 1 }
+      receivedCode.set(code)
       XCTAssertEqual(role, .client)
       complete(true)
     }
     let readyA = expectation(description: "A ready")
     let readyB = expectation(description: "B ready")
-    var portA: NWEndpoint.Port!
-    var portB: NWEndpoint.Port!
+    let portA = LockedValue<NWEndpoint.Port?>(nil)
+    let portB = LockedValue<NWEndpoint.Port?>(nil)
     a.start(port: .any) {
-      portA = $0
+      portA.set($0)
       readyA.fulfill()
     }
     b.start(port: .any) {
-      portB = $0
+      portB.set($0)
       readyB.fulfill()
     }
     wait(for: [readyA, readyB], timeout: 5)
@@ -197,41 +199,45 @@ final class RoleSyncTests: XCTestCase {
     peerA.roleSyncPublicKey = a.identity.publicKey.base64EncodedString()
     peerB.roleSyncPublicKey = b.identity.publicKey.base64EncodedString()
     let unpairedCheck = expectation(description: "unpaired start preflight rejected")
-    a.verify(peer: peerB, endpoint: .hostPort(host: "127.0.0.1", port: portB)) { result in
+    a.verify(peer: peerB, endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(portB.get())))
+    { result in
       if case .success = result { XCTFail("Start must require a previously trusted pair") }
       unpairedCheck.fulfill()
     }
     wait(for: [unpairedCheck], timeout: 5)
-    XCTAssertEqual(approvals, 0)
+    XCTAssertEqual(approvals.get(), 0)
     let first = expectation(description: "first pair")
     a.assign(
-      role: .builder, peer: peerB, endpoint: .hostPort(host: "127.0.0.1", port: portB),
-      progress: { sentCode = $0 },
+      role: .builder, peer: peerB,
+      endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(portB.get())),
+      progress: { sentCode.set($0) },
       completion: { result in
         if case .failure(let error) = result { XCTFail(error.localizedDescription) }
         first.fulfill()
       })
     wait(for: [first], timeout: 5)
-    XCTAssertTrue(sentCode.contains(receivedCode))
-    XCTAssertEqual(approvals, 1)
+    XCTAssertTrue(sentCode.get().contains(receivedCode.get()))
+    XCTAssertEqual(approvals.get(), 1)
     XCTAssertEqual(try MachineRoleStore(defaults: aDefaults).load()?.role, .builder)
     XCTAssertEqual(try MachineRoleStore(defaults: bDefaults).load()?.role, .client)
     let swapped = expectation(description: "swapped from B")
     b.assign(
-      role: .builder, peer: peerA, endpoint: .hostPort(host: "127.0.0.1", port: portA),
+      role: .builder, peer: peerA,
+      endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(portA.get())),
       progress: { _ in },
       completion: { result in
         if case .failure(let error) = result { XCTFail(error.localizedDescription) }
         swapped.fulfill()
       })
     wait(for: [swapped], timeout: 5)
-    XCTAssertEqual(approvals, 1)
+    XCTAssertEqual(approvals.get(), 1)
     XCTAssertEqual(try MachineRoleStore(defaults: aDefaults).load()?.role, .client)
     XCTAssertEqual(try MachineRoleStore(defaults: bDefaults).load()?.role, .builder)
     a.canChangeRoles = { false }
     let busy = expectation(description: "busy role change rejected")
     b.assign(
-      role: .client, peer: peerA, endpoint: .hostPort(host: "127.0.0.1", port: portA),
+      role: .client, peer: peerA,
+      endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(portA.get())),
       progress: { _ in },
       completion: { result in
         if case .success = result {
@@ -244,7 +250,8 @@ final class RoleSyncTests: XCTestCase {
     let beforeA = aDefaults.data(forKey: "role-sync-assignment")
     let beforeB = bDefaults.data(forKey: "role-sync-assignment")
     let verified = expectation(description: "read-only verification works during USB activity")
-    b.verify(peer: peerA, endpoint: .hostPort(host: "127.0.0.1", port: portA)) { result in
+    b.verify(peer: peerA, endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(portA.get())))
+    { result in
       if case .failure(let error) = result { XCTFail(error.localizedDescription) }
       verified.fulfill()
     }
@@ -254,14 +261,16 @@ final class RoleSyncTests: XCTestCase {
     var impostor = peerA
     impostor.roleSyncPublicKey = b.identity.publicKey.base64EncodedString()
     let rejected = expectation(description: "discovery cannot replace the pinned key")
-    b.verify(peer: impostor, endpoint: .hostPort(host: "127.0.0.1", port: portA)) { result in
+    b.verify(
+      peer: impostor, endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(portA.get()))
+    ) { result in
       if case .success = result {
         XCTFail("A spoofed discovery identity must not pass Start preflight")
       }
       rejected.fulfill()
     }
     wait(for: [rejected], timeout: 5)
-    XCTAssertEqual(approvals, 1)
+    XCTAssertEqual(approvals.get(), 1)
   }
 
   func testDeclinedPairingDoesNotSaveEitherRole() throws {
@@ -280,9 +289,9 @@ final class RoleSyncTests: XCTestCase {
     b.canChangeRoles = { true }
     b.approvePair = { _, _, _, complete in complete(false) }
     let ready = expectation(description: "ready")
-    var port: NWEndpoint.Port!
+    let port = LockedValue<NWEndpoint.Port?>(nil)
     b.start(port: .any) {
-      port = $0
+      port.set($0)
       ready.fulfill()
     }
     wait(for: [ready], timeout: 5)
@@ -290,7 +299,8 @@ final class RoleSyncTests: XCTestCase {
     peer.roleSyncPublicKey = b.identity.publicKey.base64EncodedString()
     let declined = expectation(description: "declined")
     a.assign(
-      role: .builder, peer: peer, endpoint: .hostPort(host: "127.0.0.1", port: port),
+      role: .builder, peer: peer,
+      endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(port.get())),
       progress: { _ in },
       completion: { result in
         if case .success = result { XCTFail("Declined pairing must not succeed") }
