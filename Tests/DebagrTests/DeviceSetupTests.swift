@@ -2,7 +2,21 @@ import XCTest
 
 @testable import Debagr
 
+@MainActor
 final class DeviceSetupTests: XCTestCase {
+  func testInitialPairingRoutesToMacDiagramWithoutStartingVirtualHere() {
+    let model = DeviceSetupModel(configured: nil)
+    var opened = 0
+    model.onInitialPairing = { opened += 1 }
+    model.selectPath(.usb)
+    XCTAssertEqual(opened, 1)
+    XCTAssertEqual(model.path, .existing)
+    XCTAssertFalse(model.usb.hasSession)
+    model.isWorking = true
+    model.selectPath(.usb)
+    XCTAssertEqual(opened, 1)
+  }
+
   private let device = TargetDevice(
     identity: .apple(pairedMacNodeID: "mac", identifier: "ipad"),
     displayName: "Test iPad", kind: .iPad, service: nil)
@@ -80,14 +94,6 @@ final class DeviceSetupTests: XCTestCase {
     XCTAssertTrue(model.peerIP.isEmpty)
     XCTAssertFalse(model.canSave)
   }
-  func testDeploymentPromptUsesStableTargetAndSeparateConfirmation() {
-    let model = DeviceSetupModel(configured: nil)
-    XCTAssertTrue(model.deploymentPrompt.contains("my target device"))
-    model.deviceID = "test-device-id"
-    XCTAssertTrue(model.deploymentPrompt.contains("device test-device-id"))
-    XCTAssertTrue(model.deploymentPrompt.contains("/absolute/path/MyApp.app"))
-    XCTAssertTrue(model.deploymentPrompt.contains("Confirm installation and launch separately"))
-  }
   func testInvalidManualAddressHasInlineFeedback() {
     let model = DeviceSetupModel(configured: nil)
     model.provider = .wireguard
@@ -109,6 +115,118 @@ final class DeviceSetupTests: XCTestCase {
       deviceIdentifier: "a'b", executablePath: "/tmp/My App/Debagr")
     XCTAssertTrue(command.hasPrefix("'/tmp/My App/Debagr' "))
     XCTAssertTrue(command.contains("'a'\"'\"'b'"))
+  }
+
+  func testGuidedSetupRequiresDeviceThenCompleteConnection() {
+    let model = DeviceSetupModel(configured: nil)
+    model.advance()
+    XCTAssertEqual(model.step, .device)
+    model.updateDevices([device], services: [], status: "One device")
+    model.advance()
+    XCTAssertEqual(model.step, .network)
+    model.advance()
+    XCTAssertEqual(model.step, .network)
+    model.provider = .wireguard
+    model.address = peer.ipAddress
+    model.loadPeers()
+    model.importedProfile = profile
+    model.advance()
+    XCTAssertEqual(model.step, .review)
+    model.updateDevices([], services: [], status: "Device removed")
+    XCTAssertFalse(model.canContinue)
+    XCTAssertFalse(model.canSave)
+  }
+
+  func testUSBPathCannotBypassItsOwnPairingWorkflow() throws {
+    let configured = try DeviceSetupModel.configuration(
+      device: device, provider: .wireguard, peer: peer, profile: profile)
+    let model = DeviceSetupModel(configured: configured)
+    model.updateDevices([device], services: [], status: "One device")
+    model.loadPeers()
+    XCTAssertTrue(model.canSave)
+    model.path = .usb
+    model.advance()
+    model.save()
+    XCTAssertEqual(model.step, .device)
+    XCTAssertEqual(model.page, .setup)
+    XCTAssertFalse(model.isWorking)
+    XCTAssertFalse(model.canSave)
+    XCTAssertFalse(model.canContinue)
+  }
+
+  func testReopeningSavedConnectionDoesNotRequireNearbyRecapture() throws {
+    let configured = try DeviceSetupModel.configuration(
+      device: device, provider: .wireguard, peer: peer, profile: profile)
+    let model = DeviceSetupModel(configured: configured)
+    model.updateDevices([device], services: [], status: "One device")
+    model.loadPeers()
+    XCTAssertEqual(model.importedProfile, profile)
+    XCTAssertTrue(model.canSave)
+    model.deviceID = "another-device"
+    XCTAssertNil(model.importedProfile)
+    model.importedProfile = profile
+    model.provider = .netbird
+    XCTAssertNil(model.importedProfile)
+  }
+
+  func testVerificationRequiresMatchingSavedConnectionAndReportsRecovery() throws {
+    var configured = try DeviceSetupModel.configuration(
+      device: device, provider: .wireguard, peer: peer, profile: profile)
+    let model = DeviceSetupModel(configured: configured)
+    model.page = .saved
+    var otherConnection = configured
+    otherConnection.interfaceName = "another-interface"
+    model.updateVerification(device: otherConnection, result: .success("Ready"))
+    XCTAssertEqual(model.verification, .checking)
+    model.updateVerification(device: configured, result: .success("Ready via Apple connection"))
+    XCTAssertEqual(model.verification, .ready("Ready via Apple connection"))
+    model.updateVerification(
+      device: configured, result: .failure(ManagedDeviceError.relayAlreadyRunning))
+    guard case .attention(let recovery) = model.verification else {
+      return XCTFail("Connection errors must give a recovery state")
+    }
+    XCTAssertFalse(recovery.isEmpty)
+    configured.enabled = false
+    model.updateVerification(device: configured, result: .success("Disconnected"))
+    guard case .attention = model.verification else {
+      return XCTFail("A disabled connection must never appear ready")
+    }
+  }
+
+  func testReviewRequiresIdentityConfirmationAndProviderChangeInvalidatesIt() {
+    let model = DeviceSetupModel(configured: nil)
+    model.updateDevices([device], services: [], status: "One device")
+    model.provider = .wireguard
+    model.address = peer.ipAddress
+    model.loadPeers()
+    model.importedProfile = profile
+    XCTAssertTrue(model.hasConnectionSelection)
+    XCTAssertFalse(model.canSave)
+    model.step = .review
+    model.save()
+    XCTAssertFalse(model.isWorking)
+    XCTAssertEqual(model.page, .setup)
+    model.confirmedSelection = true
+    XCTAssertTrue(model.canSave)
+    model.provider = .netbird
+    XCTAssertFalse(model.confirmedSelection)
+    XCTAssertNil(model.importedProfile)
+  }
+
+  func testPrivateHelpersRetainStrictCommandOptionValidation() throws {
+    XCTAssertEqual(
+      try CommandLineOptions.parse(["--usb-services", "--json"]).agentCommand, "usb-services")
+    for arguments in [
+      ["--usb-services", "--devices", "--json"],
+      ["--usb-services", "--timeout", "5", "--json"],
+      [
+        "--usb-profile", "--peer", "10.20.0.2", "--bonjour-host", "phone.local.", "--device",
+        "ipad", "--json",
+      ],
+      [
+        "--usb-profile", "--peer", "10.20.0.2", "--bonjour-host", "phone.local.", "--mcp", "--json",
+      ],
+    ] { XCTAssertThrowsError(try CommandLineOptions.parse(arguments)) }
   }
 
 }

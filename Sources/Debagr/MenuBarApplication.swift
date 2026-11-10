@@ -29,6 +29,7 @@ enum MenuBarViewState: Equatable {
   }
 }
 
+@MainActor
 final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate {
   private static let initialDiscoveryWindow: TimeInterval = 5
   private static let didShowWelcomeKey = "didShowWelcome-v1"
@@ -39,6 +40,12 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
   private var terminating = false
   private var statusItem: NSStatusItem?
   private var statusMenu: NSMenu?
+  private var deviceListMenu: NSMenu?
+  private let connectionSummary = MenuConnectionSummaryView()
+  private var menuConfiguredDevice: ConfiguredDevice?
+  private var menuReadiness = MenuReadiness.checking
+  private var menuReceipt: DeploymentReceipt?
+  private var openConnectionItem: NSMenuItem?
   private var statusMenuItem: NSMenuItem?
   private var refreshMenuItem: NSMenuItem?
   private var launchAtLoginMenuItem: NSMenuItem?
@@ -56,10 +63,56 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
   private var managedTimer: Timer?
   private var managedBusy = false
   private var managedRefreshPending = false
-  private var managedStatusItem: NSMenuItem?
   private var managedToggleItem: NSMenuItem?
-  private var lastDeploymentItem: NSMenuItem?
   private var setupWindowController: DeviceSetupWindowController?
+  private let peerDiscovery = DebagrPeerDiscovery()
+  private let usbipSession = USBIPSessionController()
+  private var initialPairingCoordinator: InitialPairingCoordinator?
+
+  @objc private func showUSBIPSetup() {
+    if let model = setupWindowController?.model, model.isWorking || model.usb.hasSession {
+      setupWindowController?.present(page: .setup)
+      return
+    }
+    if initialPairingCoordinator == nil {
+      let controller = InitialPairingCoordinator(
+        embedded: true, discovery: peerDiscovery, session: usbipSession)
+      controller.onWirelessSetup = { [weak self] in self?.configureRemoteDevice() }
+      controller.onVirtualHereSetup = { [weak self] in self?.showVirtualHereSetup() }
+      initialPairingCoordinator = controller
+    }
+    presentSetup(page: .setup)
+    if let controller = initialPairingCoordinator, let setup = setupWindowController,
+      let window = setup.window
+    {
+      let model = setup.model
+      model.initialPairing = controller.activate(in: window)
+      model.usesVirtualHere = false
+      model.path = .usb
+    }
+  }
+
+  private func showVirtualHereSetup() {
+    guard !usbipSession.isRunning, !usbipSession.busy,
+      initialPairingCoordinator?.canOpenOtherSetup != false
+    else {
+      showUSBIPSetup()
+      return
+    }
+    presentSetup(page: .setup)
+    setupWindowController?.model.usesVirtualHere = true
+    setupWindowController?.model.path = .usb
+  }
+
+  @objc private func showConnectionSetup() {
+    if (try? peerDiscovery.localSelection)?.role == .client
+      || (try? managedRuntime.store.load()) == nil
+    {
+      showUSBIPSetup()
+    } else {
+      configureRemoteDevice()
+    }
+  }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     let application = NSApplication.shared
@@ -88,54 +141,68 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     windowItem.submenu = windowMenu
     mainMenu.addItem(windowItem)
     application.mainMenu = mainMenu
+    peerDiscovery.start()
 
     let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    statusItem.button?.image = NSImage(
-      systemSymbolName: "antenna.radiowaves.left.and.right",
-      accessibilityDescription: "Debagr"
-    )
+    statusItem.button?.image = MenuBarIconState.idle.image
     statusItem.button?.toolTip = "Debagr · Remote app deployment"
 
+    let menu = makeMenu()
+
+    statusItem.menu = menu
+    self.statusItem = statusItem
+
+    refreshSystemCheck()
+    render()
+    startDiscovery()
+    showWelcomeIfNeeded()
+    refreshManagedDevice()
+    managedTimer = Timer(timeInterval: 10, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated { self?.refreshManagedDevice() }
+    }
+    if let managedTimer { RunLoop.main.add(managedTimer, forMode: .common) }
+    NSWorkspace.shared.notificationCenter.addObserver(
+      self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
+  }
+
+  func makeMenu() -> NSMenu {
     let menu = NSMenu()
+    menu.minimumWidth = 320
     menu.autoenablesItems = false
     menu.delegate = self
-    menu.minimumWidth = 300
-    menu.addItem(brandHeader())
+    let summary = NSMenuItem()
+    summary.view = connectionSummary
+    menu.addItem(summary)
     menu.addItem(.separator())
     let statusMenuItem = NSMenuItem(title: state.statusTitle, action: nil, keyEquivalent: "")
     statusMenuItem.isEnabled = false
 
-    menu.addItem(sectionHeader("Remote deployment"))
-    let managedStatus = NSMenuItem(
-      title: "Remote deployment: checking…", action: nil, keyEquivalent: "")
-    managedStatus.isEnabled = false
-    menu.addItem(managedStatus)
-    managedStatusItem = managedStatus
-    let configure = NSMenuItem(
-      title: "Set Up Remote Device…", action: #selector(configureRemoteDevice), keyEquivalent: ""
-    )
-    configure.target = self
-    configure.image = menuImage("slider.horizontal.3")
-    menu.addItem(configure)
+    let connect = NSMenuItem(
+      title: "Set Up Remote Device…", action: #selector(openDebagr), keyEquivalent: "")
+    connect.target = self
+    connect.image = menuImage("cable.connector")
+    menu.addItem(connect)
+    openConnectionItem = connect
     let toggle = NSMenuItem(
       title: "Connect Remote Device", action: #selector(toggleRemoteDevice), keyEquivalent: "")
     toggle.target = self
     toggle.image = menuImage("link")
     menu.addItem(toggle)
     managedToggleItem = toggle
-    let history = NSMenuItem(title: "No deployment recorded", action: nil, keyEquivalent: "")
-    history.isEnabled = false
-    menu.addItem(history)
-    lastDeploymentItem = history
     let skill = NSMenuItem(
-      title: "Show AI Deployment Skill…", action: #selector(showDeploymentSkill), keyEquivalent: "")
+      title: "Debagr Skill…", action: #selector(showDeploymentSkill), keyEquivalent: "")
     skill.target = self
     skill.image = menuImage("sparkles")
-    menu.addItem(skill)
     menu.addItem(.separator())
 
-    menu.addItem(sectionHeader("Devices"))
-    menu.addItem(statusMenuItem)
+    let devices = NSMenu()
+    devices.autoenablesItems = false
+    let deviceItem = NSMenuItem(title: "Devices", action: nil, keyEquivalent: "")
+    deviceItem.image = menuImage("iphone")
+    deviceItem.submenu = devices
+    menu.addItem(deviceItem)
+    deviceListMenu = devices
+    devices.addItem(statusMenuItem)
     let refreshMenuItem = NSMenuItem(
       title: "Refresh Target Devices",
       action: #selector(refreshDevices),
@@ -143,14 +210,9 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     )
     refreshMenuItem.target = self
     refreshMenuItem.image = menuImage("arrow.clockwise")
-    menu.addItem(refreshMenuItem)
+    devices.addItem(refreshMenuItem)
 
     menu.addItem(.separator())
-    let helpMenu = NSMenu()
-    let helpItem = NSMenuItem(title: "Help & Diagnostics", action: nil, keyEquivalent: "")
-    helpItem.image = menuImage("questionmark.circle")
-    helpItem.submenu = helpMenu
-    menu.addItem(helpItem)
     let gettingStartedMenuItem = NSMenuItem(
       title: "Agent Tools & Setup Guide…",
       action: #selector(showGettingStarted),
@@ -158,7 +220,14 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     )
     gettingStartedMenuItem.target = self
     gettingStartedMenuItem.image = menuImage("book.closed")
-    helpMenu.addItem(gettingStartedMenuItem)
+    gettingStartedMenuItem.title = "Agent Tools…"
+    menu.addItem(gettingStartedMenuItem)
+    let helpMenu = NSMenu()
+    let helpItem = NSMenuItem(title: "Help & Diagnostics", action: nil, keyEquivalent: "")
+    helpItem.image = menuImage("questionmark.circle")
+    helpItem.submenu = helpMenu
+    menu.addItem(helpItem)
+    menu.insertItem(skill, at: 3)
 
     let systemCheckMenuItem = NSMenuItem(title: "System Check", action: nil, keyEquivalent: "")
     let checks = systemCheckMenu()
@@ -217,24 +286,12 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     quitMenuItem.target = self
     menu.addItem(quitMenuItem)
 
-    statusItem.menu = menu
-    self.statusItem = statusItem
     self.statusMenu = menu
     self.statusMenuItem = statusMenuItem
     self.refreshMenuItem = refreshMenuItem
     self.launchAtLoginMenuItem = launchAtLoginMenuItem
-
-    refreshSystemCheck()
-    render()
-    startDiscovery()
-    showWelcomeIfNeeded()
-    refreshManagedDevice()
-    managedTimer = Timer(timeInterval: 10, repeats: true) { [weak self] _ in
-      self?.refreshManagedDevice()
-    }
-    if let managedTimer { RunLoop.main.add(managedTimer, forMode: .common) }
-    NSWorkspace.shared.notificationCenter.addObserver(
-      self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
+    updateMenuSummary()
+    return menu
   }
 
   @objc private func didWake() {
@@ -246,49 +303,21 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     refreshSystemCheck()
     launchAtLoginMenuItem?.state = SMAppService.mainApp.status == .enabled ? .on : .off
     refreshManagedDevice()
+    updateMenuSummary()
   }
 
-  private func brandHeader() -> NSMenuItem {
-    let icon = NSImageView(image: NSImage(named: NSImage.applicationIconName) ?? NSImage())
-    icon.imageScaling = .scaleProportionallyUpOrDown
-    icon.setAccessibilityLabel("Debagr")
-    let title = NSTextField(labelWithString: "Debagr")
-    title.font = .systemFont(ofSize: 16, weight: .semibold)
-    let subtitle = NSTextField(labelWithString: "Your Mac stays home. Your build comes with you.")
-    subtitle.font = .systemFont(ofSize: 11)
-    subtitle.textColor = .secondaryLabelColor
-    let version = NSTextField(labelWithString: "Version \(ProductSupport.version)")
-    version.font = .systemFont(ofSize: 10)
-    version.textColor = .secondaryLabelColor
-    let labels = NSStackView(views: [title, subtitle, version])
-    labels.orientation = .vertical
-    labels.alignment = .leading
-    labels.spacing = 3
-    let content = NSStackView(views: [icon, labels])
-    content.alignment = .centerY
-    content.spacing = 12
-    content.translatesAutoresizingMaskIntoConstraints = false
-    let view = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 88))
-    view.addSubview(content)
-    NSLayoutConstraint.activate([
-      icon.widthAnchor.constraint(equalToConstant: 40),
-      icon.heightAnchor.constraint(equalToConstant: 40),
-      content.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-      content.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-      content.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-    ])
-    let item = NSMenuItem()
-    item.view = view
-    return item
-  }
-
-  private func sectionHeader(_ title: String) -> NSMenuItem {
-    let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-    item.attributedTitle = NSAttributedString(
-      string: title,
-      attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .semibold)])
-    item.isEnabled = false
-    return item
+  private func updateMenuSummary() {
+    let selection = try? peerDiscovery.localSelection
+    let presentation = MenuConnectionPresentation(
+      configured: menuConfiguredDevice, selection: selection,
+      usbActive: usbipSession.isRunning, readiness: menuReadiness, receipt: menuReceipt)
+    connectionSummary.update(presentation)
+    statusItem?.button?.image = presentation.iconState.image
+    openConnectionItem?.title = presentation.actionTitle
+    managedToggleItem?.isHidden = menuConfiguredDevice == nil || selection?.role == .client
+    statusItem?.button?.toolTip = "Debagr · \(presentation.title) · \(presentation.status)"
+    statusItem?.button?.setAccessibilityLabel(
+      "Debagr. \(presentation.title). \(presentation.status)")
   }
 
   private func menuImage(_ symbol: String) -> NSImage? {
@@ -297,6 +326,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
   }
 
   func applicationWillTerminate(_ notification: Notification) {
+    peerDiscovery.stop()
     capture.stop()
     managedTimer?.invalidate()
   }
@@ -306,19 +336,27 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     terminating = true
     DeviceDeployer.cancelPendingCommands()
     managedTimer?.invalidate()
-    managedQueue.async {
-      self.managedRuntime.stop()
-      // AppKit's nested deferred-quit loop must be able to deliver this completion.
-      RunLoop.main.perform(inModes: [.common, .modalPanel]) {
-        MainActor.assumeIsolated { sender.reply(toApplicationShouldTerminate: true) }
+    let finish: @MainActor @Sendable () -> Void = { [self] in
+      let runtime = managedRuntime
+      managedQueue.async {
+        runtime.stop()
+        // AppKit's nested deferred-quit loop must deliver this completion.
+        RunLoop.main.perform(inModes: [.common, .modalPanel]) {
+          MainActor.assumeIsolated { sender.reply(toApplicationShouldTerminate: true) }
+        }
       }
+    }
+    if let usb = setupWindowController?.model.usb {
+      usb.shutdown(completion: finish)
+    } else {
+      finish()
     }
     return .terminateLater
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool
   {
-    if !flag { showGettingStarted() }
+    showConnectionSetup()
     return true
   }
 
@@ -347,7 +385,10 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
 
   @objc private func copyDiagnostics() {
     let devices = registry.orderedDevices
-    let managedTitle = managedStatusItem?.title ?? "unknown"
+    let managedTitle = MenuConnectionPresentation(
+      configured: menuConfiguredDevice, selection: try? peerDiscovery.localSelection,
+      usbActive: usbipSession.isRunning, readiness: menuReadiness, receipt: menuReceipt
+    ).status
     let discovery = failureDetails
     DispatchQueue.global(qos: .utility).async { [self] in
       var report = ProductSupport.diagnostics(devices: devices)
@@ -357,10 +398,11 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
         report +=
           "\nLast deployment: \(receipt.launched ? "installed and launched" : "installed") at \(receipt.completedAt.formatted())"
       }
+      let completedReport = report
       DispatchQueue.main.async {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(report, forType: .string)
+        pasteboard.setString(completedReport, forType: .string)
         self.statusMenuItem?.title = "Diagnostics copied"
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
           self?.render()
@@ -369,28 +411,18 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     }
   }
 
-  @objc private func copyDeployCommand(_ sender: NSMenuItem) {
-    guard let identifier = sender.representedObject as? String else { return }
-    let command = ProductSupport.deployCommand(deviceIdentifier: identifier)
-    let pasteboard = NSPasteboard.general
-    pasteboard.clearContents()
-    pasteboard.setString(command, forType: .string)
-    sender.title = "Deploy command copied"
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { sender.title = "Copy Deploy Command" }
-  }
-
   @objc private func openSupport() {
     guard let url = ProductSupport.configuredURL(forInfoKey: "DebagrSupportURL") else { return }
     NSWorkspace.shared.open(url)
   }
 
+  @objc private func openDebagr() {
+    presentSetup(page: setupWindowController?.model.page ?? .setup)
+  }
+
   @objc private func toggleLaunchAtLogin() {
     do {
-      if SMAppService.mainApp.status == .enabled {
-        try SMAppService.mainApp.unregister()
-      } else {
-        try SMAppService.mainApp.register()
-      }
+      try LaunchAtLogin.setEnabled(SMAppService.mainApp.status != .enabled)
       launchAtLoginMenuItem?.state = SMAppService.mainApp.status == .enabled ? .on : .off
     } catch {
       presentSetupError(error)
@@ -402,7 +434,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     guard !defaults.bool(forKey: Self.didShowWelcomeKey) else { return }
     defaults.set(true, forKey: Self.didShowWelcomeKey)
     DispatchQueue.main.async { [weak self] in
-      self?.showGettingStarted()
+      self?.showConnectionSetup()
     }
   }
 
@@ -508,9 +540,9 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     statusMenuItem?.title = state.statusTitle
     statusMenuItem?.toolTip = failureDetails
     refreshMenuItem?.isEnabled = state != .discovering
-    statusItem?.button?.setAccessibilityLabel(state.accessibilityLabel)
+    updateMenuSummary()
 
-    guard let menu = statusMenu, let refreshMenuItem else { return }
+    guard let menu = deviceListMenu, let refreshMenuItem else { return }
     deviceMenuItems.forEach(menu.removeItem)
     deviceMenuItems.removeAll()
 
@@ -555,25 +587,13 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
       item.isEnabled = false
       menu.addItem(item)
     }
-    if device.identity.source == .appleIdentifier {
-      menu.addItem(.separator())
-      let deployItem = NSMenuItem(
-        title: "Copy Deploy Command",
-        action: #selector(copyDeployCommand(_:)),
-        keyEquivalent: ""
-      )
-      deployItem.target = self
-      deployItem.representedObject = identifier
-      menu.addItem(deployItem)
-    }
     return menu
   }
 
   private func refreshSystemCheck() {
-    DispatchQueue.global(qos: .utility).async { [weak self] in
+    DispatchQueue.global(qos: .utility).async { [self] in
       let available = ProductSupport.developerToolsAvailable
       DispatchQueue.main.async {
-        guard let self else { return }
         self.toolsAvailable = available
         let items = self.systemCheckMenu().items
         self.checksMenu?.removeAllItems()
@@ -620,7 +640,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     return details
   }
 
-  private var localPairedMacIdentifier: String {
+  nonisolated private var localPairedMacIdentifier: String {
     "local:\(ProcessInfo.processInfo.hostName)"
   }
 
@@ -631,54 +651,47 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
       return
     }
     managedBusy = true
-    managedQueue.async { [weak self] in
-      guard let self else { return }
-      let result = Result { try self.managedRuntime.refresh() }
-      let configured = try? self.managedRuntime.store.load()
+    let runtime = managedRuntime
+    managedQueue.async { [self] in
+      let previousConfiguration = try? runtime.store.load()
+      let result = Result { try runtime.refresh() }
+      let configured = try? runtime.store.load()
       let receipt = DeploymentReceipt.latest()
       DispatchQueue.main.async {
         self.managedBusy = false
-        switch result {
-        case .success(let title):
-          self.managedStatusItem?.title = title
-          self.managedStatusItem?.toolTip = nil
-        case .failure(let error):
-          switch error {
-          case DeviceDeploymentError.deviceLocked:
-            self.managedStatusItem?.title = "\(configured?.displayName ?? "Device") is locked"
-          case is ProfileError, is CLIError, is DecodingError:
-            self.managedStatusItem?.title = "Saved setup is invalid — set up again"
-          case is ManagedDeviceError:
-            self.managedStatusItem?.title = "Another Debagr relay is running"
-          case is NetworkSupportError:
-            self.managedStatusItem?.title = "This Mac needs Wi-Fi or Ethernet"
-          default:
-            self.managedStatusItem?.title = error.localizedDescription
-          }
-          self.managedStatusItem?.toolTip =
-            "\(error.localizedDescription)\nKeep the device unlocked on Wi-Fi with its VPN connected. Check saved setup in Settings; grant USB trust again if needed."
+        if previousConfiguration?.hasSameConnection(as: configured) == true,
+          previousConfiguration?.enabled == configured?.enabled
+        {
+          self.setupWindowController?.model.updateVerification(device: configured, result: result)
         }
-        self.setupWindowController?.model.connectionStatus =
-          self.managedStatusItem?.title ?? "Checking connection…"
-        self.statusItem?.button?.image = NSImage(
-          systemSymbolName: (try? result.get())?.contains("Ready") == true
-            ? "checkmark.circle" : "antenna.radiowaves.left.and.right",
-          accessibilityDescription: self.managedStatusItem?.title)
+        self.menuConfiguredDevice = configured
+        self.menuReceipt = receipt
+        if configured != nil
+          && (previousConfiguration?.hasSameConnection(as: configured) != true
+            || previousConfiguration?.enabled != configured?.enabled)
+        {
+          self.menuReadiness = .checking
+        } else {
+          switch result {
+          case .success: self.menuReadiness = .ready
+          case .failure(let error):
+            let failure =
+              AgentCLI.failure(error, operation: "status").object["error"] as? [String: Any]
+            self.menuReadiness = .attention(
+              failure?["recovery"] as? String ?? "Open Connections to check the device.")
+          }
+        }
+        self.managedToggleItem?.isEnabled = configured != nil && !self.managedBusy
+        self.managedToggleItem?.title =
+          configured?.enabled == true ? "Pause Wireless Connection" : "Resume Wireless Connection"
+        self.managedToggleItem?.image = self.menuImage(
+          configured?.enabled == true ? "link.circle.fill" : "link")
+        self.updateMenuSummary()
         if self.managedRefreshPending {
           self.managedRefreshPending = false
           self.refreshManagedDevice()
         }
-        self.managedToggleItem?.isEnabled = configured != nil && !self.managedBusy
-        self.managedToggleItem?.title =
-          configured?.enabled == true ? "Disconnect Remote Device" : "Connect Remote Device"
-        self.managedToggleItem?.image = self.menuImage(
-          configured?.enabled == true ? "link.circle.fill" : "link")
-        if let receipt {
-          self.lastDeploymentItem?.title =
-            "Last deployment: \(receipt.launched ? "installed and launched" : "installed")"
-          self.lastDeploymentItem?.toolTip =
-            "\(receipt.bundleIdentifier)\n\(receipt.deviceIdentifier)\n\(receipt.completedAt.formatted())"
-        }
+
       }
     }
   }
@@ -687,7 +700,8 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     do {
       let store = ManagedDeviceStore()
       try store.toggleEnabled()
-      managedStatusItem?.title = "Updating connection…"
+      menuReadiness = .checking
+      updateMenuSummary()
       managedToggleItem?.isEnabled = false
       refreshManagedDevice()
     } catch { presentSetupError(error) }
@@ -706,7 +720,15 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
   }
 
   @objc private func configureRemoteDevice() {
+    guard (try? peerDiscovery.localSelection)?.role != .client,
+      !usbipSession.isRunning, !usbipSession.busy,
+      initialPairingCoordinator?.canOpenOtherSetup != false
+    else {
+      showUSBIPSetup()
+      return
+    }
     presentSetup(page: .setup)
+    setupWindowController?.model.path = .existing
   }
 
   private func presentSetup(page: DeviceSetupModel.Page) {
@@ -714,6 +736,9 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
       let controller = DeviceSetupWindowController(configured: try? managedRuntime.store.load())
       controller.model.onRefresh = { [weak self] in self?.startDiscovery() }
       controller.model.onSaved = { [weak self] in self?.refreshManagedDevice() }
+      controller.model.onExistingPairing = { [weak self] in self?.configureRemoteDevice() }
+      controller.model.onInitialPairing = { [weak self] in self?.showUSBIPSetup() }
+      controller.model.onCheckConnection = { [weak self] in self?.refreshManagedDevice() }
       controller.model.onShowSkill = { [weak self] in self?.showDeploymentSkill() }
       setupWindowController = controller
     }
@@ -730,6 +755,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
 
 }
 
+@MainActor
 func runMenuBarApplication() {
   let application = NSApplication.shared
   let delegate = MenuBarApplication()
