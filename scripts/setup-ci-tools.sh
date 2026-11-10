@@ -9,12 +9,12 @@ checksum=d3537432e10915d86ad3f6fee212ea9f4b72b932394460216570ab1a1150dd5e
 [[ "$(uname -m)" == arm64 ]] || { echo 'This release toolchain requires an Apple-silicon runner' >&2; exit 1; }
 selected=
 for app in /Applications/Xcode*.app; do
-  if [[ "$(DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version 2>/dev/null)" == $'Xcode 27.2\nBuild version 27B48' ]]; then
+  if [[ "$(DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version 2>/dev/null)" == $'Xcode 26.6\nBuild version 17F113' ]]; then
     selected="$app/Contents/Developer"
     break
   fi
 done
-[[ -n "$selected" ]] || { echo 'Required Xcode 27.2 (27B48) is unavailable' >&2; exit 1; }
+[[ -n "$selected" ]] || { echo 'Required hosted Xcode 26.6 (17F113) is unavailable' >&2; exit 1; }
 printf 'DEVELOPER_DIR=%s\n' "$selected" >> "$GITHUB_ENV"
 tools="$RUNNER_TEMP/debagr-tools"
 mkdir -p "$tools"

@@ -213,7 +213,7 @@ separate release steps.
 
 ## Pinned CI tools
 
-`./scripts/setup-ci-tools.sh` selects Xcode 27.2 (27B48) and downloads xcsift
+`./scripts/setup-ci-tools.sh` selects hosted Xcode 26.6 (17F113) and downloads xcsift
 1.7.4 with a pinned SHA-256. Actions are pinned by commit. CI compiles with
 complete concurrency diagnostics and rejects diagnostics outside the reviewed
 `.ci/concurrency-baseline.json`. The baseline has 58 unique warnings (111 compiler
@@ -227,3 +227,7 @@ on 0.2.0 until the candidate is accepted and released.
 Run `python3 scripts/check-menu-bar-shutdown.py` after packaging to verify
 normal SIGTERM exit through AppKit deferred termination. It owns and cleans up
 its test child; it never signals an existing Debagr instance.
+
+Local candidate signing and iPhone acceptance used Xcode 27.2 (27B48). The
+hosted macos-26-arm64 image supplies Xcode 26.6 (17F113); the CI pin follows
+[that image inventory](https://github.com/actions/runner-images/blob/macos-26-arm64/20261102.0473/images/macos/macos-26-arm64-Readme.md).

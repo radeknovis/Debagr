@@ -62,7 +62,7 @@ A remote iPhone install and OS-confirmed launch were verified; no public release
   configuration/network/inventory/VPN diagnostics and injected-clock wait tests.
 - Optional local stdio MCP tools, protocol/argument tests and packaged handshake
   plus read-only tool-call validation. No network endpoint is exposed.
-- Tests grouped by responsibility. Pinned action commits, Xcode 27.2 (27B48),
+- Tests grouped by responsibility. Pinned action commits, hosted Xcode 26.6 (17F113),
   checksum-verified xcsift 1.7.4 and a strict-concurrency regression gate.
 - Active user docs separated from development and historical distribution notes;
   plugin archives omit maintainer instructions. Public setup labels, local links
@@ -132,3 +132,8 @@ that nested loop. The signal entry point uses the run loop as well.
 `scripts/check-menu-bar-shutdown.py` reproduced the old bundle's failure (no exit
 within eight seconds after SIGTERM), then passed with the rebuilt bundle. It
 launches and signals only its own child process and is included in CI.
+
+Hosted CI initially rejected the local Xcode 27.2 pin because that version is not
+on the runner. Its exact macos-26-arm64/20261102.0473 inventory was inspected;
+the hosted pin is now Xcode 26.6 (17F113). Local signing and device acceptance
+retain their separately recorded Xcode 27.2 (27B48) evidence.
