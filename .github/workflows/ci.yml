@@ -5,15 +5,31 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   test-and-package:
     runs-on: macos-26
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Install build tools
-        run: brew install xcsift
+        run: ./scripts/setup-ci-tools.sh
       - name: Lint
         run: xcrun swift-format lint --strict --recursive Sources Tests
+      - name: Check strict concurrency against migration baseline
+        run: |
+          swift build --scratch-path .build/concurrency -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency 2>&1 | tee .build/concurrency-diagnostics.log | xcsift -f toon -w -e -E
+          python3 scripts/check-concurrency.py .build/concurrency-diagnostics.log
       - name: Test
         run: swift test 2>&1 | xcsift -f toon -w -e -E
       - name: Package
@@ -26,13 +42,15 @@ jobs:
         run: python3 scripts/check-release.py
       - name: Package and verify agent plugins
         run: python3 scripts/package-plugins.py
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: Debagr-agent-plugins
           path: |
             dist/debagr-*.zip
             dist/debagr-*.zip.sha256
-      - uses: actions/upload-artifact@v6
+      - name: Archive app preserving permissions
+        run: ditto -c -k --keepParent Debagr.app Debagr-unsigned.zip
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: Debagr-unsigned
-          path: Debagr.app
+          path: Debagr-unsigned.zip

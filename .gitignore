@@ -6,3 +6,11 @@ DerivedData/
 .debagr-*/
 dist/
 __pycache__/
+
+.codegraph/
+.cursor/
+*.p12
+*.p8
+*.mobileprovision
+managed-device.json
+device-profile.json

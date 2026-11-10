@@ -79,7 +79,23 @@ def run_case(**overrides):
             assert repeated.returncode != 0 and "overwrite" in repeated.stderr
 
 
+def check_workflow_gates():
+    lines = (ROOT / ".github/workflows/release.yml").read_text().splitlines()
+    gates = "\n".join(line.strip() for line in lines if line.strip().startswith("[["))
+    assert len(gates.splitlines()) == 3
+    for version, build, ref, expected in [
+        ("0.2.0", "2", "refs/tags/v0.2.0", 0),
+        ("bad", "2", "refs/tags/v0.2.0", 1),
+        ("0.2.0", "bad", "refs/tags/v0.2.0", 1),
+        ("0.2.0", "2", "refs/heads/main", 1),
+    ]:
+        result = subprocess.run(["/bin/bash", "-e", "-c", gates], capture_output=True,
+            env={**os.environ, "VERSION": version, "BUILD_NUMBER": build, "GITHUB_REF": ref})
+        assert result.returncode == expected
+
+
 if __name__ == "__main__":
+    check_workflow_gates()
     for case in ({}, {"REJECT": "app"}, {"REJECT": "dmg"}, {"FAIL_GATEKEEPER": "1"},
                  {"DIRTY": "1"}, {"VERSION": "../../bad"}, {"BUILD_NUMBER": "invalid"},
                  {"CODESIGN_IDENTITY": "-"}):
