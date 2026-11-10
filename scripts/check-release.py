@@ -40,6 +40,7 @@ def run_case(**overrides):
     with tempfile.TemporaryDirectory(prefix="debagr-release-check-") as directory:
         fixture = Path(directory)
         (fixture / "scripts").mkdir()
+        (fixture / "VERSION").write_text("0.2.0\n")
         shutil.copy2(ROOT / "scripts/release-macos-app.sh", fixture / "scripts")
         for script in ("build-macos-app.sh", "verify-macos-app.sh"):
             target = fixture / "scripts" / script
@@ -79,9 +80,25 @@ def run_case(**overrides):
             assert repeated.returncode != 0 and "overwrite" in repeated.stderr
 
 
+def check_workflow_gates():
+    lines = (ROOT / ".github/workflows/release.yml").read_text().splitlines()
+    gates = "\n".join(line.strip() for line in lines if line.strip().startswith("[["))
+    assert len(gates.splitlines()) == 3
+    for version, build, ref, expected in [
+        ("0.2.0", "2", "refs/tags/v0.2.0", 0),
+        ("bad", "2", "refs/tags/v0.2.0", 1),
+        ("0.2.0", "bad", "refs/tags/v0.2.0", 1),
+        ("0.2.0", "2", "refs/heads/main", 1),
+    ]:
+        result = subprocess.run(["/bin/bash", "-e", "-c", gates], capture_output=True,
+            env={**os.environ, "VERSION": version, "BUILD_NUMBER": build, "GITHUB_REF": ref})
+        assert result.returncode == expected
+
+
 if __name__ == "__main__":
+    check_workflow_gates()
     for case in ({}, {"REJECT": "app"}, {"REJECT": "dmg"}, {"FAIL_GATEKEEPER": "1"},
-                 {"DIRTY": "1"}, {"VERSION": "../../bad"}, {"BUILD_NUMBER": "invalid"},
+                 {"DIRTY": "1"}, {"VERSION": "0.3.0"}, {"VERSION": "../../bad"}, {"BUILD_NUMBER": "invalid"},
                  {"CODESIGN_IDENTITY": "-"}):
         run_case(**case)
-    print("Release safety: 8 scenarios passed (mocked Apple tools, no real notarization).")
+    print("Release safety: 9 scenarios passed (mocked Apple tools, no real notarization).")

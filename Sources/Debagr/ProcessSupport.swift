@@ -9,6 +9,12 @@ final class LockedValue<Value> {
     self.value = value
   }
 
+  func withValue<Result>(_ body: (inout Value) throws -> Result) rethrows -> Result {
+    lock.lock()
+    defer { lock.unlock() }
+    return try body(&value)
+  }
+
   func get() -> Value {
     lock.lock()
     defer { lock.unlock() }
@@ -49,7 +55,7 @@ final class OwnedLineProcess {
 
   private var process: Process?
   private var outputPipe: Pipe?
-  private var bufferedOutput = ""
+  private var bufferedOutput = Data()
 
   init(
     executablePath: String,
@@ -136,28 +142,28 @@ final class OwnedLineProcess {
     stop()
   }
 
-  private func appendOutput(_ data: Data) {
+  func appendOutput(_ data: Data) {
     lineQueue.async { [weak self] in
-      guard let self, let string = String(data: data, encoding: .utf8) else { return }
-      self.bufferedOutput.append(string)
+      guard let self else { return }
+      self.bufferedOutput.append(data)
       self.emitCompleteLines()
     }
   }
 
-  private func flushOutput() {
+  func flushOutput() {
     lineQueue.async { [weak self] in
       guard let self else { return }
       self.emitCompleteLines()
       if !self.bufferedOutput.isEmpty {
-        self.lineHandler(self.bufferedOutput)
+        self.lineHandler(String(decoding: self.bufferedOutput, as: UTF8.self))
         self.bufferedOutput.removeAll(keepingCapacity: false)
       }
     }
   }
 
   private func emitCompleteLines() {
-    while let newline = bufferedOutput.firstIndex(of: "\n") {
-      var line = String(bufferedOutput[..<newline])
+    while let newline = bufferedOutput.firstIndex(of: 10) {
+      var line = String(decoding: bufferedOutput[..<newline], as: UTF8.self)
       if line.last == "\r" {
         line.removeLast()
       }

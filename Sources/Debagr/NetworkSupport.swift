@@ -34,22 +34,10 @@ enum NetworkSupportError: LocalizedError {
 enum NetworkSupport {
   static func resolveInterface(named name: String) throws -> InterfaceBinding {
     if name == "auto" {
-      let monitor = NWPathMonitor()
-      let result = LockedValue<String?>(nil)
-      let found = DispatchSemaphore(value: 0)
-      monitor.pathUpdateHandler = { path in
-        let interface = path.availableInterfaces.first {
-          ($0.type == .wifi || $0.type == .wiredEthernet) && path.usesInterfaceType($0.type)
-        }
-        result.set(interface?.name)
-        found.signal()
-      }
-      monitor.start(queue: DispatchQueue(label: "debagr.default-interface"))
-      defer { monitor.cancel() }
-      guard found.wait(timeout: .now() + 3) == .success, let name = result.get() else {
-        throw NetworkSupportError.noNetworkInterface(interface: "auto")
-      }
-      return try resolveInterface(named: name)
+      let interface = try InterfaceMonitor.shared.resolve(named: nil)
+      return InterfaceBinding(
+        name: interface.name, ipv4Address: try ipv4Address(for: interface.name),
+        networkInterface: interface)
     }
     let address = try ipv4Address(for: name)
     let networkInterface = try networkInterface(named: name)
@@ -190,41 +178,45 @@ enum NetworkSupport {
   }
 
   private static func networkInterface(named name: String) throws -> NWInterface {
-    let monitor = NWPathMonitor()
-    let monitorQueue = DispatchQueue(label: "debagr.interface-monitor")
-    let resultLock = NSLock()
-    var result: NWInterface?
-    let found = DispatchSemaphore(value: 0)
+    try InterfaceMonitor.shared.resolve(named: name)
+  }
+}
 
-    monitor.pathUpdateHandler = { path in
-      resultLock.lock()
-      defer { resultLock.unlock() }
+/// Keeps one current path instead of creating monitors on every status refresh.
+private final class InterfaceMonitor {
+  static let shared = InterfaceMonitor()
+  private let monitor = NWPathMonitor()
+  private let condition = NSCondition()
+  private var path: NWPath?
 
-      guard result == nil,
-        let interface = path.availableInterfaces.first(where: { $0.name == name })
-      else {
-        return
+  private init() {
+    monitor.pathUpdateHandler = { [weak self] path in
+      guard let self else { return }
+      self.condition.lock()
+      self.path = path
+      self.condition.broadcast()
+      self.condition.unlock()
+    }
+    monitor.start(queue: DispatchQueue(label: "debagr.interface-monitor"))
+  }
+
+  func resolve(named name: String?) throws -> NWInterface {
+    condition.lock()
+    defer { condition.unlock() }
+    let deadline = Date().addingTimeInterval(3)
+    while true {
+      if let path,
+        let interface = path.availableInterfaces.first(where: { interface in
+          if let name { return interface.name == name }
+          return (interface.type == .wifi || interface.type == .wiredEthernet)
+            && path.usesInterfaceType(interface.type)
+        })
+      {
+        return interface
       }
-
-      result = interface
-      found.signal()
+      guard condition.wait(until: deadline) else {
+        throw NetworkSupportError.interfaceLookupTimedOut(interface: name ?? "auto")
+      }
     }
-    monitor.start(queue: monitorQueue)
-
-    guard found.wait(timeout: .now() + 3) == .success else {
-      monitor.cancel()
-      throw NetworkSupportError.interfaceLookupTimedOut(interface: name)
-    }
-
-    monitor.cancel()
-
-    resultLock.lock()
-    let resolved = result
-    resultLock.unlock()
-
-    guard let resolved else {
-      throw NetworkSupportError.noNetworkInterface(interface: name)
-    }
-    return resolved
   }
 }

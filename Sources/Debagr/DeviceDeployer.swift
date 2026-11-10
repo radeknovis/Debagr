@@ -7,6 +7,8 @@ enum DeviceDeploymentError: LocalizedError {
   case invalidResult
   case installedBundleNotConfirmed(String)
   case timedOut
+  case installationTimedOut
+  case appleError(code: Int, domain: String, message: String)
   case launchFailed(String)
   case deviceLocked
 
@@ -20,6 +22,11 @@ enum DeviceDeploymentError: LocalizedError {
       return "devicectl returned an unreadable installation result."
     case .installedBundleNotConfirmed(let bundleIdentifier):
       return "devicectl did not confirm installation of \(bundleIdentifier)."
+    case .appleError(_, _, let message):
+      return message
+    case .installationTimedOut:
+      return
+        "Installation exceeded its deadline; the installation outcome is unknown. Inspect installed apps before retrying."
     case .timedOut:
       return "Apple's device command exceeded its deadline."
     case .launchFailed(let identifier):
@@ -36,13 +43,23 @@ struct DeploymentResult: Codable, Equatable {
 }
 
 struct DeviceDeployer {
+  private static let commands = LockedValue((cancelled: false, processes: [Process]()))
+
+  static func cancelPendingCommands() {
+    let processes = commands.withValue { state in
+      state.cancelled = true
+      return state.processes
+    }
+    for process in processes where process.isRunning { process.terminate() }
+  }
+
   var run: ([String], TimeInterval) throws -> Data = DeviceDeployer.runDevicectl
 
   func checkReady(deviceIdentifier: String, timeout: TimeInterval = 5) throws {
     let data = try run(
       [
         "device", "info", "lockState", "--device", deviceIdentifier,
-        "--timeout", String(max(1, Int(timeout))),
+        "--timeout", String(max(5, Int(timeout.rounded(.up)))),
       ], timeout)
     guard let output = try JSONSerialization.jsonObject(with: data) as? [String: Any],
       let result = output["result"] as? [String: Any],
@@ -56,13 +73,18 @@ struct DeviceDeployer {
     let bundleIdentifier = try Self.bundleIdentifier(at: appURL)
 
     try checkReady(deviceIdentifier: deviceIdentifier)
-    let resultData = try run(
-      [
-        "device", "install", "app",
-        "--device", deviceIdentifier,
-        appURL.path,
-        "--timeout", "120",
-      ], 120)
+    let resultData: Data
+    do {
+      resultData = try run(
+        [
+          "device", "install", "app",
+          "--device", deviceIdentifier,
+          appURL.path,
+          "--timeout", "120",
+        ], 125)
+    } catch DeviceDeploymentError.timedOut {
+      throw DeviceDeploymentError.installationTimedOut
+    }
     guard let result = try JSONSerialization.jsonObject(with: resultData) as? [String: Any]
     else {
       throw DeviceDeploymentError.invalidResult
@@ -81,11 +103,45 @@ struct DeviceDeployer {
             "--terminate-existing",
             "--timeout", "30",
             bundleIdentifier,
-          ], 30)
+          ], 35)
       } catch { throw DeviceDeploymentError.launchFailed(bundleIdentifier) }
     }
 
     return DeploymentResult(bundleIdentifier: bundleIdentifier, launched: launch)
+  }
+
+  func launch(bundleIdentifier: String, deviceIdentifier: String) throws {
+    guard !bundleIdentifier.isEmpty, !bundleIdentifier.hasPrefix("-"),
+      bundleIdentifier.rangeOfCharacter(from: .whitespacesAndNewlines) == nil
+    else {
+      throw CLIError.missingValue("--launch-app bundle identifier")
+    }
+    try checkReady(deviceIdentifier: deviceIdentifier)
+    _ = try run(
+      [
+        "device", "process", "launch", "--device", deviceIdentifier,
+        "--terminate-existing", "--timeout", "30", bundleIdentifier,
+      ], 35)
+  }
+
+  func installedApps(deviceIdentifier: String, timeout: TimeInterval) throws -> [[String: Any]] {
+    let data = try run(
+      [
+        "device", "info", "apps", "--device", deviceIdentifier,
+        "--timeout", String(max(5, Int(timeout.rounded(.up)))),
+      ], timeout)
+    guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let result = object["result"] as? [String: Any], let apps = result["apps"] as? [[String: Any]]
+    else {
+      throw DeviceDeploymentError.invalidResult
+    }
+    return apps.map { app in
+      var summary: [String: Any] = [:]
+      for key in ["bundleIdentifier", "name", "version", "bundleVersion"] {
+        if let value = app[key] as? String { summary[key] = value }
+      }
+      return summary
+    }
   }
 
   static func bundleIdentifier(at appURL: URL) throws -> String {
@@ -106,6 +162,12 @@ struct DeviceDeployer {
     else {
       throw DeviceDeploymentError.invalidApp("Info.plist has no CFBundleIdentifier")
     }
+    let platforms = dictionary["CFBundleSupportedPlatforms"] as? [String] ?? []
+    guard platforms.contains("iPhoneOS") || dictionary["DTPlatformName"] as? String == "iphoneos"
+    else {
+      throw DeviceDeploymentError.invalidApp(
+        "expected a device iPhoneOS build, not a simulator or macOS app")
+    }
     return identifier
   }
 
@@ -120,6 +182,21 @@ struct DeviceDeployer {
       return dictionary.values.contains { contains(expected, in: $0) }
     }
     return false
+  }
+
+  static func appleError(from data: Data) -> DeviceDeploymentError? {
+    guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let error = object["error"] as? [String: Any],
+      let code = error["code"] as? Int, let domain = error["domain"] as? String
+    else { return nil }
+    let info = error["userInfo"] as? [String: Any]
+    let typedDescription = info?["NSLocalizedDescription"] as? [String: Any]
+    return .appleError(
+      code: code, domain: domain,
+      message: error["localizedDescription"] as? String
+        ?? typedDescription?["string"] as? String
+        ?? info?["NSLocalizedDescription"] as? String
+        ?? "Apple device command failed (\(domain), \(code)).")
   }
 
   static func runDevicectl(_ arguments: [String], timeout: TimeInterval) throws -> Data {
@@ -138,7 +215,12 @@ struct DeviceDeployer {
     process.standardError = FileHandle.nullDevice
     let finished = DispatchSemaphore(value: 0)
     process.terminationHandler = { _ in finished.signal() }
-    try process.run()
+    try commands.withValue { state in
+      guard !state.cancelled else { throw CocoaError(.userCancelled) }
+      try process.run()
+      state.processes.append(process)
+    }
+    defer { commands.withValue { $0.processes.removeAll { $0 === process } } }
     guard finished.wait(timeout: .now() + timeout) == .success else {
       process.terminate()
       if finished.wait(timeout: .now() + 1) != .success {
@@ -147,6 +229,9 @@ struct DeviceDeployer {
       throw DeviceDeploymentError.timedOut
     }
     guard process.terminationStatus == 0 else {
+      if let data = try? Data(contentsOf: resultURL), let error = Self.appleError(from: data) {
+        throw error
+      }
       throw DeviceDeploymentError.commandFailed(
         arguments: arguments, status: process.terminationStatus)
     }

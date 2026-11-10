@@ -54,152 +54,41 @@ struct RelayAccessPolicy {
       return false
     }
 
-    let sourceAddress = String(describing: host)
+    let sourceAddress: String
+    switch host {
+    case .ipv4(let address):
+      sourceAddress = address.debugDescription.components(separatedBy: "%")[0]
+    case .ipv6(let address):
+      sourceAddress = address.debugDescription.components(separatedBy: "%")[0]
+    default: return false
+    }
     return allowedSourceAddresses.contains(sourceAddress)
   }
 }
 
 final class TCPRelay {
-  private let bindInterface: NWInterface
-  private let remoteHost: NWEndpoint.Host
-  private let remotePort: UInt16
-  private let localPort: UInt16
-  private let localInterfaceAddress: String
-  private let accessPolicy: RelayAccessPolicy
-  private let queue: DispatchQueue
-
-  private var listener: NWListener?
-  private var bridges: [UUID: TCPBridge] = [:]
-  private var startCompletion: ((Result<Void, Error>) -> Void)?
-  private var didCompleteStart = false
+  private let listener: RelayListener
+  var isHealthy: Bool { listener.isHealthy }
 
   init(
-    bindInterface: NWInterface,
-    remoteHost: NWEndpoint.Host,
-    remotePort: UInt16,
-    localPort: UInt16,
-    localInterfaceAddress: String,
-    accessPolicy: RelayAccessPolicy
+    bindInterface: NWInterface, remoteHost: NWEndpoint.Host, remotePort: UInt16,
+    localPort: UInt16, localInterfaceAddress: String, accessPolicy: RelayAccessPolicy
   ) throws {
-    guard localPort > 0, remotePort > 0 else {
-      throw RelayError.invalidPort(localPort == 0 ? localPort : remotePort)
+    listener = try RelayListener(
+      transport: .tcp, bindInterface: bindInterface,
+      remoteHost: remoteHost, remotePort: remotePort, localPort: localPort,
+      localInterfaceAddress: localInterfaceAddress, accessPolicy: accessPolicy
+    ) { local, remote, queue, stopped in
+      let flow = TCPBridge(local: local, remote: remote, queue: queue, onStop: stopped)
+      flow.start()
+      return { flow.stop() }
     }
-
-    self.bindInterface = bindInterface
-    self.remoteHost = remoteHost
-    self.remotePort = remotePort
-    self.localPort = localPort
-    self.localInterfaceAddress = localInterfaceAddress
-    self.accessPolicy = accessPolicy
-    self.queue = DispatchQueue(label: "debagr.tcp-relay-\(localPort)")
   }
 
   func start(completion: @escaping (Result<Void, Error>) -> Void) {
-    guard listener == nil else {
-      completion(.success(()))
-      return
-    }
-
-    do {
-      let parameters = NWParameters.tcp
-      parameters.allowLocalEndpointReuse = true
-      parameters.requiredInterface = bindInterface
-
-      guard let port = NWEndpoint.Port(rawValue: localPort) else {
-        throw RelayError.invalidPort(localPort)
-      }
-
-      guard #available(macOS 26.0, *) else {
-        throw RelayError.explicitAddressBindingUnavailable
-      }
-      _ = parameters.localEndpoint(
-        .hostPort(
-          host: NWEndpoint.Host(localInterfaceAddress),
-          port: port
-        ))
-      // The exact local endpoint carries both the bind address and port.
-      // Passing `on: port` as well makes Network.framework reject the listener
-      // with EINVAL before it can enter the ready state.
-      let listener = try NWListener(using: parameters)
-      self.listener = listener
-      self.startCompletion = completion
-      self.didCompleteStart = false
-
-      listener.stateUpdateHandler = { [weak self] state in
-        guard let self else { return }
-        switch state {
-        case .ready:
-          self.finishStart(.success(()))
-        case .failed(let error):
-          self.finishStart(.failure(RelayError.listenerFailed(error.localizedDescription)))
-        case .cancelled:
-          self.finishStart(.failure(RelayError.listenerFailed("cancelled")))
-        case .setup, .waiting:
-          break
-        @unknown default:
-          break
-        }
-      }
-      listener.newConnectionHandler = { [weak self] connection in
-        self?.accept(connection)
-      }
-      listener.start(queue: queue)
-    } catch {
-      completion(.failure(error))
-    }
+    listener.start(completion: completion)
   }
-
-  func stop() {
-    listener?.cancel()
-    listener = nil
-
-    let activeBridges = Array(bridges.values)
-    bridges.removeAll()
-    for bridge in activeBridges {
-      bridge.stop()
-    }
-  }
-
-  deinit {
-    stop()
-  }
-
-  private func finishStart(_ result: Result<Void, Error>) {
-    guard !didCompleteStart else { return }
-    didCompleteStart = true
-    let completion = startCompletion
-    startCompletion = nil
-    completion?(result)
-  }
-
-  private func accept(_ connection: NWConnection) {
-    guard accessPolicy.allows(connection) else {
-      connection.cancel()
-      return
-    }
-
-    guard let remotePort = NWEndpoint.Port(rawValue: remotePort) else {
-      connection.cancel()
-      return
-    }
-
-    let remoteEndpoint = NWEndpoint.hostPort(
-      host: remoteHost,
-      port: remotePort
-    )
-    let remoteConnection = NWConnection(to: remoteEndpoint, using: .tcp)
-    let identifier = UUID()
-    let bridge = TCPBridge(
-      local: connection,
-      remote: remoteConnection,
-      queue: queue
-    ) { [weak self] in
-      self?.bridges.removeValue(forKey: identifier)
-    }
-
-    bridges[identifier] = bridge
-    bridge.start()
-  }
+  func stop() { listener.stop() }
 }
 
 private final class TCPBridge {
@@ -209,6 +98,7 @@ private final class TCPBridge {
   private let onStop: () -> Void
   private let stateLock = NSLock()
   private var stopped = false
+  private var waitingDeadline: DispatchWorkItem?
   private var localInputComplete = false
   private var remoteInputComplete = false
 
@@ -226,12 +116,21 @@ private final class TCPBridge {
 
   func start() {
     local.stateUpdateHandler = { [weak self] state in
-      if case .failed = state {
-        self?.stop()
+      switch state {
+      case .failed, .cancelled: self?.stop()
+      default: break
       }
     }
     remote.stateUpdateHandler = { [weak self] state in
       switch state {
+      case .waiting:
+        guard let self, self.waitingDeadline == nil else { return }
+        let deadline = DispatchWorkItem { [weak self] in self?.stop() }
+        self.waitingDeadline = deadline
+        self.queue.asyncAfter(deadline: .now() + 15, execute: deadline)
+      case .ready:
+        self?.waitingDeadline?.cancel()
+        self?.waitingDeadline = nil
       case .failed, .cancelled:
         self?.stop()
       default:
@@ -254,6 +153,8 @@ private final class TCPBridge {
     stopped = true
     stateLock.unlock()
 
+    waitingDeadline?.cancel()
+    waitingDeadline = nil
     local.cancel()
     remote.cancel()
     onStop()
@@ -276,6 +177,8 @@ private final class TCPBridge {
         guard let self else { return }
         if error != nil || (shouldFinishAfterSend && self.areBothInputsComplete) {
           self.stop()
+        } else if !isComplete {
+          self.receive(from: source, forwardingTo: destination)
         }
       }
 
@@ -285,7 +188,7 @@ private final class TCPBridge {
         destination.send(content: nil, isComplete: true, completion: sendCompletion)
       }
 
-      if !isComplete {
+      if (data == nil || data?.isEmpty == true) && !isComplete {
         self.receive(from: source, forwardingTo: destination)
       }
     }

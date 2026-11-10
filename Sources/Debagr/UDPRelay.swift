@@ -2,146 +2,28 @@ import Foundation
 import Network
 
 final class UDPRelay {
-  private let bindInterface: NWInterface
-  private let remoteHost: NWEndpoint.Host
-  private let remotePort: UInt16
-  private let localPort: UInt16
-  private let localInterfaceAddress: String
-  private let accessPolicy: RelayAccessPolicy
-  private let queue: DispatchQueue
-
-  private var listener: NWListener?
-  private var flows: [UUID: UDPFlow] = [:]
-  private var startCompletion: ((Result<Void, Error>) -> Void)?
-  private var didCompleteStart = false
+  private let listener: RelayListener
+  var isHealthy: Bool { listener.isHealthy }
 
   init(
-    bindInterface: NWInterface,
-    remoteHost: NWEndpoint.Host,
-    remotePort: UInt16,
-    localPort: UInt16,
-    localInterfaceAddress: String,
-    accessPolicy: RelayAccessPolicy
+    bindInterface: NWInterface, remoteHost: NWEndpoint.Host, remotePort: UInt16,
+    localPort: UInt16, localInterfaceAddress: String, accessPolicy: RelayAccessPolicy
   ) throws {
-    guard localPort > 0, remotePort > 0 else {
-      throw RelayError.invalidPort(localPort == 0 ? localPort : remotePort)
+    listener = try RelayListener(
+      transport: .udp, bindInterface: bindInterface,
+      remoteHost: remoteHost, remotePort: remotePort, localPort: localPort,
+      localInterfaceAddress: localInterfaceAddress, accessPolicy: accessPolicy
+    ) { local, remote, queue, stopped in
+      let flow = UDPFlow(local: local, remote: remote, queue: queue, onStop: stopped)
+      flow.start()
+      return { flow.stop() }
     }
-
-    self.bindInterface = bindInterface
-    self.remoteHost = remoteHost
-    self.remotePort = remotePort
-    self.localPort = localPort
-    self.localInterfaceAddress = localInterfaceAddress
-    self.accessPolicy = accessPolicy
-    self.queue = DispatchQueue(label: "debagr.udp-relay-\(localPort)")
   }
 
   func start(completion: @escaping (Result<Void, Error>) -> Void) {
-    guard listener == nil else {
-      completion(.success(()))
-      return
-    }
-
-    do {
-      let parameters = NWParameters.udp
-      parameters.allowLocalEndpointReuse = true
-      parameters.requiredInterface = bindInterface
-
-      guard let port = NWEndpoint.Port(rawValue: localPort) else {
-        throw RelayError.invalidPort(localPort)
-      }
-
-      guard #available(macOS 26.0, *) else {
-        throw RelayError.explicitAddressBindingUnavailable
-      }
-      _ = parameters.localEndpoint(
-        .hostPort(
-          host: NWEndpoint.Host(localInterfaceAddress),
-          port: port
-        ))
-      // The exact local endpoint carries both the bind address and port.
-      // Passing `on: port` as well makes Network.framework reject the listener
-      // with EINVAL before it can enter the ready state.
-      let listener = try NWListener(using: parameters)
-      self.listener = listener
-      self.startCompletion = completion
-      self.didCompleteStart = false
-
-      listener.stateUpdateHandler = { [weak self] state in
-        guard let self else { return }
-        switch state {
-        case .ready:
-          self.finishStart(.success(()))
-        case .failed(let error):
-          self.finishStart(.failure(RelayError.listenerFailed(error.localizedDescription)))
-        case .cancelled:
-          self.finishStart(.failure(RelayError.listenerFailed("cancelled")))
-        case .setup, .waiting:
-          break
-        @unknown default:
-          break
-        }
-      }
-      listener.newConnectionHandler = { [weak self] connection in
-        self?.accept(connection)
-      }
-      listener.start(queue: queue)
-    } catch {
-      completion(.failure(error))
-    }
+    listener.start(completion: completion)
   }
-
-  func stop() {
-    listener?.cancel()
-    listener = nil
-
-    let activeFlows = Array(flows.values)
-    flows.removeAll()
-    for flow in activeFlows {
-      flow.stop()
-    }
-  }
-
-  deinit {
-    stop()
-  }
-
-  private func finishStart(_ result: Result<Void, Error>) {
-    guard !didCompleteStart else { return }
-    didCompleteStart = true
-    let completion = startCompletion
-    startCompletion = nil
-    completion?(result)
-  }
-
-  private func accept(_ connection: NWConnection) {
-    guard accessPolicy.allows(connection) else {
-      connection.cancel()
-      return
-    }
-
-    guard let remotePort = NWEndpoint.Port(rawValue: remotePort) else {
-      connection.cancel()
-      return
-    }
-
-    let remoteEndpoint = NWEndpoint.hostPort(
-      host: remoteHost,
-      port: remotePort
-    )
-    let remoteConnection = NWConnection(to: remoteEndpoint, using: .udp)
-    let identifier = UUID()
-    let flow = UDPFlow(
-      local: connection,
-      remote: remoteConnection,
-      queue: queue
-    ) { [weak self] in
-      self?.flows.removeValue(forKey: identifier)
-    }
-
-    flows[identifier] = flow
-    flow.start()
-  }
+  func stop() { listener.stop() }
 }
 
 private final class UDPFlow {
@@ -151,6 +33,8 @@ private final class UDPFlow {
   private let onStop: () -> Void
   private let stateLock = NSLock()
   private var stopped = false
+  private var idleTimer: DispatchSourceTimer?
+  private var lastActivity = ProcessInfo.processInfo.systemUptime
 
   init(
     local: NWConnection,
@@ -182,6 +66,14 @@ private final class UDPFlow {
       }
     }
 
+    let timer = DispatchSource.makeTimerSource(queue: queue)
+    timer.schedule(deadline: .now() + 30, repeating: 30)
+    timer.setEventHandler { [weak self] in
+      guard let self else { return }
+      if ProcessInfo.processInfo.systemUptime - self.lastActivity >= 120 { self.stop() }
+    }
+    idleTimer = timer
+    timer.resume()
     local.start(queue: queue)
     remote.start(queue: queue)
     receive(from: local, forwardingTo: remote)
@@ -197,6 +89,8 @@ private final class UDPFlow {
     stopped = true
     stateLock.unlock()
 
+    idleTimer?.cancel()
+    idleTimer = nil
     local.cancel()
     remote.cancel()
     onStop()
@@ -213,7 +107,8 @@ private final class UDPFlow {
         return
       }
 
-      if let data, !data.isEmpty {
+      self.lastActivity = ProcessInfo.processInfo.systemUptime
+      if let data {
         destination.send(
           content: data,
           completion: .contentProcessed { [weak self] error in

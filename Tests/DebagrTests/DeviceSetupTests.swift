@@ -35,6 +35,7 @@ final class DeviceSetupTests: XCTestCase {
     model.peerIP = peer.ipAddress
     XCTAssertFalse(model.canSave)
     model.importedProfile = profile
+    model.confirmedSelection = true
     XCTAssertTrue(model.canSave)
     model.peerIP = "10.20.0.3"
     XCTAssertNil(model.importedProfile)
@@ -86,6 +87,28 @@ final class DeviceSetupTests: XCTestCase {
     XCTAssertTrue(model.deploymentPrompt.contains("device test-device-id"))
     XCTAssertTrue(model.deploymentPrompt.contains("/absolute/path/MyApp.app"))
     XCTAssertTrue(model.deploymentPrompt.contains("Confirm installation and launch separately"))
+  }
+  func testInvalidManualAddressHasInlineFeedback() {
+    let model = DeviceSetupModel(configured: nil)
+    model.provider = .wireguard
+    model.address = "8.8.8.8"
+    XCTAssertNotNil(model.addressValidationMessage)
+    model.address = "10.20.0.2"
+    XCTAssertNil(model.addressValidationMessage)
+  }
+
+  func testChangedDeviceInvalidatesIdentityConfirmation() {
+    let model = DeviceSetupModel(configured: nil)
+    model.confirmedSelection = true
+    model.deviceID = "different"
+    XCTAssertFalse(model.confirmedSelection)
+  }
+
+  func testCopiedDeployCommandUsesActualPathAndQuotesArguments() {
+    let command = ProductSupport.deployCommand(
+      deviceIdentifier: "a'b", executablePath: "/tmp/My App/Debagr")
+    XCTAssertTrue(command.hasPrefix("'/tmp/My App/Debagr' "))
+    XCTAssertTrue(command.contains("'a'\"'\"'b'"))
   }
 
 }

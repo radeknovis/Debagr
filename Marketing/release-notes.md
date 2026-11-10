@@ -1,22 +1,28 @@
-Debagr turns the Mac already paired with your iPhone into a private deployment endpoint for Claude Code, Codex, and your terminal.
+# Debagr 0.3.0 technical preview — release candidate
 
-- Native macOS settings for device setup and agent onboarding.
-- A structured JSON CLI for inventory, readiness, diagnostics, installation, and launch.
-- Claude Code and Codex plugin archives with the same deployment workflow.
-- Tailscale and Headscale peer discovery; manual private IPv4 entry for ZeroTier, NetBird, and WireGuard.
+This source branch fixes readiness timeouts, structured Apple errors, relay
+resource leaks and backpressure, and Settings responsiveness. It adds native
+Bonjour registration, explicit setup confirmation, launch-only and installed-app
+commands, deeper diagnostics and an optional local stdio MCP interface.
 
-This is a **technical preview for Apple silicon**. The remote transport requires macOS 26 or later, current Xcode, initial USB pairing and trust, Developer Mode, an unlocked device on Wi-Fi, a private VPN on both endpoints, and Debagr running on the paired Mac. Your signed device `.app` must exist on that Mac. Remote agents use your existing SSH access.
+The app is free for personal and internal evaluation, with no redistribution.
+Read the included Preview-Licence.txt and the public licence page. Paid terms
+remain a separate draft.
 
-Only Tailscale has prior remote iPhone install-and-launch evidence, recorded on an earlier build. Build 0.2.0 has not yet been re-verified with a fresh remote install and launch or with a first launch on a clean Mac. iPad, alternative VPN providers, the recovery matrix and Homebrew upgrades between versions await testing. Cellular-only operation is unsupported. One managed remote device. Apple pairing stays on its original Mac; devices do not become Xcode destinations on other Macs.
+Local verification: 64 Swift tests, including TCP/UDP forwarding and native
+Bonjour, strict lint, packaged CLI/MCP smoke checks, bundle verification and
+reproducible plugin archives. A reviewed baseline exposes existing strict
+concurrency warnings and prevents new ones; Swift 6 migration is incomplete.
 
-**Download:** choose the versioned Debagr DMG from the attached assets; source-code ZIPs are not the app. Verify the matching SHA-256 file, open the disk image, then drag Debagr to Applications. The app and DMG are Developer ID signed, notarized and stapled, and both passed Apple notarization and Gatekeeper checks. No security bypass is required.
+Fresh remote iPhone install and OS-confirmed launch passed with SmartSaver SSStaging,
+with separate Wi-Fi networks and USB disconnected as confirmed by the owner.
+iPad, sleep/wake, revoked trust, other VPNs,
+clean-Mac installation, older-macOS transport and Homebrew upgrade acceptance
+remain pending. Early device-state and duplicate-instance issues were resolved before the successful deployment.
+Do not treat local tests as hardware acceptance. Cellular-only operation is
+unsupported. One managed remote device, Apple silicon, supported remote macOS
+26+ and current Xcode; device Wi-Fi, private VPN and Apple trust are required.
 
-Or use `brew install --cask radeknovis/debagr/debagr` to install the same notarized app and its `debagr` CLI link.
-
-Install the matching `debagr-claude-code` or `debagr-codex` plugin ZIP using the included instructions. Agent Tools in Debagr includes the setup steps and a deployment prompt.
-
-Report problems in [Issues](https://github.com/radeknovis/homebrew-debagr/issues) with the exact macOS, Xcode, and iOS versions. Do not post pairing material, device identifiers, hostnames, or diagnostics publicly. Send security and privacy reports, and diagnostics when asked, through [private vulnerability reporting](https://github.com/radeknovis/homebrew-debagr/security/advisories/new).
-
-Updates use manual DMG replacement or `brew upgrade --cask radeknovis/debagr/debagr`. There is no Debagr cloud, analytics, active paid checkout, or automatic updater. Sponsorship, when enabled, supports development and does not buy a license or guaranteed support.
-
-Website: https://radeknovis.github.io/debagr-site/
+Release assets and notarization status must be verified before publishing this
+candidate. Source-code ZIPs are not the app. Keep published 0.2.0 available for
+rollback and do not update its cask checksum to an unverified candidate.

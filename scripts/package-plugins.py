@@ -3,9 +3,11 @@
 
 import hashlib
 import json
+import os
+import plistlib
 from pathlib import Path
 import re
-from zipfile import ZIP_DEFLATED, ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 def main():
@@ -17,6 +19,12 @@ def main():
     metadata = {host: json.loads((root / path).read_text()) for host, path in manifests.items()}
     version = metadata["codex"]["version"]
     assert re.fullmatch(r"\d+\.\d+\.\d+", version), "Expected a numeric semantic version"
+    if os.environ.get("VERSION"):
+        assert os.environ["VERSION"] == version, "Release and plugin versions differ"
+    plist = plistlib.loads((root / "Packaging/Debagr.app/Contents/Info.plist").read_bytes())
+    assert plist["CFBundleShortVersionString"] == version, "App and plugin versions differ"
+    assert f"## {version} " in (root / "CHANGELOG.md").read_text(), "Missing changelog version"
+    assert (root / "VERSION").read_text().strip() == version, "Canonical and plugin versions differ"
     for manifest in metadata.values():
         assert manifest["name"] == "debagr" and manifest["version"] == version
         assert manifest["skills"] == "./Skills/"
@@ -29,6 +37,7 @@ def main():
         ).encode(),
         "docs/AI_DEPLOYMENT.md": (root / "docs/AI_DEPLOYMENT.md").read_bytes(),
         "docs/PLUGINS.md": (root / "docs/PLUGINS.md").read_bytes(),
+        "docs/MCP.md": (root / "docs/MCP.md").read_bytes(),
         "docs/NETWORK_PROVIDERS.md": (root / "docs/NETWORK_PROVIDERS.md").read_bytes(),
     }
     for path in sorted((root / "Skills/debagr-deploy").rglob("*")):
@@ -56,7 +65,10 @@ def main():
         archive = output / f"{prefix}.zip"
         with ZipFile(archive, "w", ZIP_DEFLATED) as bundle:
             for name, content in sorted(files.items()):
-                bundle.writestr(f"{prefix}/{name}", content)
+                info = ZipInfo(f"{prefix}/{name}", date_time=(2020, 1, 1, 0, 0, 0))
+                info.compress_type = ZIP_DEFLATED
+                info.external_attr = 0o100644 << 16
+                bundle.writestr(info, content)
         # Verify the exported bytes and allowlist, including the canonical skill.
         with ZipFile(archive) as bundle:
             assert bundle.testzip() is None

@@ -1,8 +1,8 @@
 # Debagr compatibility
 
-Updated 22 October 2026.
+Updated 10 November 2026. Published binary: 0.2.0; audit source changes are unreleased.
 
-## Provider support update — 22 October 2026
+## Provider support
 
 Tailscale and Headscale have online-device discovery through the Tailscale client.
 ZeroTier, NetBird, and WireGuard accept an explicit private VPN IPv4 address in
@@ -16,20 +16,26 @@ See [provider setup and address restrictions](NETWORK_PROVIDERS.md).
 | Capability | Status | Supported environment |
 | --- | --- | --- |
 | Menu-bar Target Device inventory | Implemented and locally verified through `devicectl` plus Bonjour | Apple-silicon Mac, macOS 13 or later |
-| Managed remote deployment transport | Implemented; prior Tailscale/iPhone evidence, fresh acceptance pending | Apple-silicon Mac, macOS 26 or later; current Xcode; device Wi-Fi and private VPN |
+| Managed remote deployment transport | Implemented; fresh 0.3.0 build 2 remote iPhone install/launch passed; iPad pending | Apple-silicon Mac, macOS 26 or later; current Xcode; device Wi-Fi and private VPN |
 | Multiple iPhone/iPad Bonjour records | Implemented; parser/model tests pass | Local Bonjour-compatible network |
 | First-run guide, Launch at Login, About, diagnostics | Implemented | Packaged macOS app |
 | Paired-Mac `.app` install and optional launch | Implemented; automated tests pass, live install requires an unlocked device | Current Xcode and a locally paired physical device |
 | Remote invocation | Uses the build server's existing SSH authentication | Any SSH-capable caller; Tailscale optional |
 | Manual TCP/UDP relay lab | Implemented; not a customer promise | macOS 26 or later, Tailscale CLI, explicit peer and port |
 | Cross-Mac Xcode or local `devicectl` use | Blocked in the current layer-4 architecture | CoreDevice requires per-Mac pairing and a negotiated link-local IPv6 tunnel |
-| Automatic per-device routing and recovery | Not implemented | — |
+| Managed relay recovery | Rebuilds unhealthy listeners and refreshes after wake; hardware recovery acceptance pending | One managed device |
 | Mutual Mac authorization and revocation | Not implemented | — |
 
 Debagr is not affiliated with or endorsed by Apple or Tailscale. Apple documents
 wireless use on the same network and does not document cross-Mac RemotePairing
 over a tailnet. Live testing also confirmed that a projected service identity
 alone does not transfer another Mac's pairing state.
+
+The source branch uses requiredLocalEndpoint without a macOS 26 API guard.
+This does not lower the advertised remote support floor: macOS 13–15 runtime
+acceptance remains unverified. The shared listener, native Bonjour, new CLI
+recovery tools and local MCP endpoint pass local automated checks; fresh remote iPhone installation and OS-confirmed launch are recorded in
+[hardware evidence](DIRECT_DEVICE.md). Other hardware claims remain pending.
 
 ## Evidence required before paid access
 

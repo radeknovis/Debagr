@@ -5,9 +5,9 @@ authorized people and automation can invoke remotely.
 
 The central requirement is Target Device roaming: Tailscale runs directly on
 both the Build Server and each iPhone/iPad. After initial Apple pairing, the
-Target Device must remain deployable when it moves to cellular or another
+Target Device must remain deployable when it moves to a separate Wi-Fi
 network. Remote invocation by a Caller alone does not satisfy this requirement.
-No accompanying Mac or gateway is assumed. Remote install and launch remain
+Cellular-only operation is unsupported. No accompanying Mac or gateway is assumed. Remote install and launch remain
 unverified until tested without USB or a shared local network.
 
 ## Language

@@ -1,7 +1,10 @@
 {
   "name": "debagr",
-  "version": "0.2.0",
-  "author": { "name": "Radek Novak" },
+  "version": "0.3.0",
+  "author": {
+    "name": "Radek Novak"
+  },
   "description": "Install and launch signed iOS and iPadOS apps on remote devices across separate Wi-Fi networks through its paired Mac and a private VPN.",
-  "skills": "./Skills/"
+  "skills": "./Skills/",
+  "homepage": "https://github.com/radeknovis/homebrew-debagr"
 }

@@ -6,7 +6,7 @@ configuration="${1:-release}"
 app_directory="$project_directory/Debagr.app"
 binary_path="$project_directory/.build/$configuration/debagr"
 signing_identity="${CODESIGN_IDENTITY:--}"
-version="${VERSION:-0.2.0}"
+version="${VERSION:-$(cat "$project_directory/VERSION")}"
 build_number="${BUILD_NUMBER:-1}"
 staging_directory="$(mktemp -d "$project_directory/.debagr-package.XXXXXX")"
 staged_app="$staging_directory/Debagr.app"
@@ -22,12 +22,17 @@ case "$configuration" in
 esac
 
 cd "$project_directory"
-swift build -c "$configuration" 2>&1 | xcsift -f toon -w -e -E
+if command -v xcsift >/dev/null 2>&1; then
+  swift build -c "$configuration" 2>&1 | xcsift -f toon -w -e -E
+else
+  swift build -c "$configuration"
+fi
 
 mkdir -p "$staged_app/Contents/MacOS" "$staged_app/Contents/Resources"
 cp "$binary_path" "$staged_app/Contents/MacOS/Debagr"
 cp "Packaging/Debagr.app/Contents/Info.plist" "$staged_app/Contents/Info.plist"
 cp "Packaging/Resources/AppIcon.icns" "$staged_app/Contents/Resources/AppIcon.icns"
+cp "Marketing/site/preview-licence.txt" "$staged_app/Contents/Resources/Preview-Licence.txt"
 mkdir -p "$staged_app/Contents/Resources/Skills"
 cp -R "Skills/debagr-deploy" "$staged_app/Contents/Resources/Skills/debagr-deploy"
 

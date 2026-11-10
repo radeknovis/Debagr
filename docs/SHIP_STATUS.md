@@ -68,7 +68,7 @@ after publication. A version-to-version upgrade remains untested.
 | Recovery and iPad | Restart/sleep/trust/permission matrix and current iPad remote acceptance are incomplete | Run and record the matrix in RELEASE.md; keep unverified providers and iPad labeled accordingly |
 | Customer installation | Notarized candidate passed local DMG copy/signature/ticket/Gatekeeper/CLI checks; a clean supported Mac has not been tested | Install the accepted/stapled candidate from its downloaded DMG on a clean Mac; verify publisher, online/offline Gatekeeper and setup/recovery/uninstall |
 | Homebrew upgrade | Only 0.2.0 exists, so `brew upgrade --cask` between versions is untested | Install the current version, then upgrade, when the next version ships |
-| Policies | Publisher named and contact routes set; EULA, processor terms, refund policy, governing law and counsel review remain drafts | Complete before any sale or commercial launch |
+| Policies | Publisher and contact routes set; free preview licensed for personal/internal evaluation without redistribution; paid terms, processor terms, refund policy, governing law and counsel review remain drafts | Complete before any sale or commercial launch |
 
 ## Funding activation deferred
 

@@ -102,3 +102,44 @@ Apple trust, signing credentials, SSH configuration, or unrelated Apple daemons.
 The app must be running in the paired user's logged-in session. A standalone
 headless daemon, simultaneous remote devices sharing the same control port,
 cellular operation, and an MCP server are outside this milestone.
+
+## Failure codes
+
+All failures include a message and a recovery instruction. Exit 64 means invalid
+arguments; exit 65 means invalid artifact; exit 2 means device or network
+attention; exit 1 means a command/deployment failure.
+
+| Code | Meaning |
+| --- | --- |
+| `invalid_arguments` | Invalid command combination or missing argument |
+| `device_not_found` | Inventory selection was not found or discovery expired |
+| `invalid_app` | Missing or unsupported device artifact |
+| `device_locked` | Unlock the device |
+| `apple_device_error` | Apple JSON error; inspect `underlyingDomain` and `underlyingCode` |
+| `device_unavailable` | Readiness command could not reach the device |
+| `installation_failed` | Install command failed |
+| `installation_timed_out` | Outcome unknown; inspect installed apps before retrying |
+| `launch_failed` | Installation confirmed; retry launch only |
+| `tailscale_unavailable` | Connect or repair the Tailscale client |
+| `invalid_profile` | Correct or replace the saved profile |
+| `relay_already_running` | Another foreground relay holds the port |
+| `network_unavailable` | Connect this Mac to Wi-Fi/Ethernet |
+| `internal_device_command_error` | Apple rejected Debagr's command syntax |
+| `command_failed` | Other command failure; read its message |
+
+A build or artifact transfer can take long enough for the device to lock again.
+Recheck readiness immediately before deployment. Allow 180 seconds for a full
+install-and-launch command. Deployment uses fixed phase deadlines; `--timeout`
+is rejected with `--deploy-app`.
+
+## Recovery commands in the unreleased source branch
+
+`--installed-apps --device <UDID> --json` lists installed developer apps without
+reinstalling. `--launch-app <bundleID> --device <UDID> --json` launches an existing
+installation. It reports launch success without claiming this command installed
+anything. Use these after an uncertain install outcome or partial launch failure.
+
+`--diagnose` adds checks for valid saved configuration, the network interface,
+Apple inventory, relay enabled state and VPN peer state. Each check has a status
+and message. The readiness failure remains the primary error and exit code;
+a passed configuration or VPN check is not deployment proof.

@@ -44,6 +44,14 @@ struct ManagedDeviceStore {
     try withLock { try Self.writePrivate(JSONEncoder().encode(device), to: url) }
   }
 
+  func remove() throws {
+    try withLock {
+      if FileManager.default.fileExists(atPath: url.path) {
+        try FileManager.default.removeItem(at: url)
+      }
+    }
+  }
+
   func toggleEnabled() throws {
     try withLock {
       guard var device = try load() else { return }
@@ -77,8 +85,24 @@ struct ManagedDeviceStore {
     try FileManager.default.createDirectory(
       at: url.deletingLastPathComponent(),
       withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-    try data.write(to: url, options: .atomic)
-    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    if url.deletingLastPathComponent() == ProfileStore.defaultStore.url.deletingLastPathComponent()
+    {
+      try FileManager.default.setAttributes(
+        [.posixPermissions: 0o700], ofItemAtPath: url.deletingLastPathComponent().path)
+    }
+    let temporary = url.deletingLastPathComponent().appendingPathComponent(
+      ".debagr-private-\(UUID().uuidString)")
+    let descriptor = open(temporary.path, O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC, 0o600)
+    guard descriptor >= 0 else { throw CocoaError(.fileWriteNoPermission) }
+    let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    defer {
+      try? handle.close()
+      try? FileManager.default.removeItem(at: temporary)
+    }
+    try handle.write(contentsOf: data)
+    try handle.synchronize()
+    guard rename(temporary.path, url.path) == 0 else { throw CocoaError(.fileWriteUnknown) }
+
   }
 }
 
@@ -163,7 +187,9 @@ final class ManagedDeviceRuntime {
     }
     do {
       let binding = try NetworkSupport.resolveInterface(named: device.interfaceName)
-      if !device.hasSameConnection(as: activeDevice) || activeAddress != binding.ipv4Address {
+      if !device.hasSameConnection(as: activeDevice) || activeAddress != binding.ipv4Address
+        || relay?.isHealthy == false
+      {
         stop()
         let application = DirectDeviceApplication(
           device: device,

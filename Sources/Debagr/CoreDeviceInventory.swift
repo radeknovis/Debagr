@@ -72,7 +72,8 @@ enum CoreDeviceInventory {
 
       let identifier = hardware?.udid ?? device.hardwareProperties?.udid
       guard let identifier, !identifier.isEmpty else { return nil }
-      let name = device.properties?.name ?? device.deviceProperties?.name
+      let name =
+        device.properties?.state?.name ?? device.properties?.name ?? device.deviceProperties?.name
       let displayName = name?.nilIfBlank ?? hardware?.marketingName ?? kind.displayName
       let connectionState = device.properties?.connection?.state
 
@@ -100,7 +101,10 @@ enum CoreDeviceInventory {
     let deviceProperties: LegacyDevice?
   }
 
+  private struct State: Decodable { let name: String? }
+
   private struct Properties: Decodable {
+    let state: State?
     let name: String?
     let hardware: Hardware?
     let connection: Connection?

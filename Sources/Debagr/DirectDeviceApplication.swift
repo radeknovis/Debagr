@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Network
 
@@ -10,6 +11,9 @@ final class DirectDeviceApplication: ApplicationLifecycle {
   private let relayQueue = DispatchQueue(label: "debagr.direct-device-relays")
   private var pairs: [UInt16: RelayPair] = [:]
   private var stopped = false
+  var isHealthy: Bool {
+    relayQueue.sync { pairs.values.allSatisfy(\.isHealthy) && proxy?.isHealthy == true }
+  }
   private var lease: RelayLease?
   private let configuredProfile: DeviceProfile?
   private let onTunnelPort: ((UInt16) -> Void)?
@@ -96,6 +100,16 @@ final class DirectDeviceApplication: ApplicationLifecycle {
     let provider = NetworkProvider(rawValue: profile.provider)!
     let peer = try provider.resolvePeer(peerName)
     let binding = try NetworkSupport.resolveInterface(named: options.interfaceName)
+    guard peer.ipAddress != binding.ipv4Address else {
+      throw RelayError.invalidDestination(peer.ipAddress)
+    }
+    var limit = rlimit()
+    if getrlimit(RLIMIT_NOFILE, &limit) == 0, limit.rlim_cur < min(4096, limit.rlim_max) {
+      limit.rlim_cur = min(4096, limit.rlim_max)
+      guard setrlimit(RLIMIT_NOFILE, &limit) == 0 else {
+        throw RelayError.listenerFailed("Unable to raise file descriptor limit")
+      }
+    }
     // Validate the selected device before opening any listeners.
     let proxy = try Self.makeProxy(
       profile: profile, peer: peer, interfaceName: "0",
@@ -119,12 +133,19 @@ final class DirectDeviceApplication: ApplicationLifecycle {
           do {
             try self.startRelay(port: port, binding: binding, peer: peer)
             let learned = profile.learningTunnelPort(port)
+            let retained = Set(learned.tunnelPortRange[0]...learned.tunnelPortRange[1]).union([
+              port, profile.remotePort,
+            ])
+            for old in Array(self.pairs.keys) where !retained.contains(old) {
+              self.pairs.removeValue(forKey: old)?.stop()
+            }
             for next in learned.tunnelPortRange[0]...learned.tunnelPortRange[1] where next != port {
               try? self.startRelay(port: next, binding: binding, peer: peer)
             }
             self.onTunnelPort?(port)
             print("Discovered tunnel relay ready on \(port).")
           } catch {
+            self.watcher.forget(port: port)
             print("Discovered tunnel relay failed on \(port): \(error.localizedDescription)")
           }
         }
@@ -161,7 +182,8 @@ final class DirectDeviceApplication: ApplicationLifecycle {
   private func startRelay(
     port: UInt16, binding: InterfaceBinding, peer: SelectedNetworkPeer
   ) throws {
-    guard pairs[port] == nil else { return }
+    if pairs[port]?.isHealthy == true { return }
+    pairs.removeValue(forKey: port)?.stop()
     let pair = try RelayPair(
       bindInterface: binding.networkInterface,
       remoteHost: NWEndpoint.Host(peer.ipAddress), remotePort: port, localPort: port,
