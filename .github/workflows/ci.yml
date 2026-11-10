@@ -28,6 +28,8 @@ jobs:
         run: xcrun swift-format lint --strict --recursive Sources Tests
       - name: Check strict concurrency against migration baseline
         run: |
+          mkdir -p .build
+          python3 -m unittest discover -s scripts/tests -v
           swift build --scratch-path .build/concurrency -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency 2>&1 | tee .build/concurrency-diagnostics.log | xcsift -f toon -w -e -E
           python3 scripts/check-concurrency.py .build/concurrency-diagnostics.log
       - name: Test

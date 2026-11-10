@@ -8,6 +8,11 @@ import re
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / ".ci/concurrency-baseline.json"
 
+def normalize_warning(message):
+    # Xcode versions move diagnostic IDs between namespaces without changing the warning.
+    return re.sub(r"\[#(?:[A-Za-z0-9_]+::)+([A-Za-z0-9_]+)\]", r"[#\1]", message)
+
+
 def warnings(text):
     found = set()
     for file, message in re.findall(r"^(.+?\.swift):\d+:\d+: warning: (.+)$", text, re.MULTILINE):
@@ -16,7 +21,7 @@ def warnings(text):
             path = path.relative_to(ROOT)
         except ValueError:
             pass
-        found.add(f"{path}: {message}")
+        found.add(normalize_warning(f"{path}: {message}"))
     return found
 
 if __name__ == "__main__":
@@ -28,7 +33,7 @@ if __name__ == "__main__":
     if args.update_baseline:
         BASELINE.parent.mkdir(exist_ok=True)
         BASELINE.write_text(json.dumps(sorted(current), indent=2) + "\n")
-    expected = set(json.loads(BASELINE.read_text()))
+    expected = {normalize_warning(warning) for warning in json.loads(BASELINE.read_text())}
     added = current - expected
     for warning in sorted(added):
         print(f"New concurrency warning: {warning}")
