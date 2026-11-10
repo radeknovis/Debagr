@@ -49,8 +49,12 @@ Local checks on 10 November 2026:
 - Both original design worktrees still match their saved SHA-256 manifests.
 - The final signed SmartSaver SSStaging artifact has a valid signature, current
   provisioning and the intended iPhone in its profile. The restored Debagr CLI
-  reported readiness, then deployment stopped with `device_locked` before confirming
-  installation. Unlock is pending; this is not a successful install/launch result.
+  initially reported readiness, then stopped deployment with `device_locked` before
+  confirming installation. After the user unlocked the phone, readiness passed and
+  installation plus OS-confirmed launch succeeded for `com.monefit.smartsaver.staging`,
+  with `ok: true`, `installed: true` and `launched: true`. The existing paused relay
+  setting was retained; this verifies the restored CLI against a real device, not
+  new USB pairing or a fresh relay-topology acceptance run.
 
 The signed app is a local candidate; build 4 was not notarized or publicly released.
 The earlier build 3 DMG and installed app were retained. The previous running
