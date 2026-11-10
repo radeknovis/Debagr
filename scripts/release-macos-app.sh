@@ -22,6 +22,10 @@ if [[ "$signing_identity" != *"Developer ID Application"* ]]; then
 fi
 
 cd "$project_directory"
+if [[ "$version" != "$(cat VERSION)" ]]; then
+  print -u2 "VERSION must match the canonical source VERSION before signing."
+  exit 2
+fi
 if [[ -e "$dmg_path" ]]; then
   print -u2 "Refusing to overwrite $dmg_path. Archive the previous release first."
   exit 2

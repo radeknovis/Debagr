@@ -47,7 +47,7 @@ No real-device install or public release was performed during the source fixes.
 - Swift format strict lint and git diff whitespace checks passed.
 - Packaged debug app built, signature/bundle verified, JSON CLI smoke checks passed.
 - Preview licence bundled and compared byte-for-byte with the public-site text.
-- Release script: eight mocked Apple-tool scenarios passed. Workflow input gates
+- Release script: nine mocked Apple-tool scenarios passed. Workflow input gates
   checked with valid version and invalid version, build and ref inputs.
 - Both plugin archives verified and byte-reproducibility checked.
 
@@ -83,6 +83,14 @@ No real-device install or public release was performed during the source fixes.
   completed Swift 6 migration and existing warnings were not suppressed.
 - The configured physical iPhone readiness probe returned device_locked (exit 2).
   The device panel exposes simulators only; neither proves remote hardware acceptance.
+
+## Signed candidate evidence
+
+A local 0.3.0 build 2 candidate was built with the available Developer ID and
+Keychain notarization profile. Both app and DMG were accepted by Apple's notary
+service, stapled, validated and accepted by Gatekeeper as Notarized Developer ID.
+The versioned DMG and SHA-256 are in `dist/`; no public binary was uploaded.
+This establishes distribution integrity, not device deployment behavior.
 
 ## Remaining external acceptance and delivery
 

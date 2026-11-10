@@ -40,6 +40,7 @@ def run_case(**overrides):
     with tempfile.TemporaryDirectory(prefix="debagr-release-check-") as directory:
         fixture = Path(directory)
         (fixture / "scripts").mkdir()
+        (fixture / "VERSION").write_text("0.2.0\n")
         shutil.copy2(ROOT / "scripts/release-macos-app.sh", fixture / "scripts")
         for script in ("build-macos-app.sh", "verify-macos-app.sh"):
             target = fixture / "scripts" / script
@@ -97,7 +98,7 @@ def check_workflow_gates():
 if __name__ == "__main__":
     check_workflow_gates()
     for case in ({}, {"REJECT": "app"}, {"REJECT": "dmg"}, {"FAIL_GATEKEEPER": "1"},
-                 {"DIRTY": "1"}, {"VERSION": "../../bad"}, {"BUILD_NUMBER": "invalid"},
+                 {"DIRTY": "1"}, {"VERSION": "0.3.0"}, {"VERSION": "../../bad"}, {"BUILD_NUMBER": "invalid"},
                  {"CODESIGN_IDENTITY": "-"}):
         run_case(**case)
-    print("Release safety: 8 scenarios passed (mocked Apple tools, no real notarization).")
+    print("Release safety: 9 scenarios passed (mocked Apple tools, no real notarization).")
