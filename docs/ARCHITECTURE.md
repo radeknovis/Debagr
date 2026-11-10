@@ -36,7 +36,7 @@ flowchart LR
     cli[Debagr CLI]
     deploy[DeviceDeployer\nvalidate .app and bundle ID]
     devicectl[xcrun devicectl]
-    dns[dns-sd]
+    dns[Native DNS-SD registration]
   end
 
   device[(Target Device\niPhone or iPad)]

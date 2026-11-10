@@ -45,6 +45,10 @@ jobs:
         run: ./scripts/setup-ci-tools.sh
       - name: Check release safety
         run: python3 scripts/check-release.py
+      - name: Package and verify agent plugins
+        env:
+          VERSION: ${{ inputs.version }}
+        run: python3 scripts/package-plugins.py
       - name: Import Developer ID certificate
         env:
           CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
@@ -79,10 +83,6 @@ jobs:
           DEBAGR_WEBSITE_URL: ${{ vars.DEBAGR_WEBSITE_URL }}
           DEBAGR_SUPPORT_URL: ${{ vars.DEBAGR_SUPPORT_URL }}
         run: ./scripts/release-macos-app.sh
-      - name: Package and verify agent plugins
-        env:
-          VERSION: ${{ inputs.version }}
-        run: python3 scripts/package-plugins.py
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
@@ -97,7 +97,7 @@ jobs:
           gh release create "v$VERSION" --verify-tag --draft --prerelease \
             --title "Debagr $VERSION — Technical Preview" --notes-file Marketing/release-notes.md \
             "dist/Debagr-$VERSION.dmg" "dist/Debagr-$VERSION.dmg.sha256" \
-            dist/debagr-*.zip dist/debagr-*.zip.sha256
+            dist/debagr-*-"$VERSION".zip dist/debagr-*-"$VERSION".zip.sha256
       - name: Remove signing material
         if: always()
         run: |

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — Unreleased audit fixes
+
+- Fixed readiness deadlines, structured device errors and uncertain install outcomes.
+- Added launch-only and installed-app queries, deeper diagnostics and optional local stdio MCP.
+- Shared relay listener lifecycle, bounded UDP/TCP resources, added backpressure and native Bonjour registration.
+- Improved Settings validation, saved configuration, keyboard shortcuts, copy feedback and responsiveness.
+- Added a free personal/internal evaluation licence with no redistribution.
+- Pinned CI tooling, reproducible plugin packaging and strict-concurrency regression checking.
+- Added forwarding, Bonjour, CLI and setup regression checks; live remote hardware acceptance remains pending.
+
 ## 0.2.0 — Technical preview (4 November 2026)
 
 - Added native macOS settings for device setup and agent onboarding.

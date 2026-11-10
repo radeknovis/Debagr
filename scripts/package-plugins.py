@@ -24,6 +24,7 @@ def main():
     plist = plistlib.loads((root / "Packaging/Debagr.app/Contents/Info.plist").read_bytes())
     assert plist["CFBundleShortVersionString"] == version, "App and plugin versions differ"
     assert f"## {version} " in (root / "CHANGELOG.md").read_text(), "Missing changelog version"
+    assert (root / "VERSION").read_text().strip() == version, "Canonical and plugin versions differ"
     for manifest in metadata.values():
         assert manifest["name"] == "debagr" and manifest["version"] == version
         assert manifest["skills"] == "./Skills/"
@@ -36,6 +37,7 @@ def main():
         ).encode(),
         "docs/AI_DEPLOYMENT.md": (root / "docs/AI_DEPLOYMENT.md").read_bytes(),
         "docs/PLUGINS.md": (root / "docs/PLUGINS.md").read_bytes(),
+        "docs/MCP.md": (root / "docs/MCP.md").read_bytes(),
         "docs/NETWORK_PROVIDERS.md": (root / "docs/NETWORK_PROVIDERS.md").read_bytes(),
     }
     for path in sorted((root / "Skills/debagr-deploy").rglob("*")):

@@ -31,8 +31,12 @@ implemented. Explain that boundary if asked to deploy to a Mac target.
    Wi-Fi/the selected VPN, opening Debagr, and granting Apple trust over USB.
 4. Build the signed device `.app` using the project's existing workflow on the
    Build Server, or use the explicit artifact supplied by the user. Confirm its
-   absolute path on that Mac. A simulator build is not a device artifact.
-5. Run `--deploy-app <absolute-device.app> --device <UDID> --launch --json`.
+   absolute path on that Mac. If built elsewhere, copy the complete signed .app
+   with its contents preserved to that Mac using existing SSH/SCP access, and
+   verify its Info.plist bundle identifier there. A simulator build is not a device artifact.
+5. Re-run the readiness check after the build or transfer; the device may have
+   locked in the meantime. Run `--deploy-app <absolute-device.app> --device <UDID> --launch --json`.
+   Allow at least 180 seconds for this command; do not interrupt an active install.
    The result must have `ok: true`, the expected bundle identifier,
    `installed: true`, and `launched: true` to report installation and launch.
    For an install-only request omit `--launch` and report installation only.
@@ -44,14 +48,17 @@ the existing authorization mechanism; request any additional access from the use
 
 ## Recovery
 
-Use `--diagnose --device <UDID> --json`. All machine commands emit one JSON object
+Use `--diagnose --device <UDID> --timeout 30 --json`. All machine commands emit one JSON object
 on stdout with `schemaVersion: 1`; check both `ok` and the process exit code.
 Exit codes: `0` success, `2` device/network needs attention, `64` invalid
 arguments, `65` invalid artifact, `1` command/deployment failure.
 
 `launch_failed` reports `installed: true` and the bundle identifier. Retry
-launch only, using Apple's `xcrun devicectl device process launch --device
-<UDID> --timeout 30 <bundleID>`; installation need not be repeated. A timed-out
+launch only with `--launch-app <bundleID> --device <UDID> --json` when that
+command appears in `--help`. On published 0.2.0, use Apple's `xcrun devicectl
+device process launch --device <UDID> --timeout 30 <bundleID>` instead.
+For an uncertain installation outcome, use `--installed-apps --device <UDID>
+--json` when available, or Apple's `devicectl device info apps` before retrying. A timed-out
 installation has an uncertain outcome: inspect installed apps before retrying.
 
 Remote deployment requires the device to be on Wi-Fi. Cellular-only

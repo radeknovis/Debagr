@@ -20,7 +20,7 @@ sheet. Closing the window leaves the menu-bar app running.
    is available locally, open Debagr and choose **Set Up Remote Device…**.
    Choose your VPN provider, then select the Apple device, its local Bonjour
    service, and the same device’s VPN device or private IPv4 address.
-   Choose **Save & Connect**.
+   Confirm that the selections refer to the same physical device, then choose **Connect device**.
 3. Leave Debagr running in that Mac user's logged-in session. Enable **Launch at
    Login** if desired. The device can now move to another Wi-Fi network; keep
    the VPN connected and unlock it for deployment. Cellular-only operation is
@@ -85,33 +85,3 @@ Success requires the expected bundle identifier and `installed: true` and
 `launched: true`. If unlocking, trust, or networking needs attention, follow
 the recovery instruction and retry after resolving it. A launch confirmation
 does not establish that the app's UI works correctly.
-
-## Build and validate packages
-
-From a source checkout, run:
-
-```sh
-python3 scripts/package-plugins.py
-claude plugin validate .claude-plugin/plugin.json
-claude plugin validate .claude-plugin/marketplace.json
-```
-
-The packaging command creates `dist/debagr-claude-code-0.2.0.zip` and
-`dist/debagr-codex-0.2.0.zip`, each with a `.sha256` checksum. It checks manifest
-version agreement, archive integrity, and byte-for-byte shared skill contents.
-For a downloaded ZIP, check its checksum before extraction:
-
-```sh
-shasum -a 256 -c debagr-codex-0.2.0.zip.sha256
-```
-
-Both manifests reference `./Skills/`. The app and both plugins share
-`Skills/debagr-deploy`; edit that source rather than copies inside ZIPs. Bump
-both manifest versions together for a plugin release. These packages contain
-only instructions, metadata, and documentation; no private profiles or binaries.
-
-Before publishing, test each client in a new session and verify a real install
-and launch while the device and Mac are on separate networks. Check locked-device
-and unavailable-network recovery too. Package validation alone is not a hardware
-acceptance test. Public catalog submission and the signed app release are
-separate release steps.
