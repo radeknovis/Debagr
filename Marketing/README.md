@@ -1,7 +1,11 @@
 # Debagr launch kit
 
 Prepared 22 October 2026 for the **0.2.0 technical preview**, published
-4 November 2026. Open `index.html` for the local gallery. Remaining gaps are in
+4 November 2026. On 11 November 2026 the release notes and launch copy were
+prepared for **0.3.0**, which is not yet published; the site and its download
+link stay on 0.2.0 until the publish step in
+[`../docs/RELEASE.md`](../docs/RELEASE.md). Open `index.html` for the local
+gallery. Status and remaining gaps are in
 [`../docs/SHIP_STATUS.md`](../docs/SHIP_STATUS.md).
 
 | Asset | Format | Use |
@@ -17,7 +21,7 @@ Prepared 22 October 2026 for the **0.2.0 technical preview**, published
 | `sponsorship/cover.png` | 1200 × 630 PNG | Creator/sponsor cover |
 | `launch-copy.md` | Copy and storyboard | Social posts, product descriptions, voiceover |
 | `sponsorship/README.md` | Profile and tier drafts | GitHub Sponsors and Ko-fi setup |
-| `release-notes.md` | GitHub release body | Draft technical-preview release |
+| `release-notes.md` | GitHub release body | 0.3.0 technical-preview release |
 | `site/` | Self-contained static site | Source of the live site at radeknovis.github.io/debagr-site |
 
 The captures use the real AppKit/SwiftUI views compiled in a temporary source
@@ -29,7 +33,7 @@ hardware deployment. The shipped app has no demo mode or fixture code.
 
 The website deliberately has no checkout, hard-coded subscription price,
 unverified payment destination, or invented success state. The download link
-points at the published 0.2.0 DMG; funding links stay in preparation until
+points at the published 0.2.0 DMG until 0.3.0 is published; funding links stay in preparation until
 verified HTTPS URLs are supplied in `site/config.js`. All runtime resources are local; the page has no tracker,
 external font, signup form, or dependency on a frontend build system.
 
