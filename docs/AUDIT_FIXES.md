@@ -97,14 +97,14 @@ This establishes distribution integrity, not device deployment behavior.
 
 ## Remote iPhone acceptance
 
-Using the signed 0.3.0 build 2 candidate as relay owner and CLI, SmartSaver
-SSStaging was built from the separate checkout's clean main branch. Its device
+Using the signed 0.3.0 build 2 candidate as relay owner and CLI, a signed
+staging app was built from its separate checkout's clean main branch. Its device
 build signature was verified and its provisioning profile included the selected
-Radek's iPhone 16 Pro. The owner confirmed different Wi-Fi networks and no USB.
+iPhone of the owner. The owner confirmed different Wi-Fi networks and no USB.
 Readiness returned ready; deployment returned ok, the expected bundle identifier,
 installed true and launched true. This is a fresh remote iPhone installation and
-OS-confirmed launch, not visual verification of SmartSaver's screen behavior.
-No SmartSaver source changes were made. Private result JSON stays under .build/.
+OS-confirmed launch, not visual verification of the app's screen behavior.
+No source changes were made to that app. Private result JSON stays under .build/.
 
 Real devicectl errors use typed userInfo.NSLocalizedDescription.string values;
 the CLI now preserves those descriptions, with a captured-shape regression test.

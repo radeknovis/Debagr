@@ -54,12 +54,12 @@ Exit codes: `0` success, `2` device/network needs attention, `64` invalid
 arguments, `65` invalid artifact, `1` command/deployment failure.
 
 `launch_failed` reports `installed: true` and the bundle identifier. Retry
-launch only with `--launch-app <bundleID> --device <UDID> --json` when that
-command appears in `--help`. On published 0.2.0, use Apple's `xcrun devicectl
-device process launch --device <UDID> --timeout 30 <bundleID>` instead.
-For an uncertain installation outcome, use `--installed-apps --device <UDID>
---json` when available, or Apple's `devicectl device info apps` before retrying. A timed-out
-installation has an uncertain outcome: inspect installed apps before retrying.
+launch only, with `--launch-app <bundleID> --device <UDID> --json`; do not
+reinstall. A timed-out installation has an uncertain outcome: run
+`--installed-apps --device <UDID> --json` and inspect the result before
+retrying. Both commands need Debagr 0.3.0 or later; `--version` prints the
+installed version. If the Build Server runs an older Debagr, ask the user to
+update it.
 
 Remote deployment requires the device to be on Wi-Fi. Cellular-only
 RemotePairing is excluded by iOS. Describe an unavailable service without
@@ -68,11 +68,22 @@ produce similar symptoms.
 
 ## Setup boundary
 
-The human installs Debagr, pairs the device over USB, and uses **Set Up
-Remote Device** to select the Apple device, its local Bonjour service, and the
-same physical device in the selected VPN. **Connect Remote Device** enables the relay;
-**Launch at Login** restores the app after login. One remote device is supported
-by this milestone; ordinary local Apple device deployment remains available.
+The human installs Debagr, pairs the device over USB, and chooses **Open
+Debagr** in the menu-bar menu. With no saved device, the Connections window
+opens on **Use existing pairing**. There the human selects the paired Apple
+device, the same physical device in the selected VPN, and its local Bonjour
+service, confirms that they match, and chooses **Save & check connection**.
+**Pause Wireless Connection** and **Resume Wireless Connection** stop and
+restart the relay; **Launch at Login** restores the app after login. One remote
+device is supported by this milestone; ordinary local Apple device deployment
+remains available. Debagr's interface calls the Build Server the Builder.
+
+The window's other path, **Initial device pairing**, is labelled Experimental.
+It links two Macs running Debagr 0.3.0, a Builder that builds and deploys and a
+Client that has the device plugged in, to create Apple trust over forwarded
+USB. It needs separately installed USB tools and has not passed hardware
+acceptance. Do not start it or run `--usbip` commands unless the user asks for
+that setup.
 
 Use `--configure` only when the user requests setup or a configuration change.
 For setup/capture, `--provider` accepts `tailscale` (default), `headscale`,

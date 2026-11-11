@@ -5,8 +5,9 @@ paired device across separate Wi-Fi networks. Configure the VPN on both devices
 before setting up Debagr. Provider account creation, device enrollment, access
 rules, and tunnel configuration stay in the provider's own tools.
 
-**Verification:** Tailscale remote installation and launch were previously
-verified on an iPhone. The other provider paths have automated coverage for
+**Verification:** Tailscale remote installation and OS-confirmed launch were
+verified on one iPhone on 10 November 2026 with a 0.3.0 candidate build. iPad
+is not yet verified. The other provider paths have automated coverage for
 configuration, address validation, persistence, and proxy construction. They
 still require real-device installation and launch tests on separate networks.
 
@@ -41,11 +42,14 @@ wrong host; use a VPN range that does not overlap the local networks.
 1. Pair the device with this Mac over USB and enable Developer Mode.
 2. Connect both devices through the selected VPN and keep the device nearby on
    the same Wi-Fi for initial service capture.
-3. Choose **Set Up Remote Device…** and select the VPN provider. Tailscale and
-   Headscale automatically load the online-device picker in the same form.
-   Other providers show an address field for the device's private VPN IPv4.
-4. Select the same device in the paired-device and nearby-service lists, then
-   confirm its VPN device/address. Choose **Save & Connect**.
+3. Choose **Open Debagr** in the menu-bar menu. With no saved device, the
+   Connections window opens on **Use existing pairing**. Select the paired
+   device and choose **Continue**.
+4. Select the VPN provider. Tailscale and Headscale automatically load the
+   online-device picker in the same form. Other providers show an address field
+   for the device's private VPN IPv4. Select the same device's nearby service,
+   choose **Continue**, confirm that the selections refer to the same physical
+   device, and choose **Save & check connection**.
 5. Keep Debagr running. Move the device to another Wi-Fi network, keep its VPN
    connected, unlock it, and run a readiness check followed by deployment.
 

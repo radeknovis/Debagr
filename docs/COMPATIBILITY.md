@@ -1,43 +1,65 @@
 # Debagr compatibility
 
-Updated 10 November 2026. Published binary: 0.2.0; audit and restored interface source changes are unreleased.
+Updated 11 November 2026. Applies to Debagr 0.3.0 (build 5), a technical
+preview for Apple-silicon Macs.
+
+## What is verified on real hardware
+
+One thing: a remote iPhone install plus an OS-confirmed launch over Tailscale,
+on 10 November 2026, with a 0.3.0 candidate build. The details are in
+[hardware evidence](DIRECT_DEVICE.md). Everything else in this document is
+implemented and covered by automated tests only, unless a row says otherwise.
 
 ## Provider support
 
 Tailscale and Headscale have online-device discovery through the Tailscale client.
 ZeroTier, NetBird, and WireGuard accept an explicit private VPN IPv4 address in
-setup and the CLI. These alternative-provider paths are implemented and covered
-by automated tests; real-hardware remote deployment acceptance remains pending.
-Only Tailscale has prior remote iPhone install-and-launch evidence.
+setup and the CLI. Only Tailscale has remote iPhone install-and-launch
+evidence. Headscale, ZeroTier, NetBird, and WireGuard are implemented and
+covered by automated tests; they are not verified on real hardware.
 See [provider setup and address restrictions](NETWORK_PROVIDERS.md).
 
 ## Technical preview
 
-| Capability | Status | Supported environment |
+| Capability | Status in 0.3.0 | Supported environment |
 | --- | --- | --- |
-| Menu-bar Target Device inventory | Implemented and locally verified through `devicectl` plus Bonjour | Apple-silicon Mac, macOS 13 or later |
-| Managed remote deployment transport | Implemented; fresh 0.3.0 build 2 remote iPhone install/launch passed; iPad pending | Apple-silicon Mac, macOS 26 or later; current Xcode; device Wi-Fi and private VPN |
+| Menu-bar Target Device inventory | Implemented and locally verified through `devicectl` plus Bonjour | Apple-silicon Mac. The app's minimum is macOS 13; macOS 13–15 are not verified |
+| Managed remote deployment transport | Verified for one iPhone over Tailscale: remote install and OS-confirmed launch. iPad not verified | Apple-silicon Mac, macOS 26 or later; current Xcode; device Wi-Fi and private VPN |
 | Multiple iPhone/iPad Bonjour records | Implemented; parser/model tests pass | Local Bonjour-compatible network |
-| First-run guide, Launch at Login, About, diagnostics | Implemented | Packaged macOS app |
+| First-run guide, Launch at Login, About, diagnostics | Implemented; clean-Mac and offline first launch not verified | Packaged macOS app |
 | Paired-Mac `.app` install and optional launch | Implemented; automated tests pass, live install requires an unlocked device | Current Xcode and a locally paired physical device |
 | Remote invocation | Uses the build server's existing SSH authentication | Any SSH-capable caller; Tailscale optional |
-| USB/IP initial setup and pairing refresh | Restored UI/CLI; integrated hardware acceptance pending | External patched Longcable and usbip-macos, private VPN, admin approval, successful capability probe; current unentitled importer uses SIP off |
-| VirtualHere USB pairing alternative | Restored guided flow; automated coverage; hardware acceptance pending | Separately installed VirtualHere Client and licensed macOS Server, SSH and a USB cable to the Client |
+| USB/IP initial setup and pairing refresh | **Experimental.** Not hardware-accepted | Two Macs running Debagr 0.3.0; separately installed Longcable server with a local patch that is not yet published, and usbip-macos; private VPN; administrator password; successful capability probe; System Integrity Protection turned off on the Builder |
+| VirtualHere USB pairing alternative | **Experimental.** Automated coverage only; not hardware-accepted | Two Macs running Debagr 0.3.0; separately installed VirtualHere Client and licensed macOS Server, SSH and a USB cable to the Client |
+| Mac role linking (Builder/Client) and local unpair | **Experimental.** Automated coverage only; two-Mac linking not hardware-accepted | Signed role updates and pinned peer keys. Code-free pairing only between devices of the same Tailscale user; otherwise a pairing code on both Macs. Authorizes role synchronization; each Mac approves its own privileged USB process |
+| Peer discovery and role-sync listeners | Run only while the **Initial device pairing** screen is open, a Builder/Client role is saved, or the `debagr --usbip discover` or `advertise` command runs | TCP 49388 and 49389 on private IPv4 networks |
 | Manual TCP/UDP relay lab | Implemented; not a customer promise | macOS 26 or later, Tailscale CLI, explicit peer and port |
 | Cross-Mac Xcode or local `devicectl` use | Blocked in the current layer-4 architecture | CoreDevice requires per-Mac pairing and a negotiated link-local IPv6 tunnel |
-| Managed relay recovery | Rebuilds unhealthy listeners and refreshes after wake; hardware recovery acceptance pending | One managed device |
-| Mac role linking and local unpair | Signed role updates and pinned peer keys; mesh identity checks or LAN code confirmation | Authorizes role synchronization; each Mac approves its own privileged USB process |
+| Managed relay recovery | Rebuilds unhealthy listeners and refreshes after wake; recovery not verified on hardware | One managed device |
 
 Debagr is not affiliated with or endorsed by Apple or Tailscale. Apple documents
 wireless use on the same network and does not document cross-Mac RemotePairing
 over a tailnet. Live testing also confirmed that a projected service identity
 alone does not transfer another Mac's pairing state.
 
-The source branch uses requiredLocalEndpoint without a macOS 26 API guard.
-This does not lower the advertised remote support floor: macOS 13–15 runtime
-acceptance remains unverified. The shared listener, native Bonjour, new CLI
-recovery tools and local MCP endpoint pass local automated checks; fresh remote iPhone installation and OS-confirmed launch are recorded in
-[hardware evidence](DIRECT_DEVICE.md). Other hardware claims remain pending.
+Managed remote deployment needs macOS 26 or later on the Mac, because it binds
+its listeners to an exact local address. macOS 13–15 are not verified for any
+capability.
+
+## Known gaps in 0.3.0
+
+None of the following has been verified for this release. Do not rely on them
+without your own test.
+
+- Clean-Mac first launch and offline first launch.
+- iPad.
+- The recovery matrix: restart, sleep and wake, network change, revoked trust,
+  and denied Local Network permission.
+- VPN providers other than Tailscale.
+- macOS 13–15.
+- The Homebrew upgrade from 0.2.0 to 0.3.0.
+- All hardware acceptance of USB/IP, VirtualHere, and two-Mac Builder/Client
+  linking.
 
 ## Evidence required before paid access
 
