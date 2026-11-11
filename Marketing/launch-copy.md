@@ -1,8 +1,10 @@
 # Debagr launch copy
 
-Prepared for the technical preview, published 4 November 2026. Preview links
-point at https://radeknovis.github.io/debagr-site/. Funding links stay bracketed until
-activation; never post these drafts with placeholder links.
+Prepared for the technical preview. 0.2.0 was published on 4 November 2026.
+0.3.0 is prepared and not yet published, so the site and its download still
+serve 0.2.0. Preview links point at https://radeknovis.github.io/debagr-site/.
+Funding links stay bracketed until activation; never post these drafts with
+placeholder links.
 
 ## Positioning
 
@@ -53,6 +55,27 @@ hardware matrix is still being tested.
 
 Preview and setup: https://radeknovis.github.io/debagr-site/
 Optional support for testing and compatibility work: [Verified funding link]
+
+## 0.3.0 update post
+
+Do not post this before 0.3.0 is published; the publish step is in
+[`../docs/RELEASE.md`](../docs/RELEASE.md).
+
+Debagr 0.3.0 technical preview is out.
+
+- Remote deployment reports problems more clearly: working readiness deadlines,
+  Apple's own error details, and a relay that rebuilds unhealthy listeners after wake.
+- New CLI commands list installed apps and launch without reinstalling. An
+  optional local MCP interface runs over stdin and stdout, with no network listener.
+- Setup starts with a guided flow for a device your Mac is already paired with.
+- Experimental: link two Macs as Builder and Client and forward USB for a first
+  pairing. It needs separately installed USB tools and has no hardware acceptance yet.
+
+Still a technical preview: one managed remote device, VPN + Wi-Fi required, no
+cellular-only support.
+
+`brew upgrade --cask radeknovis/debagr/debagr`
+https://radeknovis.github.io/debagr-site/
 
 ## Developer community post
 
@@ -111,9 +134,14 @@ they are not a new recording of a successful hardware deployment.
 
 Use: paired Mac, private VPN, separate Wi-Fi networks, signed device builds,
 structured JSON, prior Tailscale/iPhone evidence, technical preview, notarized
-download, Homebrew install.
+download and Homebrew install (for 0.3.0 only after it is published). For
+0.3.0 the hardware evidence is one remote iPhone install and OS-confirmed
+launch over Tailscale on 10 November 2026, with a pre-release build.
 
 Do not claim: cellular support, Apple endorsement, transparent cross-Mac Xcode,
-validated iPad or alternative VPN deployments, Intel/universal support, active
-funding pages, a clean-Mac or fresh 0.2.0 hardware result, or a completed recovery matrix until
-that specific result has been verified and recorded.
+validated iPad or alternative VPN deployments, Intel/universal support, remote
+deployment on macOS 13 to 15, active funding pages, a clean-Mac or offline
+first-launch result, a tested Homebrew upgrade, a completed recovery matrix, or
+hardware acceptance of USB/IP, VirtualHere or two-Mac Builder and Client
+linking, until that specific result has been verified and recorded. Never name
+the app used in a hardware test, its bundle identifier or an employer.

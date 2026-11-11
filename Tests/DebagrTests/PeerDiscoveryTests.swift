@@ -57,4 +57,71 @@ final class PeerDiscoveryTests: XCTestCase {
       ).isAppleMobileDevice)
   }
 
+  func testDiscoveryRunsOnlyWhileThePairingScreenIsOpenOrARoleIsSaved() {
+    XCTAssertFalse(DebagrPeerDiscovery.shouldRun(screenOpen: false, roleSaved: false))
+    XCTAssertTrue(DebagrPeerDiscovery.shouldRun(screenOpen: true, roleSaved: false))
+    XCTAssertTrue(DebagrPeerDiscovery.shouldRun(screenOpen: false, roleSaved: true))
+    XCTAssertTrue(DebagrPeerDiscovery.shouldRun(screenOpen: true, roleSaved: true))
+  }
+
+  @MainActor
+  func testStoppedDiscoveryReportsNoPeersWithoutScanning() throws {
+    let suite = "StoppedDiscoveryTest-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let keyFolder = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+    defer { try? FileManager.default.removeItem(at: keyFolder) }
+    let discovery = DebagrPeerDiscovery(
+      defaults: defaults, identityURL: keyFolder.appendingPathComponent("key"))
+    defer { discovery.stop() }
+    var reports: [(rows: Int, status: String)] = []
+    discovery.onChange = { rows, status in reports.append((rows.count, status)) }
+    // No role is saved and the screen is closed, so neither call may start a scan.
+    discovery.updateRunning()
+    discovery.refresh()
+    let deadline = Date().addingTimeInterval(5)
+    while reports.isEmpty, Date() < deadline {
+      RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+    }
+    XCTAssertEqual(reports.first?.rows, 0)
+    XCTAssertEqual(reports.first?.status, "", "A running scan reports that it is looking")
+  }
+
+  func testOnlyThisMacAndTheSameTailscaleUserReceiveSIPStatusAndDeviceNames() throws {
+    var snapshot = DebagrPeer(
+      protocolVersion: 1, nodeID: "mac", name: "Build Mac", roles: ["app", "client"])
+    snapshot.machineRole = .builder
+    snapshot.pairedNodeID = "other"
+    snapshot.roleSyncPublicKey = Data(repeating: 1, count: 32).base64EncodedString()
+    snapshot.connectedDeviceNames = ["iPhone"]
+    snapshot.sipStatus = .disabled
+    var minimal = snapshot
+    minimal.connectedDeviceNames = nil
+    minimal.sipStatus = nil
+    func reply(_ remote: String, own: Bool) throws -> DebagrPeer {
+      // Decode the bytes a requester receives, not the value before encoding.
+      try DebagrPeer.decode(
+        JSONEncoder().encode(
+          DebagrPeerDiscovery.reply(snapshot, to: remote, ownTailnetDevice: own)))
+    }
+    XCTAssertEqual(try reply("127.0.0.1", own: false), snapshot)
+    XCTAssertEqual(try reply("100.64.0.2", own: true), snapshot)
+    for (remote, own) in [
+      ("192.168.1.20", false), ("10.0.0.5", false), ("100.64.0.2", false),
+      ("192.168.1.20", true),
+    ] {
+      XCTAssertEqual(try reply(remote, own: own), minimal, "\(remote) verified: \(own)")
+    }
+    let sent = try XCTUnwrap(
+      JSONSerialization.jsonObject(
+        with: JSONEncoder().encode(
+          DebagrPeerDiscovery.reply(snapshot, to: "192.168.1.20", ownTailnetDevice: false)))
+        as? [String: Any])
+    XCTAssertEqual(
+      Set(sent.keys),
+      [
+        "protocolVersion", "nodeID", "name", "roles", "machineRole", "pairedNodeID",
+        "roleSyncPublicKey",
+      ])
+  }
 }

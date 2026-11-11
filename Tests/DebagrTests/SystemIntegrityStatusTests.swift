@@ -83,8 +83,11 @@ final class SystemIntegrityStatusTests: XCTestCase {
     }
     update()
     XCTAssertEqual(annotation.title, SystemIntegrityStatus.disabled.annotation)
-    XCTAssertEqual(annotation.contentTintColor, NSColor.systemGreen)
+    XCTAssertEqual(
+      annotation.contentTintColor, NSColor.systemOrange, "SIP off must not look like a good state")
     XCTAssertTrue(annotation.toolTip?.contains("System protections are reduced") == true)
+    XCTAssertTrue(
+      annotation.toolTip?.contains("required by the current experimental Builder path") == true)
     try MachineRoleStore(defaults: defaults).save(
       MachineRoleSelection(role: .client, peerID: "other", peerName: "Air"),
       localNodeID: discovery.localNodeID)

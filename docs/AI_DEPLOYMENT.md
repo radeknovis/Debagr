@@ -22,20 +22,33 @@ target device are separate roles.
 2. Connect the paired Mac and device to your chosen VPN. Keep the device on Wi-Fi and
    unlocked. Complete initial configuration while its Bonjour service is
    available locally, before taking the device to a separate Wi-Fi network.
-3. Open Debagr and choose **Set Up Remote Device…**. Choose your provider, then select the Apple device,
-   its real local Bonjour service, and the corresponding VPN device or private IPv4 address.
-   Use **Use Saved Profile…** to reuse a captured profile while remote.
+3. Choose **Open Debagr** in the menu-bar menu. With no saved device, the
+   Connections window opens on **Use existing pairing**. Select the paired Apple
+   device, choose your provider and the corresponding VPN device or private IPv4
+   address, then select the device's real local Bonjour service, or choose
+   **Use Saved Profile…** to reuse a captured profile while remote. Confirm
+   that the selections refer to the same physical device and choose
+   **Save & check connection**.
 4. Leave Debagr running and optionally enable **Launch at Login**. It restores
-   the enabled configuration at the next login. **Disconnect Remote Device**
-   stops Debagr's relay; it does not disable native USB/Wi-Fi Apple connectivity.
+   the enabled configuration at the next login. **Pause Wireless Connection**
+   stops Debagr's relay and **Resume Wireless Connection** restarts it; pausing
+   does not disable native USB/Wi-Fi Apple connectivity.
 5. Install the plugin using [the client-specific instructions](PLUGINS.md).
    Supply the agent with the Build Server's existing SSH alias, intended device,
    and project build instructions or the absolute path to a signed device `.app`
    on that Mac. For example: “Use Debagr on `build-server` to install and launch
    `/Users/me/Builds/MyApp.app` on my target device. The device is on another Wi-Fi network.”
 
-For a standalone skill installation, use **Show AI Deployment Skill…** to locate
-`Contents/Resources/Skills/debagr-deploy/SKILL.md`. Copy the enclosing
+The Mac that owns the pairing and deploys is the Build Server; Debagr's
+interface calls it the Builder. The window's second path, **Initial device
+pairing**, is labelled Experimental. It links a Builder with a Client, a second
+Mac that has the device plugged in, and forwards USB so that the Builder can
+create Apple trust without physical access to the device. Both Macs need
+Debagr 0.3.0 and a separately installed USB tool. It has not passed hardware
+acceptance; pair by cable on the Build Server when you can.
+
+For a standalone skill installation, choose **Debagr Skill…** in the menu to reveal
+`Contents/Resources/Skills/debagr-deploy/SKILL.md` in Finder. Copy the enclosing
 `debagr-deploy` folder into the skill directory of the AI client on the caller.
 The skill contains instructions only; private device configuration stays on
 the Build Server. Install either the plugin or the standalone skill to avoid
@@ -56,7 +69,7 @@ Debagr --diagnose --device DEVICE_UDID --json
 Each command emits exactly one JSON object on stdout. Human-readable diagnostics
 belong on stderr. Inventory states are not readiness assertions. `--status`
 verifies Apple's trusted connection and unlocked state; its wait is bounded by
-`--timeout` (1–60 seconds). Installation and launch have separate 120-second and
+`--timeout` (more than 0, up to 60 seconds; default 5). Installation and launch have separate 120-second and
 30-second deadlines and are never retried automatically.
 
 ```json
@@ -100,8 +113,10 @@ Apple's port allocator. Private profiles can preserve a known verified range.
 This milestone manages one remote device. It does not install a VPN or change
 Apple trust, signing credentials, SSH configuration, or unrelated Apple daemons.
 The app must be running in the paired user's logged-in session. A standalone
-headless daemon, simultaneous remote devices sharing the same control port,
-cellular operation, and an MCP server are outside this milestone.
+headless daemon, simultaneous remote devices sharing the same control port, and
+cellular operation are outside this milestone. An optional
+[local stdio MCP interface](MCP.md) exposes the same commands; it has no network
+listener.
 
 ## Failure codes
 
@@ -132,14 +147,15 @@ Recheck readiness immediately before deployment. Allow 180 seconds for a full
 install-and-launch command. Deployment uses fixed phase deadlines; `--timeout`
 is rejected with `--deploy-app`.
 
-## Recovery commands in the unreleased source branch
+## Recovery commands
 
 `--installed-apps --device <UDID> --json` lists installed developer apps without
 reinstalling. `--launch-app <bundleID> --device <UDID> --json` launches an existing
 installation. It reports launch success without claiming this command installed
 anything. Use these after an uncertain install outcome or partial launch failure.
+Both need Debagr 0.3.0 or later; `--version` prints the installed version.
 
-`--diagnose` adds checks for valid saved configuration, the network interface,
+`--diagnose` adds checks for developer tools, valid saved configuration, the network interface,
 Apple inventory, relay enabled state and VPN peer state. Each check has a status
 and message. The readiness failure remains the primary error and exit code;
 a passed configuration or VPN check is not deployment proof.

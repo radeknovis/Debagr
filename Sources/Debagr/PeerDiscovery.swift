@@ -93,6 +93,10 @@ final class DebagrPeerDiscovery: @unchecked Sendable {
   private var scanning = false
   private var roleSync: RoleSyncService?
   private var roleSyncError: String?
+  // Main thread only.
+  private var screenOpen = false
+  // Tailscale ownership results by "local>remote" address pair; belongs to queue.
+  private var tailnetOwnership: [String: (own: Bool, checked: Date)] = [:]
   var canChangeRoles: @MainActor @Sendable () -> Bool = { !USBIPSessionController().isRunning }
   var onRoleSyncApplying: (@MainActor @Sendable (Bool) -> Void)?
   var onChange: (@MainActor @Sendable ([DiscoveredDebagrPeer], String) -> Void)?
@@ -115,7 +119,10 @@ final class DebagrPeerDiscovery: @unchecked Sendable {
         defaults: defaults, keyURL: identityURL)
       roleSync = service
       snapshot.roleSyncPublicKey = service.identity.publicKey.base64EncodedString()
-      service.onChanged = { [weak self] in self?.refresh() }
+      service.onChanged = { [weak self] in
+        self?.updateRunning()
+        self?.refresh()
+      }
       service.onError = { [weak self] error in
         self?.queue.async { [weak self] in self?.emit("Role pairing: \(error)") }
       }
@@ -185,14 +192,37 @@ final class DebagrPeerDiscovery: @unchecked Sendable {
       roleSync.clear()
     } else {
       roleStore.clear()
+      updateRunning()
       refresh()
+    }
+  }
+
+  /// The listeners, Bonjour advertisement, inventory timer and tailnet probing exist only while
+  /// the Builder/Client screen is open or a machine role is saved on this Mac.
+  static func shouldRun(screenOpen: Bool, roleSaved: Bool) -> Bool { screenOpen || roleSaved }
+
+  /// Main thread only.
+  func setPairingScreenOpen(_ open: Bool) {
+    guard open != screenOpen else { return }
+    screenOpen = open
+    updateRunning()
+    // Without a saved role discovery was stopped, so nothing has been browsed yet.
+    if open, (try? roleStore.load()) == nil { refresh() }
+  }
+
+  /// Main thread only. Call after the saved role or the screen changes.
+  func updateRunning() {
+    if Self.shouldRun(screenOpen: screenOpen, roleSaved: (try? roleStore.load()) != nil) {
+      start()
+    } else {
+      stop()
     }
   }
 
   func start() {
     roleSync?.start()
     queue.async { [self] in
-      guard listener == nil else { return }
+      guard timer == nil else { return }
       do {
         let parameters = NWParameters.tcp
         // IPv4 private networks are the existing Debagr discovery scope.
@@ -251,6 +281,12 @@ final class DebagrPeerDiscovery: @unchecked Sendable {
       for connection in connections.values { connection.cancel() }
       connections.removeAll()
       peers.removeAll()
+      guard timer != nil else {
+        // Stopped: report the empty list without browsing, probing or reading the inventory.
+        scanning = false
+        emit()
+        return
+      }
       refreshLocal()
       emit("Looking for Builders and Clients…")
       let browser = NWBrowser(for: .bonjour(type: Self.serviceType, domain: nil), using: .tcp)
@@ -354,18 +390,75 @@ final class DebagrPeerDiscovery: @unchecked Sendable {
       connection.cancel()
       return
     }
+    let remote = String(describing: host)
     let id = UUID()
     connections[id] = connection
-    connection.start(queue: queue)
-    let data = (try? JSONEncoder().encode(snapshot)) ?? Data()
+    if NetworkSupport.isAllowedTailscaleIPv4(remote) {
+      // The local address needed for the ownership check exists once the connection is ready.
+      connection.stateUpdateHandler = { [weak self] state in
+        if case .ready = state { self?.answerTailnet(id, remote: remote) }
+      }
+      connection.start(queue: queue)
+    } else {
+      connection.start(queue: queue)
+      send(id, remote: remote, ownTailnetDevice: false)
+    }
+    queue.asyncAfter(deadline: .now() + 3) { [weak self] in
+      self?.connections.removeValue(forKey: id)?.cancel()
+    }
+  }
+
+  /// The unauthenticated reply. SIP status and plugged-in device names go only to this Mac and to
+  /// a device that the Tailscale network map shows belongs to the same user.
+  // shortcut: a paired LAN-only (non-Tailscale) Mac never receives the other Mac's SIP status or device names and shows them as unknown, send them over the signed role channel when LAN-only pairs need them.
+  static func reply(_ snapshot: DebagrPeer, to remote: String, ownTailnetDevice: Bool)
+    -> DebagrPeer
+  {
+    var reply = snapshot
+    if remote != "127.0.0.1",
+      !(ownTailnetDevice && NetworkSupport.isAllowedTailscaleIPv4(remote))
+    {
+      reply.connectedDeviceNames = nil
+      reply.sipStatus = nil
+    }
+    return reply
+  }
+
+  private func send(_ id: UUID, remote: String, ownTailnetDevice: Bool) {
+    guard let connection = connections[id] else { return }
+    let reply = Self.reply(snapshot, to: remote, ownTailnetDevice: ownTailnetDevice)
     connection.send(
-      content: data + Data([10]),
+      content: ((try? JSONEncoder().encode(reply)) ?? Data()) + Data([10]),
       completion: .contentProcessed { [weak self] _ in
         connection.cancel()
         self?.connections.removeValue(forKey: id)
       })
-    queue.asyncAfter(deadline: .now() + 3) { [weak self] in
-      self?.connections.removeValue(forKey: id)?.cancel()
+  }
+
+  // The ownership check runs `tailscale status`, so it stays off queue and is reused for 30 s.
+  private func answerTailnet(_ id: UUID, remote: String) {
+    guard let connection = connections[id] else { return }
+    connection.stateUpdateHandler = nil
+    guard case .hostPort(let local, _) = connection.currentPath?.localEndpoint else {
+      send(id, remote: remote, ownTailnetDevice: false)
+      return
+    }
+    let localAddress = String(describing: local)
+    let route = localAddress + ">" + remote
+    tailnetOwnership = tailnetOwnership.filter { Date().timeIntervalSince($0.value.checked) < 30 }
+    if let known = tailnetOwnership[route] {
+      send(id, remote: remote, ownTailnetDevice: known.own)
+      return
+    }
+    // Requests that arrive during the check get the minimal reply instead of another process.
+    tailnetOwnership[route] = (false, Date())
+    worker.async { [weak self] in
+      let own = TailscaleClient().isPersonalMeshConnection(
+        localAddress: localAddress, remoteAddress: remote)
+      self?.queue.async { [weak self] in
+        self?.tailnetOwnership[route] = (own, Date())
+        self?.send(id, remote: remote, ownTailnetDevice: own)
+      }
     }
   }
 

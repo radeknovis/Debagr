@@ -46,7 +46,7 @@ enum CLIError: LocalizedError {
         "Use --capture-device-profile with --peer and --bonjour-host, or --direct-device with --peer and a captured --profile. These modes cannot be combined with deployment, discovery, menu-bar, or relay options."
     case .conflictingCommands:
       return
-        "Select one command. --json supports --devices, --status, --diagnose, --configure, --deploy-app, --usb-services, or --usb-profile."
+        "Select one command. --json supports --devices, --status, --diagnose, --configure, --installed-apps, --launch-app, --deploy-app, --usb-services, or --usb-profile."
     }
   }
 }

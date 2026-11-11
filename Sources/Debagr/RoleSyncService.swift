@@ -96,7 +96,7 @@ private final class RoleSyncChannel: @unchecked Sendable {
     connection.cancel()
   }
 
-  private func fail(_ error: Error) {
+  func fail(_ error: Error) {
     guard !closed else { return }
     let callback = failure
     close()
@@ -176,7 +176,10 @@ final class RoleSyncService: @unchecked Sendable {
     queue.async { [self] in
       listener?.cancel()
       listener = nil
-      for channel in channels.values { channel.close() }
+      // Fail instead of close: a pending role exchange must still reach its completion.
+      for channel in channels.values {
+        channel.fail(USBIPError.invalid("Role pairing stopped before both Macs confirmed. Retry."))
+      }
       channels.removeAll()
     }
   }
@@ -247,14 +250,15 @@ final class RoleSyncService: @unchecked Sendable {
                   requestID: requestID, nonce: hello.nonce, sender: local,
                   targetID: peer.nodeID, assignment: candidate, error: nil)
                 let request = try SignedRoleMessage(payload: payload, identity: identity)
+                let code = request.verificationCode(remoteKey: key)
+                let needsCode =
+                  role != nil && store.trustedKey(for: peer.nodeID) == nil
+                  && !trustMeshConnection(channel.connection)
                 if role != nil {
-                  let needsCode =
-                    store.trustedKey(for: peer.nodeID) == nil
-                    && !trustMeshConnection(channel.connection)
                   DispatchQueue.main.async {
                     progress(
                       needsCode
-                        ? "Pairing code: \(request.verificationCode(remoteKey: key)). Accept the matching code on \(peer.name) if prompted."
+                        ? "Pairing code: \(code). Accept the matching code on \(peer.name), then confirm it on this Mac."
                         : "Connecting securely to \(peer.name)…")
                   }
                 }
@@ -271,16 +275,43 @@ final class RoleSyncService: @unchecked Sendable {
                     guard let assignment = reply.assignment else {
                       throw USBIPError.invalid("No role assignment was confirmed.")
                     }
-                    if role != nil {
-                      try store.apply(
-                        assignment, remote: reply.sender, publicKey: key, replacingPeer: true)
-                      changed()
-                    } else if try !store.confirms(assignment, remoteID: peer.nodeID) {
-                      throw USBIPError.invalid(
-                        "The paired roles changed. Refresh and set the roles again before starting."
-                      )
+                    guard let role else {
+                      guard try store.confirms(assignment, remoteID: peer.nodeID) else {
+                        throw USBIPError.invalid(
+                          "The paired roles changed. Refresh and set the roles again before starting."
+                        )
+                      }
+                      finish(.success(()))
+                      return
                     }
-                    finish(.success(()))
+                    @Sendable func apply() {
+                      do {
+                        try store.apply(
+                          assignment, remote: reply.sender, publicKey: key, replacingPeer: true)
+                        changed()
+                        finish(.success(()))
+                      } catch { finish(.failure(error)) }
+                    }
+                    guard needsCode else {
+                      apply()
+                      return
+                    }
+                    // The other Mac's acceptance proves nothing about who it is: a device that
+                    // only imitates Debagr accepts at once. This Mac's user confirms the code too.
+                    DispatchQueue.main.async { [self] in
+                      approvePair(peer.name, code, role) { [self] accepted in
+                        queue.async { [self] in
+                          // Timed out or stopped while the question was open.
+                          guard channels[id] != nil else { return }
+                          if accepted {
+                            apply()
+                          } else {
+                            finish(
+                              .failure(USBIPError.invalid("Pairing was cancelled on this Mac.")))
+                          }
+                        }
+                      }
+                    }
                   } catch { finish(.failure(error)) }
                 }
               } catch { finish(.failure(error)) }

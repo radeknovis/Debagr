@@ -177,7 +177,7 @@ final class DeviceSetupModel: ObservableObject {
     guard page == .saved, let device, configured?.hasSameConnection(as: device) == true
     else { return }
     guard device.enabled else {
-      verification = .attention("Reconnect the remote device from the Debagr menu bar.")
+      verification = .attention("Choose Resume Wireless Connection in the Debagr menu.")
       return
     }
     switch result {
@@ -547,13 +547,17 @@ private struct SettingsNavigationItem: View {
 
 struct SettingsHeading: View {
   let eyebrow: String
+  var experimental = false
   let title: String
   let subtitle: String
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text(eyebrow.uppercased())
-        .font(.system(size: 10, weight: .semibold)).tracking(1.1).foregroundStyle(.secondary)
+      HStack(spacing: 8) {
+        Text(eyebrow.uppercased())
+          .font(.system(size: 10, weight: .semibold)).tracking(1.1).foregroundStyle(.secondary)
+        if experimental { ExperimentalBadge() }
+      }
       Text(title).font(.system(size: 28, weight: .semibold)).tracking(-0.7)
         .fixedSize(horizontal: false, vertical: true)
       Text(subtitle).font(.system(size: 13)).foregroundStyle(.secondary)
@@ -596,7 +600,7 @@ private struct DeviceConnectionView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
         SettingsHeading(
-          eyebrow: "Connection setup",
+          eyebrow: "Connection setup", experimental: model.path == .usb,
           title: model.isInitialPairing
             ? "Pair your iPhone once."
             : model.path == .usb ? "Pair using VirtualHere." : "Your iPhone. Your Builder.",
@@ -606,6 +610,11 @@ private struct DeviceConnectionView: View {
               ? "Bring a nearby USB device to this Builder over SSH."
               : "Keep your existing Apple pairing connected across networks.")
         ConnectionPathPicker(selection: Binding(get: { model.path }, set: { model.selectPath($0) }))
+        if model.path == .usb {
+          Label(ConnectionPath.usbRequirements, systemImage: "exclamationmark.triangle")
+            .font(.system(size: 12)).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
         ConnectionDiagram(
           path: model.path, deviceName: model.selectedDeviceName,
           usbLinkLabel: model.isInitialPairing ? "USB over VPN" : "USB over SSH")

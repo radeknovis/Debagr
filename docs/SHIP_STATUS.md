@@ -1,15 +1,77 @@
-# Debagr 0.2.0 shipping status
+# Debagr 0.3.0 shipping status
 
-## Unreleased source restoration, 10 November 2026
+Updated 11 November 2026. **0.3.0 build 5 is prepared, not tagged, not
+notarized and not published.** The published version is still 0.2.0 build 2;
+its record is kept below as history. The [release runbook](RELEASE.md) owns the
+steps from here to publication.
 
-Audit PR #15 is merged. The restored connection interface is based on that
-audited source, retaining the runtime, CLI, licence, version and CI safeguards.
-It includes Builder/Client discovery and role linking, guided existing pairing,
-and optional temporary USB setup. These additions are not in the published 0.2.0
-app or the earlier notarized 0.3.0 build 3 candidate. See
-[restoration and validation](CONSOLIDATION.md). No public release is part of this change.
+## Release identity
 
-## Published release baseline
+| Item | Value |
+| --- | --- |
+| Version and build | 0.3.0, build 5 |
+| Channel | Technical preview, Apple silicon |
+| Signing | Developer ID signed and notarized by `scripts/release-macos-app.sh`; the script has not been run for this build |
+| Licence | Free personal and internal evaluation, no redistribution; paid terms remain a draft |
+| Requirement | Managed remote deployment needs macOS 26 or later on the Mac |
+| Publisher | Radek Novak (`XBSPGPE6R6`); certificate and notarization profile stay in the local login Keychain |
+
+Earlier documents disagree about 0.3.0 candidate build numbers.
+[AUDIT_FIXES.md](AUDIT_FIXES.md) records build 2 as signed and notarized
+locally, an earlier version of this file called build 3 the notarized candidate,
+and [CONSOLIDATION.md](CONSOLIDATION.md) records build 4 as Developer ID signed
+and not notarized. None of them was published, and the 11 November audit found
+none retained on disk. The release uses build 5 so that its number is above
+every earlier candidate.
+
+## Done
+
+| Area | State |
+| --- | --- |
+| Audit fixes | Merged in PR #15 (`2c9d975`); details in [AUDIT_FIXES.md](AUDIT_FIXES.md) |
+| Connection design | Builder and Client discovery and linking, guided existing pairing and temporary USB setup merged in PR #16 (`97978e7`); details in [CONSOLIDATION.md](CONSOLIDATION.md) |
+| Release decisions of 11 November | Discovery and role sync run only while the Builder and Client setup screen is open or a machine role is saved; the unauthenticated discovery reply is reduced; pairing without a code needs the same Tailscale user; first run opens on existing pairing with the USB paths labelled Experimental; USB/IP helper lookup, root supervisor inputs and default tool locations are hardened. These are part of the release-readiness change set. This file records no test result for them; the evidence is the green CI run on the release commit required by the pre-tag checklist |
+| Hardware | One remote iPhone install and OS-confirmed launch over Tailscale on 10 November 2026, with the restored CLI in a locally signed pre-release build. It predates the 11 November changes and is not a result for build 5 |
+| Release documents | [Release notes](../Marketing/release-notes.md), [changelog](../CHANGELOG.md) and runbook written for 0.3.0 build 5 |
+| Waiver | On 11 November 2026 the owner waived pre-release hardware acceptance for the known gaps below, as for 0.2.0 |
+
+## Remaining before publication
+
+1. Pre-tag checklist: green CI on the exact release commit and the local checks
+   on an idle release Mac. The marketing screenshots are recaptured; capture
+   them again only if `Sources/Debagr/DeviceSetupWindow.swift` changes.
+2. Tag `v0.3.0`.
+3. Release run for build 5. This is the first notarization of a bundle that
+   contains the USBIPProbe helper.
+4. Post-notarization acceptance: notary log review, local DMG check, clean Mac,
+   offline first launch, Homebrew install and the 0.2.0 to 0.3.0 upgrade.
+5. Publish: tap release and cask, the tap's `README.md` and `SECURITY.md`, the
+   site text and `DEBAGR_DOWNLOAD_URL`, then the publication record in this file.
+
+Until step 5, the site, the cask and every download link stay on 0.2.0.
+
+## Known gaps for 0.3.0
+
+None of these is verified. Do not describe any of them as verified until its
+result is recorded here.
+
+- First launch on a clean Mac.
+- Offline first launch.
+- iPad.
+- The recovery matrix: restart, sleep/wake, network change, revoked trust and
+  denied Local Network permission.
+- VPN providers other than Tailscale.
+- macOS 13 to 15.
+- The Homebrew upgrade from 0.2.0 to 0.3.0.
+- All hardware acceptance of USB/IP, VirtualHere and two-Mac Builder and Client
+  linking.
+
+CI signing remains optional and unconfigured. Paid terms, processor terms,
+refund policy, governing law and counsel review remain drafts and must be
+complete before any sale. Funding activation is deferred, as described below.
+
+## 0.2.0 publication record
+
 
 Updated 4 November 2026. **Published as a technical preview.** The notarized
 0.2.0 build 2 is public through the
@@ -28,7 +90,7 @@ Keychain; neither has been exported.
 GitHub Sponsors and Ko-fi are the selected funding channels; their activation
 is explicitly deferred and does not block releasing the app.
 
-## Publication, 4 November 2026
+### Publication, 4 November 2026
 
 | Check | Result |
 | --- | --- |
@@ -39,7 +101,7 @@ is explicitly deferred and does not block releasing the app.
 | Contacts | Support through tap Issues; security, privacy and requested diagnostics through GitHub private vulnerability reporting, now enabled; `SECURITY.md` in the tap; publisher named Radek Novak; no email or postal address published |
 | Website | GitHub Pages serves `radeknovis/debagr-site`; download button points at the versioned DMG; absolute `og:image`; every page and asset returned HTTP 200 with the expected content type |
 
-## Completed and checked before publication
+### Completed and checked before publication
 
 | Area | Evidence |
 | --- | --- |
@@ -70,7 +132,9 @@ has not been tested. Before publication, Homebrew was tested with the final DMG
 through a local file URL; the public download and tap install were verified
 after publication. A version-to-version upgrade remains untested.
 
-## Open gaps
+### Open gaps at 0.2.0 publication
+
+This table is the 0.2.0 record. The current gaps are in [Known gaps for 0.3.0](#known-gaps-for-030).
 
 | Gate | Current finding | Next concrete step |
 | --- | --- | --- |
@@ -81,14 +145,14 @@ after publication. A version-to-version upgrade remains untested.
 | Homebrew upgrade | Only 0.2.0 exists, so `brew upgrade --cask` between versions is untested | Install the current version, then upgrade, when the next version ships |
 | Policies | Publisher and contact routes set; free preview licensed for personal/internal evaluation without redistribution; paid terms, processor terms, refund policy, governing law and counsel review remain drafts | Complete before any sale or commercial launch |
 
-## Funding activation deferred
+### Funding activation deferred
 
 GitHub Sponsors and Ko-fi are selected. Their profiles, tiers, graphics and
 website integration are prepared; authentication, payout setup, provider terms
 and approval are deferred at the owner's request. Keep payment URLs empty and
 resume activation only when requested. Funding is optional for the app release.
 
-## Handoff
+### Handoff after 0.2.0
 
 1. Post from [`Marketing/launch-copy.md`](../Marketing/launch-copy.md); its preview
    links point at the live site. Leave funding placeholders until activation.

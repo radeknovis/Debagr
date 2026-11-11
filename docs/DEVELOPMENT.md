@@ -59,7 +59,8 @@ See [plugin installation and validation](PLUGINS.md) for local testing.
 <details>
 <summary>Menu-bar controls and diagnostics</summary>
 
-Use **Connect/Disconnect Remote Device** to control the managed connection.
+Use **Pause Wireless Connection** and **Resume Wireless Connection** to control
+the managed connection.
 Existing private profiles can be imported. Configuration is stored privately at
 `~/.config/debagr/managed-device.json` and excluded from public CLI results.
 The app owns its relay; CLI invocations use that running connection.

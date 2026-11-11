@@ -2,9 +2,11 @@
 
 The published app is the 0.2.0 technical preview in the public
 [Homebrew tap and releases](https://github.com/radeknovis/homebrew-debagr/releases).
-The source repository is private. Source-branch audit fixes are not yet in that
-published binary. The [compatibility matrix](COMPATIBILITY.md) owns support claims;
-the [release runbook](RELEASE.md) owns signing and release acceptance.
+The source repository is private. 0.3.0 build 5 is prepared in source and is
+not yet tagged, notarized or published; nothing below installs it until the
+runbook's publish step is complete. The [compatibility matrix](COMPATIBILITY.md)
+owns support claims; the [release runbook](RELEASE.md) owns signing and release
+acceptance, and the [shipping status](SHIP_STATUS.md) records what is done.
 
 ## Install and update
 
@@ -19,8 +21,13 @@ The CLI is also inside `Debagr.app/Contents/MacOS/Debagr`; run it as the user wh
 owns the Apple pairing. The app and its bundled instructions do not configure
 SSH, VPN accounts, signing or Apple trust. Follow the [setup guide](../Marketing/site/setup.html).
 
-Homebrew links `debagr` and preserves connection profiles. Uninstalling the app
-does not revoke Apple pairing or uninstall deployed apps. See [privacy and removal](PRIVACY.md).
+Homebrew links `debagr` and preserves connection profiles. From 0.3.0, the
+linked `debagr` finds the app's bundled USBIPProbe helper when it is run through
+that symlink. Uninstalling the app does not revoke Apple pairing or uninstall
+deployed apps. See [privacy and removal](PRIVACY.md).
+
+There is no automatic updater. The upgrade from 0.2.0 to 0.3.0, by DMG or by
+Homebrew, has not been tested; the runbook lists it as a post-notarization check.
 
 ## Release boundaries
 
@@ -30,12 +37,13 @@ Update the public cask only from the final DMG version and checksum. Never use
 GitHub's source archive as the application installer.
 
 Anonymous download and temporary Homebrew install checks were recorded for
-0.2.0. Those historical results do not validate this source branch, a clean Mac,
-a version-to-version upgrade or a new hardware deployment. See the
+0.2.0. Those historical results do not validate 0.3.0, a clean Mac, a
+version-to-version upgrade or a new hardware deployment. See the
 [historical distribution record](DISTRIBUTION_HISTORY.md) and [current audit status](AUDIT_FIXES.md).
-The current source branch has pinned CI tools and automated packaging checks;
-account-bound notarization, clean-Mac acceptance and hardware recovery still
-need their own evidence before publishing an updated binary.
+0.3.0 has pinned CI tools and automated packaging checks. Its notarization has
+not run. The owner waived pre-release hardware acceptance for its known gaps on
+11 November 2026, as for 0.2.0, so 0.3.0 is published with those gaps listed in
+its release notes.
 
 The [free preview licence](EULA.md) permits personal/internal evaluation and
 prohibits redistribution. The [paid terms](PAID_TERMS_DRAFT.md) remain a draft.

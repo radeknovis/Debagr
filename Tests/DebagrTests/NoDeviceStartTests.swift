@@ -131,7 +131,7 @@ final class NoDeviceStartTests: XCTestCase {
     let stale = DiscoveredDebagrPeer(
       peer: remote, address: "10.0.0.2", source: "Test", lastSeen: Date().addingTimeInterval(-30))
     discovery.onChange?([stale], "Unreachable")
-    XCTAssertEqual(remoteList.stringValue, "Device list unavailable — Refresh")
+    XCTAssertEqual(remoteList.stringValue, "Device list unavailable")
     XCTAssertNil(defaults.string(forKey: "usbip-session-request"))
     XCTAssertFalse(
       views.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("PRIVATE-SERIAL") }

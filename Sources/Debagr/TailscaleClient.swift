@@ -197,12 +197,16 @@ final class TailscaleClient {
       let local = status["Self"] as? [String: Any],
       (local["TailscaleIPs"] as? [String])?.contains(localAddress) == true,
       let localID = local["ID"] as? String, !localID.isEmpty,
+      // Same owner only. Tagged devices share one owner ID per tailnet, so tags never qualify.
+      let localUser = local["UserID"] as? Int, localUser != 0,
+      (local["Tags"] as? [Any] ?? []).isEmpty,
       let peers = status["Peer"] as? [String: [String: Any]]
     else { return false }
     let domain =
       "." + suffix.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) + "."
     return peers.values.contains { peer in
       guard let id = peer["ID"] as? String, !id.isEmpty, id != localID,
+        peer["UserID"] as? Int == localUser, (peer["Tags"] as? [Any] ?? []).isEmpty,
         peer["InNetworkMap"] as? Bool == true, peer["Online"] as? Bool == true,
         (peer["TailscaleIPs"] as? [String])?.contains(remoteAddress) == true,
         let dnsName = peer["DNSName"] as? String

@@ -2,7 +2,7 @@
 
 Debagr connects the iPhone in your hand to the Mac that deploys your builds. Setup starts with one decision: reuse that Mac's existing Apple pairing, or create a new pairing through a USB bridge. The interface names the machine responsible for each step and keeps pairing, connectivity, installation, and launch separate.
 
-The source build consolidates the published launch baseline, the Builder/Client USB/IP work, and the illustrated wireless/VirtualHere setup. Initial pairing uses `InitialPairingCoordinator.swift`; everyday wireless setup uses `DeviceSetupWindow.swift` and `ConnectionFlow.swift`. The VirtualHere alternative uses the `USBPairing*` files and `USBProfileTransfer.swift`. These additions are not in the published 0.2.0 release. See [consolidation provenance and validation](CONSOLIDATION.md).
+Debagr 0.3.0 consolidates the 0.2.0 launch baseline, the Builder/Client USB/IP work, and the illustrated wireless/VirtualHere setup. Initial pairing uses `InitialPairingCoordinator.swift`; everyday wireless setup uses `DeviceSetupWindow.swift` and `ConnectionFlow.swift`. The VirtualHere alternative uses the `USBPairing*` files and `USBProfileTransfer.swift`. Both USB paths and two-Mac linking are Experimental in 0.3.0 and have no hardware acceptance for that release. See [consolidation provenance and validation](CONSOLIDATION.md).
 
 ## Roles
 
@@ -17,17 +17,30 @@ The two-column diagram selects a Builder and Client and synchronizes their roles
 
 ## One entry point, separate setup stages
 
-**Set Up Remote Device…** opens initial pairing on a new setup or a Client; a configured Builder opens wireless configuration. The initial-pairing screen preserves clickable Builder/Client cards, device lists, automatic opposite-role selection, signed role synchronization, and the Builder's SIP annotation. Verified Tailscale mesh connections can link Macs without a code; LAN connections retain code confirmation and all saved peer keys remain pinned.
+**Open Debagr**, first run and reopening the app open the existing-pairing form (**Use existing pairing**), unless this Mac has a saved Client role or the USB screen is already selected. The USB paths stay one click away in the path picker and are labelled Experimental: **Initial device pairing** opens the USB/IP Builder/Client screen, and VirtualHere is its alternative. Before the user starts, the USB screen states the requirements: two Macs running Debagr 0.3.0, a separately installed USB tool (a patched Longcable server plus usbip-macos, or VirtualHere), and for USB/IP an administrator password and System Integrity Protection turned off on the Builder.
+
+The initial-pairing screen preserves clickable Builder/Client cards, device lists, automatic opposite-role selection, signed role synchronization, and the Builder's SIP annotation. "SIP off" is shown as a reduced-protection state, not as a good one. Two Macs link without a code only when the Tailscale network map shows that the remote peer is owned by the same Tailscale user as this Mac; tagged devices, other users' devices in a shared tailnet, and LAN connections use the pairing code on both Macs. All saved peer keys remain pinned.
 
 Use **Set up wireless deployment…** after stopping temporary USB. An already paired phone can take this route without running USB/IP. **Use VirtualHere instead…** opens the alternative backend. Switching methods is disabled during the USB/IP session, preparation, or administrator approval; an active VirtualHere session must be stopped before returning to USB/IP. The Client directs the user to continue wireless setup on the Builder.
 
 | Path | Purpose | Requirements and evidence |
 | --- | --- | --- |
 | Existing Apple pairing | Everyday Wi-Fi + VPN deployment through the original Builder | Prior physical install/launch evidence; no second Mac needed for everyday use |
-| USB/IP | Temporary initial-pairing or pairing-refresh setup using the two-Mac diagram | Separately installed Longcable and usbip-macos; admin approval and a successful Builder capability probe; current unentitled importer uses SIP off |
-| VirtualHere + SSH | Alternative temporary USB setup with guided Apple pairing and profile handoff | Separately installed client and licensed loopback-only server, existing SSH access; automated tests only so far |
+| USB/IP (Experimental) | Temporary initial-pairing or pairing-refresh setup using the two-Mac diagram | Two Macs running Debagr 0.3.0; separately installed, locally patched Longcable and usbip-macos; admin approval and a successful Builder capability probe; current unentitled importer uses SIP off; no 0.3.0 hardware acceptance |
+| VirtualHere + SSH (Experimental) | Alternative temporary USB setup with guided Apple pairing and profile handoff | Separately installed client and licensed loopback-only server, existing SSH access; automated tests only so far |
 
 The USB/IP experiment refreshed an existing pairing and was followed by a successful unplugged relay deployment. It did not demonstrate first-ever Apple trust. Neither backend's final integrated UI has fresh physical acceptance. See [USB/IP setup](usbip.md) and [hardware evidence](DIRECT_DEVICE.md).
+
+## Discovery scope and trust
+
+Peer discovery (TCP 49388, Bonjour `_debagr._tcp`) and role sync (TCP 49389, Bonjour `_debagr-role._tcp`) do not start at launch. They run only while the **Initial device pairing** screen is open, or while a Builder or Client role is saved on the Mac. Otherwise there is no listener, no Bonjour advertisement, no five-second process and USB inventory timer, and no tailnet probing. The foreground commands `debagr --usbip discover` and `debagr --usbip advertise` are the exception: each starts both services for as long as it runs.
+
+| Reply field | Sent to |
+| --- | --- |
+| Protocol version, node ID, Mac name, process roles, machine role, paired node ID, role-pairing public key | Any loopback, private-range or CGNAT client, without authentication |
+| SIP status, plugged-in Apple device product names | Loopback, and a connection verified as coming from a device of the same Tailscale user |
+
+The interface treats a missing value as unknown, so a LAN-only peer shows **Device list unavailable** and **Builder SIP status unavailable**. Code-free pairing requires the peer's Tailscale user ID to equal this Mac's own user ID, with both present in the network map. [Security](SECURITY.md) and [privacy](PRIVACY.md) describe the same rules for users.
 
 ## Existing pairing
 
@@ -45,7 +58,7 @@ The result stays in the setup window. A successful readiness check confirms trus
 
 ## New pairing through USB forwarding
 
-The default initial-pairing screen uses USB/IP. Follow [its setup guide](usbip.md) for the Client export, Builder import, Apple Trust prompt, read-only **Check Device**, and explicit Stop controls. To use the alternative described below, choose **Use VirtualHere instead…** on the Builder.
+Both paths in this section are Experimental. The **Initial device pairing** screen uses USB/IP. Follow [its setup guide](usbip.md) for the Client export, Builder import, Apple Trust prompt, read-only **Check Device**, and explicit Stop controls. To use the alternative described below, choose **Use VirtualHere instead…** on the Builder.
 
 ```mermaid
 flowchart LR
@@ -90,7 +103,7 @@ The backend follows the [VirtualHere client API](https://www.virtualhere.com/cli
 
 | State | Meaning and next action |
 | --- | --- |
-| No known device | Connect the iPhone to the build Mac once, or use the new USB pairing workflow |
+| No known device | Connect the iPhone to the build Mac once, or use the Experimental USB pairing workflow |
 | No VPN endpoint | Connect the iPhone and build Mac to the private VPN, then refresh |
 | No wireless service | Capture while nearby or import a matching saved profile |
 | Setup saved | Configuration is stored; readiness is still being checked |
@@ -137,3 +150,90 @@ Current restoration checks and remaining acceptance gaps are recorded in
 Agent tools provides the shared Debagr skill and client installation links.
 Generated deployment prompts and per-device command copying have been removed;
 the skill chooses the appropriate CLI operations from the user's request.
+
+## USB/IP developer notes
+
+These notes were moved out of the user guide ([usbip.md](usbip.md)), which is
+copied into the signed app. They record development state, not user steps.
+
+### Remaining product work
+
+The USB/IP flow starts local transports with administrator approval; it is not
+yet an automatic pairing-refresh workflow. SMAppService registration,
+authenticated helper IPC, automatic readiness verification and detach,
+managed-entitlement provisioning, and a redistribution strategy for the
+backends remain unimplemented. The bundled probe has no managed entitlement and
+must be tested under the intended macOS security policy. The Longcable
+`SET_CONFIGURATION` change exists only as a local patch; it needs to be
+published or upstreamed before the path can leave Experimental.
+
+### Backend locations
+
+Through the 0.2.x source, the backend lookup also tried the owner's personal
+build directories, `~/src/longcable/.build/release/longcable-server` and
+`~/src/usbip-macos/usbip-macos`, before the Homebrew paths. Debagr 0.3.0 looks
+only in `/opt/homebrew/bin` and `/usr/local/bin`, or uses an executable the
+user selected. A development build in another directory must be selected with
+**Set Up USB Support…**.
+
+### Supervisor design
+
+Each Mac starts only its own process. The flow validates reciprocal selections
+and opposite roles before starting, and it sends no USB process controls over
+the role-pairing connection. A transient privileged supervisor owns one
+backend, forwards stop signals, and records failures under
+`~/Library/Application Support/Debagr/USBIPSessions/`. Closing the window or
+quitting the app leaves the transport running. This is not an installed
+SMAppService daemon, and no system security settings are changed. The root
+supervisor acts only on the approved command line, verifies the tool's SHA-256
+and runs a root-owned copy; it has not been run as root on hardware.
+`debagr --usbip probe` and `attach` resolve the Homebrew symlink to find
+`USBIPProbe`.
+
+### Privilege audit, 6 November 2026
+
+Both installed transports still need root: a direct, unprivileged controller
+API call failed even on the SIP-off Builder, and the installed Longcable
+explicitly rejects non-root USB capture. Longcable uses IOUSBHost
+`deviceCapture`, for which Apple requires root or the restricted
+`com.apple.vm.device-access` entitlement plus `IOServiceAuthorize`
+authorization. The Builder's backend documents an Apple-approved
+`com.apple.developer.usb.host-controller-interface` entitlement and granting
+profile as the alternative to its SIP-off/root path. Adding an entitlement to
+an ad-hoc signature is not an Apple grant. Neither installed backend has the
+needed approved entitlement, so capture/import elevation remains in place.
+Discovery, SIP and USB inventory, Mac pairing, and device checks remain
+normal-user operations. No privileged daemon or broader permissions were added.
+
+Sources: [Apple USB capture requirements](https://developer.apple.com/documentation/iousbhost/iousbhostobjectinitoptions/devicecapture),
+[usbip-macos permissions](https://github.com/karstx/usbip-macos#permissions),
+[Apple SIP instructions and risks](https://developer.apple.com/documentation/security/disabling-and-enabling-system-integrity-protection).
+
+### Lab notes
+
+- The experiment recorded in [hardware evidence](DIRECT_DEVICE.md) needed USB
+  configuration 6 before usbmux and NCM became available. The stock Longcable
+  guard accepted only the initially captured configuration; the local patch
+  accepts any nonzero configuration.
+- Longcable persists export locations in
+  `/Library/Application Support/Longcable/targets.json`. Serial selection in
+  Debagr resolves launch arguments, not that backend's persistent storage.
+- Separately running USB/IP servers on online Tailscale peers are recognized
+  by an `OP_REP_DEVLIST` reply on TCP 3240; they do not need a Debagr
+  advertisement. Standalone clients that do not advertise are visible only on
+  their own Mac through process detection, which does not prove a successful
+  USB attachment.
+- The backend replaces the Debagr CLI process for `serve` and `attach`, so
+  Terminal signals and exit codes reach it directly.
+
+### Connection window layout
+
+The two-column Builder/Client diagram is also the machine picker. Each native
+button opens an available-Macs menu and supports keyboard and accessibility
+activation. Return activates Start Setup Connection (or USB support setup),
+then Check Device while importing. Both cards remain visible through pairing
+and connection states; connection actions appear below once the Macs have
+synchronized. The diagram arrow describes the assignments, not USB transport
+or device readiness. Native preview captures use isolated defaults and sample
+device/session data; they do not demonstrate a real USB connection or
+deployment.

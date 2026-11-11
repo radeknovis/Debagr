@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 import ServiceManagement
 
@@ -68,6 +69,9 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
   private let peerDiscovery = DebagrPeerDiscovery()
   private let usbipSession = USBIPSessionController()
   private var initialPairingCoordinator: InitialPairingCoordinator?
+  private var pairingScreenObservers: [AnyCancellable] = []
+  // Tracked here because a hidden or minimised window is still open but not visible.
+  private var setupWindowOpen = false
 
   @objc private func showUSBIPSetup() {
     if let model = setupWindowController?.model, model.isWorking || model.usb.hasSession {
@@ -89,7 +93,15 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
       model.initialPairing = controller.activate(in: window)
       model.usesVirtualHere = false
       model.path = .usb
+      syncPairingScreen()
     }
+  }
+
+  /// Peer discovery follows the Builder/Client screen; a saved role keeps it running by itself.
+  private func syncPairingScreen() {
+    let model = setupWindowController?.model
+    peerDiscovery.setPairingScreenOpen(
+      setupWindowOpen && model?.page == .setup && model?.isInitialPairing == true)
   }
 
   private func showVirtualHereSetup() {
@@ -105,13 +117,9 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
   }
 
   @objc private func showConnectionSetup() {
-    if (try? peerDiscovery.localSelection)?.role == .client
-      || (try? managedRuntime.store.load()) == nil
-    {
-      showUSBIPSetup()
-    } else {
-      configureRemoteDevice()
-    }
+    let start = ConnectionPath.start(
+      role: (try? peerDiscovery.localSelection)?.role, open: setupWindowController?.model.path)
+    if start == .usb { showUSBIPSetup() } else { configureRemoteDevice() }
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -141,7 +149,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     windowItem.submenu = windowMenu
     mainMenu.addItem(windowItem)
     application.mainMenu = mainMenu
-    peerDiscovery.start()
+    peerDiscovery.updateRunning()
 
     let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     statusItem.button?.image = MenuBarIconState.idle.image
@@ -178,13 +186,13 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     statusMenuItem.isEnabled = false
 
     let connect = NSMenuItem(
-      title: "Set Up Remote Device…", action: #selector(openDebagr), keyEquivalent: "")
+      title: "Open Debagr", action: #selector(openDebagr), keyEquivalent: "")
     connect.target = self
     connect.image = menuImage("cable.connector")
     menu.addItem(connect)
     openConnectionItem = connect
     let toggle = NSMenuItem(
-      title: "Connect Remote Device", action: #selector(toggleRemoteDevice), keyEquivalent: "")
+      title: "Resume Wireless Connection", action: #selector(toggleRemoteDevice), keyEquivalent: "")
     toggle.target = self
     toggle.image = menuImage("link")
     menu.addItem(toggle)
@@ -740,12 +748,28 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
       controller.model.onInitialPairing = { [weak self] in self?.showUSBIPSetup() }
       controller.model.onCheckConnection = { [weak self] in self?.refreshManagedDevice() }
       controller.model.onShowSkill = { [weak self] in self?.showDeploymentSkill() }
+      pairingScreenObservers = [
+        // Fires before the new page or path is stored, so read it on the next main turn.
+        controller.model.objectWillChange.sink { [weak self] in
+          DispatchQueue.main.async { self?.syncPairingScreen() }
+        },
+        NotificationCenter.default.publisher(
+          for: NSWindow.willCloseNotification, object: controller.window
+        ).sink { [weak self] _ in
+          MainActor.assumeIsolated {
+            self?.setupWindowOpen = false
+            self?.syncPairingScreen()
+          }
+        },
+      ]
       setupWindowController = controller
     }
     setupWindowController?.model.updateDevices(
       registry.orderedDevices, services: bonjourServices,
       status: failureDetails ?? state.statusTitle)
     setupWindowController?.present(page: page)
+    setupWindowOpen = true
+    syncPairingScreen()
   }
 
   private func presentSetupError(_ error: Error) {
