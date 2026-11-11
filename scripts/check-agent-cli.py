@@ -30,6 +30,11 @@ def main():
     assert mcp.returncode == 0 and len(replies) == 2
     assert len(replies[1]["result"]["tools"]) == 6
     print("MCP initialization and tools/list passed")
+    # A cold CoreDevice service on a hosted runner can exceed the CLI's 10-second inventory deadline.
+    try:
+        subprocess.run(["/usr/bin/xcrun", "devicectl", "list", "devices"], capture_output=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print("CoreDevice warm-up unavailable:", str(error), flush=True)
     for arguments, expected in cases:
         result = subprocess.run([binary, *arguments], capture_output=True, text=True, timeout=20)
         output = json.loads(result.stdout)
