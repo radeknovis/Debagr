@@ -92,7 +92,8 @@ struct USBIPCommand {
     }
     let required: Set<String>
     switch action {
-    case "run-session", "stop-session": required = ["--request"]
+    case "run-session": required = ["--session", "--approved"]
+    case "stop-session": required = ["--session"]
     case "list": required = ["--tool", "--remote"]
     case "attach": required = ["--tool", "--remote", "--busid"]
     case "serve": required = ["--tool", "--listen", "--peer", "--serial"]
@@ -155,17 +156,26 @@ struct USBIPCommand {
     }
   }
 
-  static var probeURL: URL {
-    URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+  /// Homebrew links Debagr.app/Contents/MacOS/Debagr as "debagr"; the helper sits beside the
+  /// real file, not beside the link.
+  static func probeURL(executable: URL? = Bundle.main.executableURL) -> URL {
+    (executable ?? URL(fileURLWithPath: CommandLine.arguments[0])).resolvingSymlinksInPath()
       .deletingLastPathComponent().appendingPathComponent("USBIPProbe")
+  }
+
+  static func missingTool(_ path: String, action: String) -> String {
+    let name = action == "serve" ? "the patched longcable-server" : "usbip-macos"
+    return
+      "USB tool not found at \(path). Install \(name), for example in /opt/homebrew/bin or /usr/local/bin, then pass its absolute path with --tool or choose it with Set Up USB Support… in Debagr."
   }
 
   func run() throws {
     switch action {
     case "run-session":
-      try USBIPSessionSupervisor.run(requestURL: URL(fileURLWithPath: values["--request"]!))
+      try USBIPSessionSupervisor.run(
+        sessionURL: URL(fileURLWithPath: values["--session"]!), approved: values["--approved"]!)
     case "stop-session":
-      try USBIPSessionSupervisor.stop(requestURL: URL(fileURLWithPath: values["--request"]!))
+      try USBIPSessionSupervisor.stop(sessionURL: URL(fileURLWithPath: values["--session"]!))
     case "help": print(Self.help)
     case "discover", "advertise":
       let discovery = DebagrPeerDiscovery()
@@ -192,8 +202,12 @@ struct USBIPCommand {
     case "devices":
       let data = try JSONEncoder().encode(USBIPDevice.connected())
       print(String(decoding: data, as: UTF8.self))
-    case "probe": try Self.replaceProcess(path: Self.probeURL.path, arguments: [])
+    case "probe": try Self.replaceProcess(path: Self.probeURL().path, arguments: [])
     default:
+      let tool = values["--tool"]!
+      guard FileManager.default.isExecutableFile(atPath: tool) else {
+        throw USBIPError.invalid(Self.missingTool(tool, action: action))
+      }
       if action == "attach" || action == "serve" {
         guard geteuid() == 0 else {
           throw USBIPError.invalid(
@@ -202,7 +216,7 @@ struct USBIPCommand {
       }
       if action == "attach" {
         let probe = Process()
-        probe.executableURL = Self.probeURL
+        probe.executableURL = Self.probeURL()
         // Keep the capability result on stderr; stdout belongs to the backend.
         probe.standardOutput = FileHandle.standardError
         try probe.run()
@@ -218,7 +232,7 @@ struct USBIPCommand {
         ? try Data(contentsOf: catalogURL) : nil
       let arguments = try backendArguments(
         devices: action == "serve" ? USBIPDevice.connected() : [], savedExports: savedExports)
-      try Self.replaceProcess(path: values["--tool"]!, arguments: arguments)
+      try Self.replaceProcess(path: tool, arguments: arguments)
     }
   }
 
@@ -242,12 +256,12 @@ struct USBIPCommand {
       sudo debagr --usbip probe
       debagr --usbip list --tool /absolute/path/usbip-macos --remote <VPN-IPv4>
       sudo debagr --usbip attach --tool /absolute/path/usbip-macos --remote <VPN-IPv4> --busid <ID-from-list>
-      sudo debagr --usbip serve --tool /absolute/path/longcable-server --listen <local-VPN-IPv4> --peer <client-VPN-IPv4> --serial <USB-serial>
+      sudo debagr --usbip serve --tool /absolute/path/longcable-server --listen <local-VPN-IPv4> --peer <Builder-VPN-IPv4> --serial <USB-serial>
 
-    Install the backends separately. The server requires the SET_CONFIGURATION fix.
+    Install the backends separately. The longcable-server build requires the SET_CONFIGURATION fix.
     Both run in the foreground; Ctrl-C detaches/releases the device.
     USB/IP has no encryption: use VPN addresses and a peer restricted by your VPN ACL.
-    The client capability probe requires root and does not prove device readiness.
+    The Builder capability probe requires root and does not prove device readiness.
     After attaching, verify wired/connected CoreDevice transport and --status.
     """
 }

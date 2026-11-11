@@ -33,6 +33,6 @@
     <string>_debagr-role._tcp</string>
   </array>
   <key>NSLocalNetworkUsageDescription</key>
-  <string>Debagr discovers Target Devices and running Debagr clients and servers on your private network.</string>
+  <string>Debagr discovers Target Devices and other Macs running Debagr as Builder or Client on your private network.</string>
 </dict>
 </plist>

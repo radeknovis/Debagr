@@ -47,7 +47,8 @@ enum DeviceDiagnostics {
     {
       checks["relayEnabled"] = [
         "status": configured.enabled ? "passed" : "failed",
-        "message": configured.enabled ? "Remote relay enabled" : "Connect Remote Device in Debagr",
+        "message": configured.enabled
+          ? "Remote relay enabled" : "Choose Resume Wireless Connection in the Debagr menu",
       ]
       record("vpnPeer") {
         _ = try provider.resolvePeer(configured.peerName)

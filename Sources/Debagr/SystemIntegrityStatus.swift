@@ -39,7 +39,7 @@ enum SystemIntegrityStatus: String, Codable {
 
   var annotation: String {
     switch self {
-    case .disabled: return "SIP off · experimental Builder path"
+    case .disabled: return "SIP off · protection reduced"
     case .enabled: return "SIP on · Builder access restricted"
     case .custom: return "SIP customized · check Builder access"
     case .unknown: return "Builder SIP status unavailable"
@@ -50,7 +50,7 @@ enum SystemIntegrityStatus: String, Codable {
     switch self {
     case .disabled:
       return
-        "SIP is disabled on the Builder, enabling the current experimental root-based USB import path. System protections are reduced. USB capability is checked separately when connecting."
+        "SIP is disabled on the Builder. This is required by the current experimental Builder path, a root-based USB import. System protections are reduced while SIP stays off. USB capability is checked separately when connecting."
     case .enabled:
       return
         "SIP protects this Builder. The current backend needs an Apple-approved host-controller entitlement, or the experimental SIP-off plus root path. This Debagr build has no such entitlement."
@@ -59,14 +59,14 @@ enum SystemIntegrityStatus: String, Codable {
         "The Builder has a custom SIP configuration. Some protections remain enabled. The actual USB controller probe determines whether this backend can import a device."
     case .unknown:
       return
-        "No recent SIP result is available for the Builder. Open the latest Debagr there and Refresh. SIP status alone never proves USB access."
+        "No SIP result is available for the Builder. It is sent only between Macs of the same Tailscale user; otherwise run csrutil status on the Builder. SIP status alone never proves USB access."
     }
   }
 
   static let setupExplanation = """
     The Builder creates a virtual USB host controller. The installed usbip-macos backend supports an Apple-approved com.apple.developer.usb.host-controller-interface entitlement with a granting provisioning profile, or its experimental SIP-off plus root path. This build does not have that entitlement. The Client exports physical USB and does not need SIP disabled.
 
-    Disabling SIP reduces system-wide protection. Green describes compatibility with this experimental backend; the actual USB capability probe still runs when connecting. Apple recommends disabling SIP only temporarily for development.
+    Disabling SIP reduces system-wide protection. "SIP off" means only that this experimental backend can try to run; the actual USB capability probe still runs when connecting. Apple recommends disabling SIP only temporarily for development.
 
     If you choose the experimental path, change SIP on the Builder only:
     • Apple silicon: shut down, hold the power button until startup options appear, then select Options → Continue.

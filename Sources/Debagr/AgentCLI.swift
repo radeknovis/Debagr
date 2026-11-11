@@ -174,7 +174,7 @@ enum AgentCLI {
     case DeviceDeploymentError.installationTimedOut:
       code = "installation_timed_out"
       recovery =
-        "Installation outcome is unknown. Inspect installed apps with devicectl before retrying."
+        "Installation outcome is unknown. Run --installed-apps --device <UDID> --json before retrying."
     case DeviceDeploymentError.appleError:
       code =
         operation == "deploy"
@@ -197,7 +197,8 @@ enum AgentCLI {
     case DeviceDeploymentError.launchFailed(let identifier):
       code = "launch_failed"
       message = error.localizedDescription
-      recovery = "Installation succeeded. Unlock the device and retry launch only using devicectl."
+      recovery =
+        "Installation succeeded. Unlock the device and retry launch only with --launch-app <bundleID> --device <UDID> --json."
       installed = true
       bundleIdentifier = identifier
     case DeviceDeploymentError.deviceLocked:

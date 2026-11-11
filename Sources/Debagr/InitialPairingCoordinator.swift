@@ -629,10 +629,8 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
     builderSIPAnnotation.toolTip =
       builderSIPStatus.explanation + " Click for requirements and Recovery instructions."
     builderSIPAnnotation.setAccessibilityValue(builderSIPStatus.explanation)
-    let sipTint: NSColor =
-      builderSIPStatus == .disabled
-      ? .systemGreen
-      : builderSIPStatus == .unknown ? .secondaryLabelColor : .systemOrange
+    // SIP off lets the experimental path run but weakens the Builder, so no state is shown as good.
+    let sipTint: NSColor = builderSIPStatus == .unknown ? .secondaryLabelColor : .systemOrange
     builderSIPAnnotation.contentTintColor = sipTint
     builderSIPAnnotation.layer?.backgroundColor = sipTint.withAlphaComponent(0.10).cgColor
     pairedBadge.isHidden = !confirmed
@@ -742,7 +740,7 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
   private func setDeviceSummary(_ label: NSTextField, names: [String]?, hasMac: Bool) {
     guard let names else {
       label.stringValue =
-        hasMac ? "Device list unavailable — Refresh" : "Choose a Mac to see devices"
+        hasMac ? "Device list unavailable" : "Choose a Mac to see devices"
       label.textColor = .secondaryLabelColor
       return
     }

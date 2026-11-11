@@ -171,9 +171,12 @@ final class RoleSyncTests: XCTestCase {
     let sentCode = LockedValue("")
     a.canChangeRoles = { true }
     b.canChangeRoles = { true }
-    a.approvePair = { _, _, _, complete in
-      XCTFail("The already paired Mac should not prompt again")
-      complete(false)
+    let initiatorApprovals = LockedValue(0)
+    a.approvePair = { _, code, role, complete in
+      initiatorApprovals.withValue { $0 += 1 }
+      XCTAssertEqual(code, receivedCode.get(), "Both Macs must show the same code")
+      XCTAssertEqual(role, .builder)
+      complete(true)
     }
     b.approvePair = { _, code, role, complete in
       approvals.withValue { $0 += 1 }
@@ -218,6 +221,7 @@ final class RoleSyncTests: XCTestCase {
     wait(for: [first], timeout: 5)
     XCTAssertTrue(sentCode.get().contains(receivedCode.get()))
     XCTAssertEqual(approvals.get(), 1)
+    XCTAssertEqual(initiatorApprovals.get(), 1)
     XCTAssertEqual(try MachineRoleStore(defaults: aDefaults).load()?.role, .builder)
     XCTAssertEqual(try MachineRoleStore(defaults: bDefaults).load()?.role, .client)
     let swapped = expectation(description: "swapped from B")
@@ -271,6 +275,46 @@ final class RoleSyncTests: XCTestCase {
     }
     wait(for: [rejected], timeout: 5)
     XCTAssertEqual(approvals.get(), 1)
+    XCTAssertEqual(initiatorApprovals.get(), 1, "A pinned pair must not be asked again")
+  }
+
+  func testInitiatorMustConfirmTheCodeBeforeTrustingAnAcceptingPeer() throws {
+    let aDefaults = defaults()
+    let a = try RoleSyncService(
+      local: RoleSyncNode(id: "A", name: "Air"), defaults: aDefaults,
+      keyURL: folder.appendingPathComponent("a"))
+    let b = try RoleSyncService(
+      local: RoleSyncNode(id: "B", name: "Mini"), defaults: defaults(),
+      keyURL: folder.appendingPathComponent("b"))
+    defer {
+      a.stop()
+      b.stop()
+    }
+    // B stands for a device that accepts every request without showing anything.
+    b.canChangeRoles = { true }
+    b.approvePair = { _, _, _, complete in complete(true) }
+    a.approvePair = { _, _, _, complete in complete(false) }
+    let ready = expectation(description: "ready")
+    let port = LockedValue<NWEndpoint.Port?>(nil)
+    b.start(port: .any) {
+      port.set($0)
+      ready.fulfill()
+    }
+    wait(for: [ready], timeout: 5)
+    var peer = DebagrPeer(protocolVersion: 1, nodeID: "B", name: "Mini", roles: ["app"])
+    peer.roleSyncPublicKey = b.identity.publicKey.base64EncodedString()
+    let cancelled = expectation(description: "cancelled on the initiating Mac")
+    a.assign(
+      role: .builder, peer: peer,
+      endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(port.get())),
+      progress: { _ in },
+      completion: { result in
+        if case .success = result { XCTFail("An unconfirmed code must not pair") }
+        cancelled.fulfill()
+      })
+    wait(for: [cancelled], timeout: 5)
+    XCTAssertNil(try MachineRoleStore(defaults: aDefaults).load())
+    XCTAssertNil(aDefaults.dictionary(forKey: "role-sync-trusted-keys")?["B"], "No key pinned")
   }
 
   func testDeclinedPairingDoesNotSaveEitherRole() throws {
@@ -309,5 +353,45 @@ final class RoleSyncTests: XCTestCase {
     wait(for: [declined], timeout: 5)
     XCTAssertNil(try MachineRoleStore(defaults: aDefaults).load())
     XCTAssertNil(try MachineRoleStore(defaults: bDefaults).load())
+  }
+
+  func testStoppingReportsAPendingPairingAsFailedInsteadOfLeavingItWaiting() throws {
+    let aDefaults = defaults()
+    let a = try RoleSyncService(
+      local: RoleSyncNode(id: "A", name: "Air"), defaults: aDefaults,
+      keyURL: folder.appendingPathComponent("a"))
+    let b = try RoleSyncService(
+      local: RoleSyncNode(id: "B", name: "Mini"), defaults: defaults(),
+      keyURL: folder.appendingPathComponent("b"))
+    defer {
+      a.stop()
+      b.stop()
+    }
+    let asked = expectation(description: "approval requested and left unanswered")
+    b.canChangeRoles = { true }
+    b.approvePair = { _, _, _, _ in asked.fulfill() }
+    let ready = expectation(description: "ready")
+    let port = LockedValue<NWEndpoint.Port?>(nil)
+    b.start(port: .any) {
+      port.set($0)
+      ready.fulfill()
+    }
+    wait(for: [ready], timeout: 5)
+    var peer = DebagrPeer(protocolVersion: 1, nodeID: "B", name: "Mini", roles: ["app"])
+    peer.roleSyncPublicKey = b.identity.publicKey.base64EncodedString()
+    let failed = expectation(description: "pending pairing failed")
+    a.assign(
+      role: .builder, peer: peer,
+      endpoint: .hostPort(host: "127.0.0.1", port: try XCTUnwrap(port.get())),
+      progress: { _ in },
+      completion: { result in
+        if case .success = result { XCTFail("A stopped pairing must not succeed") }
+        failed.fulfill()
+      })
+    wait(for: [asked], timeout: 5)
+    // Closing the pairing screen stops the service while the other Mac still shows its prompt.
+    a.stop()
+    wait(for: [failed], timeout: 5)
+    XCTAssertNil(try MachineRoleStore(defaults: aDefaults).load())
   }
 }

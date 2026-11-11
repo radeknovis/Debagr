@@ -39,4 +39,31 @@ final class ConnectionPresentationTests: XCTestCase {
       ConnectionDiagram(path: .existing).topologyDescription.contains("No Client Mac is required"))
   }
 
+  func testFirstRunWithoutASavedDeviceOpensTheExistingPairingForm() {
+    XCTAssertEqual(ConnectionPath.start(role: nil, open: nil), .existing)
+    XCTAssertEqual(ConnectionPath.start(role: .builder, open: nil), .existing)
+    XCTAssertEqual(ConnectionPath.start(role: nil, open: .existing), .existing)
+    XCTAssertEqual(
+      ConnectionPath.start(role: .client, open: nil), .usb,
+      "A Client Mac keeps opening the USB screen")
+    XCTAssertEqual(
+      ConnectionPath.start(role: nil, open: .usb), .usb, "An open USB screen is not replaced")
+    let model = DeviceSetupModel(configured: nil)
+    XCTAssertEqual(model.path, .existing)
+    XCTAssertFalse(model.isInitialPairing)
+  }
+
+  func testUSBPathIsLabelledExperimentalAndStatesItsRequirements() {
+    XCTAssertEqual(ConnectionPath.experimentalLabel, "Experimental")
+    XCTAssertTrue(ConnectionPath.usb.accessibilityLabel.contains("Experimental"))
+    XCTAssertFalse(ConnectionPath.existing.accessibilityLabel.contains("Experimental"))
+    for requirement in [
+      "two Macs running Debagr", "separately installed USB tool", "Longcable", "usbip-macos",
+      "VirtualHere", "administrator password",
+      "System Integrity Protection turned off on the Builder",
+    ] {
+      XCTAssertTrue(ConnectionPath.usbRequirements.contains(requirement), requirement)
+    }
+  }
+
 }

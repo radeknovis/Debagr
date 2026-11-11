@@ -23,6 +23,14 @@ final class MachineRoleWindowTests: XCTestCase {
     func descendants(_ view: NSView) -> [NSView] {
       [view] + ((view as? NSStackView)?.views ?? view.subviews).flatMap { descendants($0) }
     }
+    // Results arrive asynchronously; a fixed delay is too short on a loaded machine.
+    @MainActor
+    func wait(until condition: () -> Bool) {
+      let deadline = Date().addingTimeInterval(5)
+      while !condition(), Date() < deadline {
+        RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+      }
+    }
     let views = descendants(try XCTUnwrap(window.contentView))
     let remote = DebagrPeer(
       protocolVersion: 1, nodeID: "other", name: "MacBook Air", roles: ["app"])
@@ -31,7 +39,9 @@ final class MachineRoleWindowTests: XCTestCase {
     let choice = try XCTUnwrap(
       controller.machineMenu(for: .client).items.first { $0.title == "MacBook Air" })
     NSApp.sendAction(try XCTUnwrap(choice.action), to: choice.target, from: choice)
-    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+    wait {
+      views.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Update Debagr") }
+    }
     XCTAssertNil(try discovery.localSelection)
     XCTAssertTrue(
       views.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Update Debagr") })
@@ -45,18 +55,18 @@ final class MachineRoleWindowTests: XCTestCase {
     let swap = try XCTUnwrap(
       controller.machineMenu(for: .builder).items.first { $0.title == "MacBook Air" })
     NSApp.sendAction(try XCTUnwrap(swap.action), to: swap.target, from: swap)
-    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-    XCTAssertEqual(
-      try discovery.localSelection, saved, "A failed direct choice must keep the working pair")
     let builder = try XCTUnwrap(
       views.compactMap { $0 as? NSButton }.first {
         $0.accessibilityIdentifier() == "builderMacPicker"
       })
+    wait { (builder.accessibilityValue() as? String)?.contains("this Mac") == true }
+    XCTAssertEqual(
+      try discovery.localSelection, saved, "A failed direct choice must keep the working pair")
     XCTAssertTrue((builder.accessibilityValue() as? String)?.contains("this Mac") == true)
     let clear = try XCTUnwrap(
       views.compactMap { $0 as? NSButton }.first { $0.title == "Unpair This Mac" })
     clear.performClick(nil)
-    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+    wait { (try? discovery.localSelection) == nil }
     XCTAssertNil(try discovery.localSelection)
     session.onChange?("Old USB failure that belongs to the previous pair", false)
     XCTAssertFalse(

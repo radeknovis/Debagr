@@ -43,7 +43,43 @@ final class USBIPTests: XCTestCase {
       ["list", "--tool", "/tool", "--remote", "10.0.0.2", "--remote", "10.0.0.3"],
       ["attach", "--tool", "/tool", "--remote", "10.0.0.2", "--busid", "--help"],
       ["attach", "--tool", "/tool", "--remote", "10.0.0.2", "--busid", "1-1; id"],
+      ["run-session", "--request", "/tmp/session/request.json"],
+      ["run-session", "--session", "/tmp/session"],
+      ["stop-session", "--session", "/tmp/session", "--approved", "e30="],
     ] { XCTAssertThrowsError(try USBIPCommand(arguments), "\(arguments)") }
+  }
+
+  func testProbeHelperIsFoundBesideTheRealExecutableBehindALink() throws {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "ProbeLink-\(UUID().uuidString)")
+    let bundle = folder.appendingPathComponent("Debagr.app/Contents/MacOS")
+    let bin = folder.appendingPathComponent("bin")
+    for directory in [bundle, bin] {
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let executable = bundle.appendingPathComponent("Debagr")
+    try Data().write(to: executable)
+    let link = bin.appendingPathComponent("debagr")
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: executable)
+    let helper = bundle.resolvingSymlinksInPath().appendingPathComponent("USBIPProbe").path
+    XCTAssertEqual(USBIPCommand.probeURL(executable: link).path, helper)
+    XCTAssertEqual(USBIPCommand.probeURL(executable: executable).path, helper)
+  }
+
+  func testMissingToolErrorSaysWhatToInstallOrSelect() throws {
+    let list = try USBIPCommand([
+      "list", "--tool", "/nonexistent/usbip-macos", "--remote", "10.0.0.2",
+    ])
+    XCTAssertThrowsError(try list.run()) { error in
+      let message = error.localizedDescription
+      XCTAssertTrue(message.contains("/nonexistent/usbip-macos"), message)
+      XCTAssertTrue(message.contains("Install usbip-macos"), message)
+      XCTAssertTrue(message.contains("/opt/homebrew/bin or /usr/local/bin"), message)
+      XCTAssertTrue(message.contains("--tool"), message)
+    }
+    XCTAssertTrue(
+      USBIPCommand.missingTool("/x", action: "serve").contains("patched longcable-server"))
   }
 
   func testServerResolvesSerialAtCurrentLocationAndRejectsMissingOrDuplicateDevice() throws {

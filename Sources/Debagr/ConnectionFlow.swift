@@ -9,6 +9,33 @@ enum ConnectionPath: String, CaseIterable, Identifiable {
       ? "Your Builder already knows this device." : "Forward USB from a Mac near your iPhone."
   }
   var symbol: String { self == .existing ? "link" : "cable.connector" }
+
+  /// The USB path covers both USB/IP and VirtualHere; neither has hardware acceptance yet.
+  static let experimentalLabel = "Experimental"
+  var accessibilityLabel: String {
+    "\(title), \(self == .existing ? "everyday" : "\(Self.experimentalLabel), one-time setup"). \(subtitle)"
+  }
+
+  /// Shown on both USB screens above the primary action.
+  static var usbRequirements: String {
+    "Requires two Macs running Debagr \(ProductSupport.version) and a separately installed USB tool (a patched Longcable server plus usbip-macos, or VirtualHere). USB/IP also requires an administrator password on both Macs and System Integrity Protection turned off on the Builder, which reduces that Mac's protection."
+  }
+
+  /// Where first run and reopening the app land. A saved device does not matter: a new user
+  /// starts on the existing-pairing form. Only a Client Mac or an open USB screen stays on USB.
+  static func start(role: DebagrMachineRole?, open: ConnectionPath?) -> Self {
+    role == .client || open == .usb ? .usb : .existing
+  }
+}
+
+struct ExperimentalBadge: View {
+  var body: some View {
+    Text(ConnectionPath.experimentalLabel)
+      .font(.system(size: 9, weight: .semibold))
+      .foregroundStyle(Color.primary)
+      .padding(.horizontal, 6).padding(.vertical, 2)
+      .background(Color.orange.opacity(0.25), in: Capsule())
+  }
 }
 
 enum ConnectionStep: Int, CaseIterable, Identifiable {
@@ -68,6 +95,7 @@ struct ConnectionPathPicker: View {
               Spacer()
               Text(path == .existing ? "EVERYDAY" : "ONE-TIME SETUP")
                 .font(.system(size: 9, weight: .semibold)).tracking(0.6)
+              if path == .usb { ExperimentalBadge() }
             }
             Text(path.title).font(.headline)
             Text(path.subtitle).font(.caption).foregroundStyle(.secondary)
@@ -90,6 +118,7 @@ struct ConnectionPathPicker: View {
               .allowsHitTesting(false))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(path.accessibilityLabel)
         .accessibilityAddTraits(selection == path ? .isSelected : [])
       }
     }
