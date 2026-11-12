@@ -1,8 +1,7 @@
 # Debagr launch copy
 
 Prepared for the technical preview. 0.2.0 was published on 4 November 2026.
-0.3.0 is prepared and not yet published, so the site and its download still
-serve 0.2.0. Preview links point at https://radeknovis.github.io/debagr-site/.
+0.3.0 was published on 12 November 2026. Preview links point at https://radeknovis.github.io/debagr-site/.
 Funding links stay bracketed until activation; never post these drafts with
 placeholder links.
 
@@ -57,9 +56,6 @@ Preview and setup: https://radeknovis.github.io/debagr-site/
 Optional support for testing and compatibility work: [Verified funding link]
 
 ## 0.3.0 update post
-
-Do not post this before 0.3.0 is published; the publish step is in
-[`../docs/RELEASE.md`](../docs/RELEASE.md).
 
 Debagr 0.3.0 technical preview is out.
 
@@ -134,7 +130,7 @@ they are not a new recording of a successful hardware deployment.
 
 Use: paired Mac, private VPN, separate Wi-Fi networks, signed device builds,
 structured JSON, prior Tailscale/iPhone evidence, technical preview, notarized
-download and Homebrew install (for 0.3.0 only after it is published). For
+download and Homebrew install. For
 0.3.0 the hardware evidence is one remote iPhone install and OS-confirmed
 launch over Tailscale on 10 November 2026, with a pre-release build.
 

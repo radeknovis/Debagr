@@ -1,10 +1,6 @@
 # Debagr launch kit
 
-Prepared 22 October 2026 for the **0.2.0 technical preview**, published
-4 November 2026. On 11 November 2026 the release notes and launch copy were
-prepared for **0.3.0**, which is not yet published; the site and its download
-link stay on 0.2.0 until the publish step in
-[`../docs/RELEASE.md`](../docs/RELEASE.md). Open `index.html` for the local
+The 0.3.0 technical preview was published 12 November 2026. Open `index.html` for the local
 gallery. Status and remaining gaps are in
 [`../docs/SHIP_STATUS.md`](../docs/SHIP_STATUS.md).
 
@@ -33,7 +29,7 @@ hardware deployment. The shipped app has no demo mode or fixture code.
 
 The website deliberately has no checkout, hard-coded subscription price,
 unverified payment destination, or invented success state. The download link
-points at the published 0.2.0 DMG until 0.3.0 is published; funding links stay in preparation until
+points at the published 0.3.0 DMG; funding links stay in preparation until
 verified HTTPS URLs are supplied in `site/config.js`. All runtime resources are local; the page has no tracker,
 external font, signup form, or dependency on a frontend build system.
 

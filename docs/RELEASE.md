@@ -1,9 +1,8 @@
 # Debagr release runbook
 
-Updated 11 November 2026. The release in preparation is **0.3.0, build 5**, a
+Updated 12 November 2026. **0.3.0, build 5** is published as a
 technical preview for Apple silicon. Managed remote deployment requires macOS 26
-or later on the Mac. It is prepared, not tagged, not notarized and not
-published; the published version is still 0.2.0 build 2. See
+or later on the Mac. See
 [SHIP_STATUS.md](SHIP_STATUS.md) for what is done and what remains.
 
 The order is: pre-tag checklist, tag, release run, post-notarization
@@ -24,7 +23,7 @@ Release 0.2.0, build 2 was signed with
 23 October 2026. Apple accepted both the app and DMG submissions without
 issues, both tickets were stapled and validated, and both Gatekeeper assessments
 reported Notarized Developer ID. Release 0.3.0, build 5 uses the same identity
-and notarization profile and has not been built yet. CI signing remains optional.
+and notarization profile; both app and DMG were accepted on 12 November 2026. CI signing remains optional.
 
 The owner accepted the updated Program License Agreement on 22 October 2026.
 Xcode's creation menu was disabled, so the certificate was created with Keychain

@@ -1,9 +1,7 @@
 # Debagr 0.3.0 shipping status
 
-Updated 11 November 2026. **0.3.0 build 5 is prepared, not tagged, not
-notarized and not published.** The published version is still 0.2.0 build 2;
-its record is kept below as history. The [release runbook](RELEASE.md) owns the
-steps from here to publication.
+Updated 12 November 2026. **0.3.0 build 5 is published** as a technical preview.
+The 0.2.0 record is retained below as history.
 
 ## Release identity
 
@@ -11,7 +9,7 @@ steps from here to publication.
 | --- | --- |
 | Version and build | 0.3.0, build 5 |
 | Channel | Technical preview, Apple silicon |
-| Signing | Developer ID signed and notarized by `scripts/release-macos-app.sh`; the script has not been run for this build |
+| Signing | Developer ID signed, notarized, stapled and Gatekeeper accepted |
 | Licence | Free personal and internal evaluation, no redistribution; paid terms remain a draft |
 | Requirement | Managed remote deployment needs macOS 26 or later on the Mac |
 | Publisher | Radek Novak (`XBSPGPE6R6`); certificate and notarization profile stay in the local login Keychain |
@@ -35,20 +33,9 @@ every earlier candidate.
 | Release documents | [Release notes](../Marketing/release-notes.md), [changelog](../CHANGELOG.md) and runbook written for 0.3.0 build 5 |
 | Waiver | On 11 November 2026 the owner waived pre-release hardware acceptance for the known gaps below, as for 0.2.0 |
 
-## Remaining before publication
+## Publication record
 
-1. Pre-tag checklist: green CI on the exact release commit and the local checks
-   on an idle release Mac. The marketing screenshots are recaptured; capture
-   them again only if `Sources/Debagr/DeviceSetupWindow.swift` changes.
-2. Tag `v0.3.0`.
-3. Release run for build 5. This is the first notarization of a bundle that
-   contains the USBIPProbe helper.
-4. Post-notarization acceptance: notary log review, local DMG check, clean Mac,
-   offline first launch, Homebrew install and the 0.2.0 to 0.3.0 upgrade.
-5. Publish: tap release and cask, the tap's `README.md` and `SECURITY.md`, the
-   site text and `DEBAGR_DOWNLOAD_URL`, then the publication record in this file.
-
-Until step 5, the site, the cask and every download link stay on 0.2.0.
+Published 12 November 2026 from source tag `v0.3.0` at `b0b0cae`. CI passed on the exact commit. App and DMG notarization were accepted without issues, tickets stapled and validated, and Gatekeeper accepted both. USBIPProbe signature, timestamp and hardened runtime passed. The DMG checksum, mounted copy, CLI inventory, and authenticated draft asset downloads were verified. The owner waived the hardware gaps below.
 
 ## Known gaps for 0.3.0
 

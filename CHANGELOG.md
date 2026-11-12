@@ -2,8 +2,7 @@
 
 ## 0.3.0 — Technical preview
 
-Build 5, Apple silicon. Unreleased until published; the published version
-remains 0.2.0 until then.
+Build 5, Apple silicon. Published 12 November 2026.
 
 Audit fixes:
 
