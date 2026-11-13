@@ -1,5 +1,8 @@
 # macOS app lifecycle, distribution, and helper boundary
 
+> Historical research from 29 August 2026, preserved during branch consolidation.
+> Repository observations and proposed decisions describe the proof of concept at that time; they are not current implementation or support claims. Current deployment follows [paired-host execution](../adr/0001-paired-host-execution.md), which rejects cross-Mac RemotePairing projection. See [current ship status](../SHIP_STATUS.md) and [connection design](../CONNECTION_DESIGN.md). External sources have not been revalidated for this merge.
+
 Research date: 2026-08-29
 
 Context pointer: [Research signed macOS app, helper, and launch-at-login constraints](https://github.com/radeknovis/Debagr/issues/4)
@@ -21,13 +24,13 @@ This is an inference from the cited Apple constraints and the current repository
 
 ## Current repository evidence
 
-- [`Package.swift`](../../Package.swift) is a SwiftPM executable package with a macOS 13 deployment declaration; it has no app bundle, `Info.plist`, menu-bar target, launch-item declaration, entitlements, signing configuration, or notarization workflow.
-- [`README.md`](../../README.md) describes a CLI proof of concept. It explicitly says UI, multiple devices, and automatic port/configuration behavior are outside the MVP.
-- [`main.swift`](../../Sources/NuticastPOC/main.swift) owns the relay/proxy/browser/tunnel lifecycle and stops them in a deliberate order. It also handles `SIGINT`, `SIGTERM`, `SIGHUP`, and `atexit`.
-- [`ProcessSupport.swift`](../../Sources/NuticastPOC/ProcessSupport.swift) creates `Process` instances with an executable URL and argument array, never a shell command. `OwnedLineProcess` retains the child, calls `terminate()`, and has a PID-scoped `SIGKILL` fallback after a short grace period.
-- [`BonjourProxy.swift`](../../Sources/NuticastPOC/BonjourProxy.swift) owns a separate `dns-sd` process and applies the same cooperative-then-narrow-forced shutdown pattern.
-- [`TunnelPortWatcher.swift`](../../Sources/NuticastPOC/TunnelPortWatcher.swift) owns `/usr/bin/log stream`; the application stops that watcher before closing the proxy and relay resources.
-- [`DeviceProfile.swift`](../../Sources/NuticastPOC/DeviceProfile.swift) persists user-scoped configuration under `~/.config/nuticast-poc`, creating the directory with mode `0700` and the file with mode `0600`. That is suitable evidence for a user-session design, not a reason to introduce a system daemon.
+- [`Package.swift`](https://github.com/radeknovis/Debagr/blob/a3e6374749345051f21e5e217fff474d9095e1db/Package.swift) is a SwiftPM executable package with a macOS 13 deployment declaration; it has no app bundle, `Info.plist`, menu-bar target, launch-item declaration, entitlements, signing configuration, or notarization workflow.
+- [`README.md`](https://github.com/radeknovis/Debagr/blob/a3e6374749345051f21e5e217fff474d9095e1db/README.md) describes a CLI proof of concept. It explicitly says UI, multiple devices, and automatic port/configuration behavior are outside the MVP.
+- [`main.swift`](https://github.com/radeknovis/Debagr/blob/a3e6374749345051f21e5e217fff474d9095e1db/Sources/NuticastPOC/main.swift) owns the relay/proxy/browser/tunnel lifecycle and stops them in a deliberate order. It also handles `SIGINT`, `SIGTERM`, `SIGHUP`, and `atexit`.
+- [`ProcessSupport.swift`](https://github.com/radeknovis/Debagr/blob/a3e6374749345051f21e5e217fff474d9095e1db/Sources/NuticastPOC/ProcessSupport.swift) creates `Process` instances with an executable URL and argument array, never a shell command. `OwnedLineProcess` retains the child, calls `terminate()`, and has a PID-scoped `SIGKILL` fallback after a short grace period.
+- [`BonjourProxy.swift`](https://github.com/radeknovis/Debagr/blob/a3e6374749345051f21e5e217fff474d9095e1db/Sources/NuticastPOC/BonjourProxy.swift) owns a separate `dns-sd` process and applies the same cooperative-then-narrow-forced shutdown pattern.
+- [`TunnelPortWatcher.swift`](https://github.com/radeknovis/Debagr/blob/a3e6374749345051f21e5e217fff474d9095e1db/Sources/NuticastPOC/TunnelPortWatcher.swift) owns `/usr/bin/log stream`; the application stops that watcher before closing the proxy and relay resources.
+- [`DeviceProfile.swift`](https://github.com/radeknovis/Debagr/blob/a3e6374749345051f21e5e217fff474d9095e1db/Sources/NuticastPOC/DeviceProfile.swift) persists user-scoped configuration under `~/.config/nuticast-poc`, creating the directory with mode `0700` and the file with mode `0600`. That is suitable evidence for a user-session design, not a reason to introduce a system daemon.
 
 ## Model comparison
 
@@ -90,7 +93,7 @@ The safe product rule is consequently:
 - If a LaunchAgent is added, the agent—not the menu-bar app—should own its subprocesses and expose a narrow authenticated control channel for start/stop/status. Unregistering the agent is the service-level action; child cleanup remains the agent’s responsibility.
 - Keep the current shutdown ordering: stop log watchers and Bonjour subprocesses first, then close relay listeners. Make startup idempotent so a crash or forced termination does not depend on cleanup having run.
 
-The first four bullets are design rules derived from Apple’s `Process` semantics and the security principle of least privilege; the shutdown-order observation is directly supported by the current repository implementation in [`main.swift`](../../Sources/NuticastPOC/main.swift), [`ProcessSupport.swift`](../../Sources/NuticastPOC/ProcessSupport.swift), and [`TunnelPortWatcher.swift`](../../Sources/NuticastPOC/TunnelPortWatcher.swift).
+The first four bullets are design rules derived from Apple’s `Process` semantics and the security principle of least privilege; the shutdown-order observation is directly supported by the current repository implementation in [`main.swift`](https://github.com/radeknovis/Debagr/blob/a3e6374749345051f21e5e217fff474d9095e1db/Sources/NuticastPOC/main.swift), [`ProcessSupport.swift`](https://github.com/radeknovis/Debagr/blob/a3e6374749345051f21e5e217fff474d9095e1db/Sources/NuticastPOC/ProcessSupport.swift), and [`TunnelPortWatcher.swift`](https://github.com/radeknovis/Debagr/blob/a3e6374749345051f21e5e217fff474d9095e1db/Sources/NuticastPOC/TunnelPortWatcher.swift).
 
 ## Smallest defensible product boundary
 

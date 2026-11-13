@@ -1,5 +1,8 @@
 # Apple Multi-Device RemotePairing Boundary
 
+> Historical research from 29 August 2026, preserved during branch consolidation.
+> Repository observations and proposed decisions describe the proof of concept at that time; they are not current implementation or support claims. Current deployment follows [paired-host execution](../adr/0001-paired-host-execution.md), which rejects cross-Mac RemotePairing projection. See [current ship status](../SHIP_STATUS.md) and [connection design](../CONNECTION_DESIGN.md). External sources have not been revalidated for this merge.
+
 Context: [Debagr issue 7](https://github.com/radeknovis/Debagr/issues/7), under the parent map [issue 1](https://github.com/radeknovis/Debagr/issues/1).
 
 Date: 2026-08-29
