@@ -62,7 +62,8 @@ enum AgentCLI {
               "remoteEnabled": configured?.deviceIdentifier == device.identity.value
                 && configured?.enabled == true,
             ] as [String: Any]
-          }
+          },
+          "developerToolsAvailable": ProductSupport.developerToolsAvailable,
         ], operation: command, options: options)
     case "mcp":
       LocalMCP.run()
