@@ -18,12 +18,12 @@
 | 12 | 2026-11-14 | CLI: include developerToolsAvailable in --devices JSON output | `f3ceb4d` | Verified | 157 tests pass |
 | 13 | 2026-11-14 | CLI: include remoteRelayEnabled in --status and --diagnose output | `862c805` | Verified | 157 tests pass |
 | 14 | 2026-11-14 | CLI: reject relative app paths for --deploy-app with dedicated error code | `4cf9597` | Verified | 158 tests pass |
+| 15 | 2026-11-14 | Deploy: verify installed-apps before --launch to confirm bundle ID matches | `5fbd288` | Verified | 159 tests pass |
 
 ## Active Tasks
 
 | # | Area | Description | Priority | Blocked? |
 |---|------|-------------|----------|----------|
-| 15 | CLI | Add `--installed-apps` confirmation during `--deploy-app --launch` to verify bundle ID matches | Medium | No |
 | 16 | Tests | Add integration tests for new CLI JSON fields (deploymentMode, recoverySteps, receiptPath) | Low | No |
 
 ## Completed Tasks
@@ -44,3 +44,4 @@
 | 12 | 2026-11-14 | CLI: include developerToolsAvailable in --devices JSON output for pre-flight checks without separate --diagnose call | `f3ceb4d` | 157 tests pass, CLI verified |
 | 13 | 2026-11-14 | CLI: include remoteRelayEnabled in --status and --diagnose JSON output so agents can check managed relay state | `862c805` | 157 tests pass, CLI verified |
 | 14 | 2026-11-14 | CLI: reject relative app paths for --deploy-app with dedicated error code 'invalid_app_path', exit 65, and actionable recovery guidance | `4cf9597` | 158 tests pass (1 new), CLI verified |
+| 15 | 2026-11-14 | Deploy: verify installed-apps before --launch to confirm bundle ID matches; fails with installedBundleNotConfirmed if bundle missing on device | `5fbd288` | 159 tests pass (1 new), tested |
