@@ -9,7 +9,7 @@
 <p align="center">Ask Claude Code, Codex, or your terminal to install and launch a signed iPhone build<br>through its paired Mac—even on another Wi-Fi network.</p>
 
 <p align="center">
-  <a href="docs/RELEASE.md"><img src="https://img.shields.io/badge/source-0.3.0_preview-blue" alt="Source: 0.3.0 preview"></a>
+  <a href="docs/RELEASE.md"><img src="https://img.shields.io/badge/source-0.3.0-blue" alt="Source: 0.3.0"></a>
   <a href="docs/COMPATIBILITY.md"><img src="https://img.shields.io/badge/remote_deployment-macOS_26%2B-black" alt="Remote deployment: macOS 26+"></a>
   <a href="docs/COMPATIBILITY.md"><img src="https://img.shields.io/badge/Mac-Apple_silicon-black" alt="Apple silicon Mac"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/install-Homebrew-FBB040" alt="Install with Homebrew"></a>
