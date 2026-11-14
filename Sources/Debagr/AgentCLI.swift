@@ -167,6 +167,10 @@ enum AgentCLI {
     var installed = false
     var bundleIdentifier: String?
     switch error {
+    case CLIError.missingDevice:
+      code = "missing_device"
+      recovery = "Provide --device <UDID>. List available devices with --devices --json."
+      exitCode = 64
     case CLIError.discoveryTimedOut, CLIError.deviceNotFound:
       code = "device_not_found"
       recovery = "Run --devices --json and select a listed Apple device identifier."

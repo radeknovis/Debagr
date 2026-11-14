@@ -103,7 +103,7 @@ final class CLIRecoveryTests: XCTestCase {
 
   func testFailureExitCodeContract() {
     let cases: [(Error, String, Int32)] = [
-      (CLIError.missingDevice, "invalid_arguments", 64),
+      (CLIError.missingDevice, "missing_device", 64),
       (CLIError.deviceNotFound, "device_not_found", 2),
       (DeviceDeploymentError.invalidApp("test"), "invalid_app", 65),
       (DeviceDeploymentError.deviceLocked, "device_locked", 2),

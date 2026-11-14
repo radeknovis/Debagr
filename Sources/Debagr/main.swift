@@ -30,7 +30,7 @@ enum CLIError: LocalizedError {
       return
         "The selected Apple device was not found. Refresh the device list and select its identifier."
     case .missingDevice:
-      return "Provide --device <UDID> when deploying an app."
+      return "Provide --device <UDID>."
     case .deployOptionRequiresApp(let option):
       return "\(option) requires --deploy-app <path>."
     case .invalidPort(let value):
