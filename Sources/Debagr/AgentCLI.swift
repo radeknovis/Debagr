@@ -100,6 +100,7 @@ enum AgentCLI {
       emit(
         [
           "state": "ready", "deviceIdentifier": identifier,
+          "deploymentMode": configured?.deviceIdentifier == identifier ? "remote" : "local",
           "configured": configured?.deviceIdentifier == identifier,
           "developerToolsAvailable": ProductSupport.developerToolsAvailable,
           "tailscaleInstalled": TailscaleClient.installedExecutablePath() != nil,
