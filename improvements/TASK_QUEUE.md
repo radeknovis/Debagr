@@ -15,13 +15,14 @@
 | 9 | 2026-11-14 | CLI: include receipt path in --deploy-app JSON output | `2beb70a` | Verified | 155 tests pass |
 | 10 | 2026-11-14 | CLI: improve --diagnose recovery guidance for common failure modes | `00ed022` | Verified | 155 tests pass |
 | 11 | 2026-11-14 | Tests: add regression tests for --help --json and deploymentMode JSON fields | `d614246` | Verified | 157 tests pass |
+| 12 | 2026-11-14 | CLI: include developerToolsAvailable in --devices JSON output | `f3ceb4d` | Verified | 157 tests pass |
 
 ## Active Tasks
 
 | # | Area | Description | Priority | Blocked? |
 |---|------|-------------|----------|----------|
-| 12 | CLI | Add `--installed-apps` confirmation during `--deploy-app --launch` to verify bundle ID matches | Medium | No |
-| 13 | Tests | Add integration tests for new CLI JSON fields (deploymentMode, recoverySteps, receiptPath) | Low | No |
+| 13 | CLI | Add `--installed-apps` confirmation during `--deploy-app --launch` to verify bundle ID matches | Medium | No |
+| 14 | Tests | Add integration tests for new CLI JSON fields (deploymentMode, recoverySteps, receiptPath) | Low | No |
 
 ## Completed Tasks
 
@@ -38,3 +39,4 @@
 | 9 | 2026-11-14 | CLI: include receipt path in --deploy-app JSON output for agents to reference deployment history | `2beb70a` | 155 tests pass, CLI verified |
 | 10 | 2026-11-14 | CLI: improve --diagnose recovery guidance for deviceLocked and timedOut failures | `00ed022` | 155 tests pass, CLI verified |
 | 11 | 2026-11-14 | Tests: add regression tests for --help --json and deploymentMode JSON fields | `d614246` | 157 tests pass (2 new), CLI verified |
+| 12 | 2026-11-14 | CLI: include developerToolsAvailable in --devices JSON output for pre-flight checks without separate --diagnose call | `f3ceb4d` | 157 tests pass, CLI verified |
