@@ -106,6 +106,7 @@ enum AgentCLI {
           "developerToolsAvailable": ProductSupport.developerToolsAvailable,
           "tailscaleInstalled": TailscaleClient.installedExecutablePath() != nil,
           "networkProvider": configured?.profile.provider ?? "none",
+          "remoteRelayEnabled": configured?.enabled ?? false,
           "checks": checks ?? [:],
         ],
         operation: command, options: options)
