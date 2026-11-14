@@ -186,7 +186,8 @@ struct CommandLineOptions {
     let mode = commands.first ?? "relay"
     let allowed: Set<String>
     switch mode {
-    case "--help", "-h", "--version": allowed = [mode]
+    case "--help", "-h": allowed = [mode, "--json"]
+    case "--version": allowed = [mode, "--json"]
     case "--devices", "--usb-services": allowed = [mode, "--json"]
     case "--usb-profile": allowed = [mode, "--peer", "--bonjour-host", "--provider", "--json"]
     case "--status", "--diagnose", "--installed-apps":
@@ -556,9 +557,8 @@ func writeError(_ message: String) {
   FileHandle.standardError.write(data)
 }
 
-func printUsage() {
-  print(
-    """
+func printUsageBody() -> String {
+  return """
     Usage:
       debagr --installed-apps --device <UDID> --json
       debagr --launch-app <bundleID> --device <UDID> --json
@@ -619,7 +619,10 @@ func printUsage() {
     Tailscale profiles and the experimental relay lab keep the 100.64.0.0/10 policy.
     Other providers accept RFC1918 or CGNAT IPv4; public and link-local destinations are rejected.
     """
-  )
+}
+
+func printUsage() {
+  print(printUsageBody())
 }
 
 var runningApplication: (any ApplicationLifecycle)?
@@ -637,11 +640,30 @@ do {
   let options = try CommandLineOptions.parse(rawArguments)
   operation = options.agentCommand ?? (options.deployAppURL != nil ? "deploy" : "command")
   if options.showVersion {
-    print(ProductSupport.version)
+    if options.json {
+      AgentCLI.writeJSON([
+        "schemaVersion": 1 as Any, "version": ProductSupport.version as Any,
+        "bundleShortVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as Any,
+        "buildNumber": Bundle.main.infoDictionary?["CFBundleVersion"] as Any,
+      ])
+    } else {
+      print(ProductSupport.version)
+    }
     exit(EXIT_SUCCESS)
   }
   if options.showHelp {
-    printUsage()
+    if options.json {
+      AgentCLI.writeJSON([
+        "schemaVersion": 1, "help": """
+          \(printUsageBody())
+
+          Exit codes: 0 success, 1 command failure, 2 device/network attention,
+                      64 invalid arguments, 65 invalid app.
+          """,
+      ])
+    } else {
+      printUsage()
+    }
     exit(EXIT_SUCCESS)
   }
 

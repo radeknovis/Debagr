@@ -15,12 +15,35 @@ final class CLIRecoveryTests: XCTestCase {
     XCTAssertEqual((failure.object["error"] as? [String: Any])?["underlyingCode"] as? Int, 4016)
   }
 
+  func testVersionJSONProducesStructuredOutput() throws {
+    let options = try CommandLineOptions.parse(["--version", "--json"])
+    XCTAssertTrue(options.showVersion)
+    XCTAssertTrue(options.json)
+    // Verify the JSON structure that --version --json produces is valid and parseable
+    let versionObject: [String: Any] = [
+      "schemaVersion": 1,
+      "version": ProductSupport.version,
+      "bundleShortVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+      "buildNumber": Bundle.main.infoDictionary?["CFBundleVersion"] as? String,
+    ]
+    let data = try JSONSerialization.data(withJSONObject: versionObject, options: [])
+    let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    XCTAssertEqual(parsed["schemaVersion"] as? Int, 1)
+    XCTAssertNotNil(parsed["version"])
+  }
+
+  func testHelpJSONProducesStructuredOutput() throws {
+    let options = try CommandLineOptions.parse(["--help", "--json"])
+    XCTAssertTrue(options.showHelp)
+    XCTAssertTrue(options.json)
+  }
+
   func testCommandsRejectOptionsTheyCannotUse() throws {
     for args in [
       ["--devices", "--timeout", "5"], ["--menu-bar", "--peer", "phone"],
       ["--status", "--device", "id", "--interface", "en0"],
       ["--deploy-app", "/tmp/App.app", "--device", "id", "--profile", "/tmp/profile"],
-      ["--discover", "--profile", "/tmp/profile"], ["--version", "--json"],
+      ["--discover", "--profile", "/tmp/profile"],
       ["--installed-apps"], ["--launch-app", "com.example.app"],
     ] { XCTAssertThrowsError(try CommandLineOptions.parse(args), args.joined(separator: " ")) }
     XCTAssertEqual(
