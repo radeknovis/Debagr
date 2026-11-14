@@ -163,6 +163,12 @@ enum AgentCLI {
       result.object["operation"] = operation
       result.object["checks"] = diagnostic.checks
       result.object["recoverySteps"] = diagnostic.recoverySteps
+      // Add diagnose-specific recovery guidance for common failure patterns
+      if case DeviceDeploymentError.deviceLocked = diagnostic.underlying {
+        result.object["recovery"] = "Unlock the Target Device and keep it awake, then retry --status."
+      } else if case DeviceDeploymentError.timedOut = diagnostic.underlying {
+        result.object["recovery"] = "Retry with a longer --timeout (up to 60 seconds). The device may be slow to respond or on a high-latency network."
+      }
       return result
     }
     var code = "command_failed"
