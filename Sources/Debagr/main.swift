@@ -13,6 +13,7 @@ enum CLIError: LocalizedError {
   case invalidTimeout(String)
   case discoveryTimedOut
   case remotePortMismatch(discovered: UInt16, requested: UInt16)
+  case relativeAppPath(String)
   case invalidDirectDeviceOptions
   case conflictingCommands
 
@@ -41,6 +42,8 @@ enum CLIError: LocalizedError {
       return "No supported physical device was found by devicectl or Bonjour before the timeout."
     case .remotePortMismatch(let discovered, let requested):
       return "Captured RemotePairing port \(discovered), but --remote-port requested \(requested)."
+    case .relativeAppPath(let path):
+      return "App path must be absolute: '\(path)'. Use an absolute path or a path starting with ~/."
     case .invalidDirectDeviceOptions:
       return
         "Use --capture-device-profile with --peer and --bonjour-host, or --direct-device with --peer and a captured --profile. These modes cannot be combined with deployment, discovery, menu-bar, or relay options."
@@ -131,8 +134,12 @@ struct CommandLineOptions {
       case "--json":
         json = true
       case "--deploy-app":
-        deployAppURL = expandedURL(
-          try requiredValue(for: argument, arguments: arguments, index: &index))
+        let rawPath = try requiredValue(for: argument, arguments: arguments, index: &index)
+        let isAbsolute = (rawPath.hasPrefix("/") && !rawPath.hasPrefix("//")) || rawPath.hasPrefix("~")
+        guard isAbsolute else {
+          throw CLIError.relativeAppPath(rawPath)
+        }
+        deployAppURL = expandedURL(rawPath)
       case "--device":
         guard deviceIdentifier == nil else { throw CLIError.conflictingCommands }
         deviceIdentifier = try requiredValue(for: argument, arguments: arguments, index: &index)

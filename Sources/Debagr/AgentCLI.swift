@@ -185,6 +185,11 @@ enum AgentCLI {
       code = "missing_device"
       recovery = "Provide --device <UDID>. List available devices with --devices --json."
       exitCode = 64
+    case CLIError.relativeAppPath(let path):
+      code = "invalid_app_path"
+      message = "Invalid iOS app bundle: the path '\(path)' is relative; deployment requires an absolute path."
+      recovery = "Use an absolute path (e.g., /path/to/App.app) or a path starting with ~/"
+      exitCode = 65
     case CLIError.discoveryTimedOut, CLIError.deviceNotFound:
       code = "device_not_found"
       recovery = "Run --devices --json and select a listed Apple device identifier."

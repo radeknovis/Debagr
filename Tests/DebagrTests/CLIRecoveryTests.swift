@@ -123,6 +123,7 @@ final class CLIRecoveryTests: XCTestCase {
       (TailscaleError.notConnected, "tailscale_unavailable", 2),
       (ManagedDeviceError.relayAlreadyRunning, "relay_already_running", 2),
       (NetworkSupportError.noNetworkInterface(interface: "auto"), "network_unavailable", 2),
+      (CLIError.relativeAppPath("relative/App.app"), "invalid_app_path", 65),
     ]
     for (error, code, exit) in cases {
       let failure = AgentCLI.failure(error, operation: "deploy")
@@ -162,6 +163,18 @@ final class CLIRecoveryTests: XCTestCase {
       stepsGeneric.contains(
         "Open Debagr on the paired Builder and connect the configured device. Re-pair over USB if trust was revoked."
       ))
+  }
+
+  func testDeployAppRejectsRelativePaths() throws {
+    // Relative paths must be rejected at parse time with a dedicated error code
+    XCTAssertThrowsError(try CommandLineOptions.parse(["--deploy-app", "relative/App.app"])) {
+      error in
+      if case CLIError.relativeAppPath = error {} else { XCTFail("expected relativeAppPath") }
+    }
+    XCTAssertThrowsError(try CommandLineOptions.parse(["--deploy-app", "./relative/App.app"]))
+    // Tilde paths are accepted (they expand to absolute)
+    let tildeOpts = try CommandLineOptions.parse(["--deploy-app", "~/Apps/App.app", "--device", "id"])
+    XCTAssertNotNil(tildeOpts.deployAppURL)
   }
 
   func testHelpJSONIsParseableAndContainsUsageText() throws {
