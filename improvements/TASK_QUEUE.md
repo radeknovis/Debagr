@@ -17,13 +17,14 @@
 | 11 | 2026-11-14 | Tests: add regression tests for --help --json and deploymentMode JSON fields | `d614246` | Verified | 157 tests pass |
 | 12 | 2026-11-14 | CLI: include developerToolsAvailable in --devices JSON output | `f3ceb4d` | Verified | 157 tests pass |
 | 13 | 2026-11-14 | CLI: include remoteRelayEnabled in --status and --diagnose output | `862c805` | Verified | 157 tests pass |
+| 14 | 2026-11-14 | CLI: reject relative app paths for --deploy-app with dedicated error code | `4cf9597` | Verified | 158 tests pass |
 
 ## Active Tasks
 
 | # | Area | Description | Priority | Blocked? |
 |---|------|-------------|----------|----------|
-| 14 | CLI | Add `--installed-apps` confirmation during `--deploy-app --launch` to verify bundle ID matches | Medium | No |
-| 15 | Tests | Add integration tests for new CLI JSON fields (deploymentMode, recoverySteps, receiptPath) | Low | No |
+| 15 | CLI | Add `--installed-apps` confirmation during `--deploy-app --launch` to verify bundle ID matches | Medium | No |
+| 16 | Tests | Add integration tests for new CLI JSON fields (deploymentMode, recoverySteps, receiptPath) | Low | No |
 
 ## Completed Tasks
 
@@ -42,3 +43,4 @@
 | 11 | 2026-11-14 | Tests: add regression tests for --help --json and deploymentMode JSON fields | `d614246` | 157 tests pass (2 new), CLI verified |
 | 12 | 2026-11-14 | CLI: include developerToolsAvailable in --devices JSON output for pre-flight checks without separate --diagnose call | `f3ceb4d` | 157 tests pass, CLI verified |
 | 13 | 2026-11-14 | CLI: include remoteRelayEnabled in --status and --diagnose JSON output so agents can check managed relay state | `862c805` | 157 tests pass, CLI verified |
+| 14 | 2026-11-14 | CLI: reject relative app paths for --deploy-app with dedicated error code 'invalid_app_path', exit 65, and actionable recovery guidance | `4cf9597` | 158 tests pass (1 new), CLI verified |
