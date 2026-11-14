@@ -13,14 +13,15 @@
 | 7 | 2026-11-14 | CLI: improve --launch-app error message with example bundle ID | `7dc9be0` | Verified | 155 tests pass |
 | 8 | 2026-11-14 | CLI: add deploymentMode to --status and --diagnose output | `bb6a433` | Verified | 155 tests pass |
 | 9 | 2026-11-14 | CLI: include receipt path in --deploy-app JSON output | `2beb70a` | Verified | 155 tests pass |
+| 10 | 2026-11-14 | CLI: improve --diagnose recovery guidance for common failure modes | `00ed022` | Verified | 155 tests pass |
+| 11 | 2026-11-14 | Tests: add regression tests for --help --json and deploymentMode JSON fields | `d614246` | Verified | 157 tests pass |
 
 ## Active Tasks
 
 | # | Area | Description | Priority | Blocked? |
 |---|------|-------------|----------|----------|
-| 10 | CLI | Add `--installed-apps` confirmation during `--deploy-app --launch` to verify bundle ID matches | Medium | No |
-| 11 | CLI | Improve `--diagnose` recovery guidance for common failure modes (locked device, offline peer) | Medium | No |
-| 12 | Tests | Add integration tests for new CLI JSON fields (deploymentMode, recoverySteps, receiptPath) | Low | No |
+| 12 | CLI | Add `--installed-apps` confirmation during `--deploy-app --launch` to verify bundle ID matches | Medium | No |
+| 13 | Tests | Add integration tests for new CLI JSON fields (deploymentMode, recoverySteps, receiptPath) | Low | No |
 
 ## Completed Tasks
 
@@ -35,3 +36,5 @@
 | 7 | 2026-11-14 | CLI: improve --launch-app error message with example bundle ID format | `7dc9be0` | 155 tests pass, CLI verified |
 | 8 | 2026-11-14 | CLI: add deploymentMode ('local'/'remote') to --status and --diagnose JSON output | `bb6a433` | 155 tests pass, CLI verified |
 | 9 | 2026-11-14 | CLI: include receipt path in --deploy-app JSON output for agents to reference deployment history | `2beb70a` | 155 tests pass, CLI verified |
+| 10 | 2026-11-14 | CLI: improve --diagnose recovery guidance for deviceLocked and timedOut failures | `00ed022` | 155 tests pass, CLI verified |
+| 11 | 2026-11-14 | Tests: add regression tests for --help --json and deploymentMode JSON fields | `d614246` | 157 tests pass (2 new), CLI verified |
