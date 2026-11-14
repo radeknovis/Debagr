@@ -16,13 +16,14 @@
 | 10 | 2026-11-14 | CLI: improve --diagnose recovery guidance for common failure modes | `00ed022` | Verified | 155 tests pass |
 | 11 | 2026-11-14 | Tests: add regression tests for --help --json and deploymentMode JSON fields | `d614246` | Verified | 157 tests pass |
 | 12 | 2026-11-14 | CLI: include developerToolsAvailable in --devices JSON output | `f3ceb4d` | Verified | 157 tests pass |
+| 13 | 2026-11-14 | CLI: include remoteRelayEnabled in --status and --diagnose output | `862c805` | Verified | 157 tests pass |
 
 ## Active Tasks
 
 | # | Area | Description | Priority | Blocked? |
 |---|------|-------------|----------|----------|
-| 13 | CLI | Add `--installed-apps` confirmation during `--deploy-app --launch` to verify bundle ID matches | Medium | No |
-| 14 | Tests | Add integration tests for new CLI JSON fields (deploymentMode, recoverySteps, receiptPath) | Low | No |
+| 14 | CLI | Add `--installed-apps` confirmation during `--deploy-app --launch` to verify bundle ID matches | Medium | No |
+| 15 | Tests | Add integration tests for new CLI JSON fields (deploymentMode, recoverySteps, receiptPath) | Low | No |
 
 ## Completed Tasks
 
@@ -40,3 +41,4 @@
 | 10 | 2026-11-14 | CLI: improve --diagnose recovery guidance for deviceLocked and timedOut failures | `00ed022` | 155 tests pass, CLI verified |
 | 11 | 2026-11-14 | Tests: add regression tests for --help --json and deploymentMode JSON fields | `d614246` | 157 tests pass (2 new), CLI verified |
 | 12 | 2026-11-14 | CLI: include developerToolsAvailable in --devices JSON output for pre-flight checks without separate --diagnose call | `f3ceb4d` | 157 tests pass, CLI verified |
+| 13 | 2026-11-14 | CLI: include remoteRelayEnabled in --status and --diagnose JSON output so agents can check managed relay state | `862c805` | 157 tests pass, CLI verified |
