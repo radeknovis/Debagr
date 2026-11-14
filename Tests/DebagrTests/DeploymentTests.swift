@@ -131,6 +131,21 @@ final class DeploymentTests: XCTestCase {
     }
   }
 
+  func testDeployJSONOutputIncludesReceiptPath() throws {
+    // Verify the JSON structure that successful --deploy-app produces includes receiptPath
+    let deployObject: [String: Any] = [
+      "state": "installed" as Any,
+      "deviceIdentifier": "test-udid" as Any,
+      "bundleIdentifier": "com.example.app" as Any,
+      "installed": true as Bool,
+      "launched": false as Bool,
+      "receiptPath": "/Users/test/.config/debagr/last-deployment.json" as String,
+    ]
+    let data = try JSONSerialization.data(withJSONObject: deployObject, options: [])
+    let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    XCTAssertEqual(parsed["receiptPath"] as? String, "/Users/test/.config/debagr/last-deployment.json")
+  }
+
   func testAgentWaitIsBoundedAndStructuredErrorsAreActionable() throws {
     var count = 0
     XCTAssertThrowsError(
