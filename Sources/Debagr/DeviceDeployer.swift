@@ -114,7 +114,8 @@ struct DeviceDeployer {
     guard !bundleIdentifier.isEmpty, !bundleIdentifier.hasPrefix("-"),
       bundleIdentifier.rangeOfCharacter(from: .whitespacesAndNewlines) == nil
     else {
-      throw CLIError.missingValue("--launch-app bundle identifier")
+      throw CLIError.missingValue(
+        "--launch-app <bundle-identifier> (e.g., com.example.app)")
     }
     try checkReady(deviceIdentifier: deviceIdentifier)
     _ = try run(
