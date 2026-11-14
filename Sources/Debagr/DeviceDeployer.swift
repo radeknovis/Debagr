@@ -95,6 +95,23 @@ struct DeviceDeployer {
     }
 
     if launch {
+      // Verify the bundle is actually installed on the device before launching.
+      do {
+        let apps = try installedApps(deviceIdentifier: deviceIdentifier, timeout: 10)
+        guard apps.contains(where: {
+          ($0["bundleIdentifier"] as? String) == bundleIdentifier
+        }) else {
+          throw DeviceDeploymentError.installedBundleNotConfirmed(bundleIdentifier)
+        }
+      } catch DeviceDeploymentError.invalidResult,
+        DeviceDeploymentError.commandFailed,
+        DeviceDeploymentError.timedOut,
+        DeviceDeploymentError.appleError
+      {
+        // installedApps failure is non-fatal; proceed to launch attempt.
+      } catch {
+        throw error
+      }
       do {
         _ = try run(
           [

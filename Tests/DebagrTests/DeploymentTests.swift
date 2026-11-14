@@ -42,6 +42,9 @@ final class DeploymentTests: XCTestCase {
       if arguments.contains("install") {
         return Data(#"{"result":{"installedApplication":{"bundleID":"com.example.agent"}}}"#.utf8)
       }
+      if arguments.contains("info") && arguments.contains("apps") {
+        return Data(#"{"result":{"apps":[{"bundleIdentifier":"com.example.agent"}]}}"#.utf8)
+      }
       throw DeviceDeploymentError.commandFailed(arguments: arguments, status: 1)
     }
     do {
@@ -56,7 +59,7 @@ final class DeploymentTests: XCTestCase {
       XCTAssertEqual(detail["installed"] as? Bool, true)
       XCTAssertEqual(detail["bundleIdentifier"] as? String, "com.example.agent")
     }
-    XCTAssertEqual(calls.count, 3)
+    XCTAssertEqual(calls.count, 4)
     calls.removeAll()
     let result = try DeviceDeployer(run: run).deploy(
       appURL: directory, deviceIdentifier: "udid", launch: false)
@@ -70,6 +73,62 @@ final class DeploymentTests: XCTestCase {
     })
     XCTAssertThrowsError(
       try wrongResult.deploy(appURL: directory, deviceIdentifier: "udid", launch: false))
+  }
+
+  func testDeployWithLaunchVerifiesInstalledAppsBeforeLaunching() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "AgentTest-\(UUID().uuidString).app")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try PropertyListSerialization.data(
+      fromPropertyList: [
+        "CFBundleIdentifier": "com.example.agent", "CFBundleSupportedPlatforms": ["iPhoneOS"],
+      ],
+      format: .xml, options: 0
+    ).write(to: directory.appendingPathComponent("Info.plist"))
+
+    // InstalledApps returns empty list → launch is blocked with bundle-not-confirmed error
+    let missingOnDevice = DeviceDeployer(run: { args, _ in
+      if args.contains("lockState") {
+        return Data(#"{"result":{"passcodeRequired":false,"unlockedSinceBoot":true}}"#.utf8)
+      }
+      if args.contains("install") {
+        return Data(#"{"result":{"installedApplication":{"bundleID":"com.example.agent"}}}"#.utf8)
+      }
+      if args.contains("info") && args.contains("apps") {
+        return Data(#"{"result":{"apps":[]}}"#.utf8)
+      }
+      throw DeviceDeploymentError.commandFailed(arguments: args, status: 1)
+    })
+    XCTAssertThrowsError(
+      try missingOnDevice.deploy(appURL: directory, deviceIdentifier: "udid", launch: true)) {
+      error in
+      if case DeviceDeploymentError.installedBundleNotConfirmed = error {} else {
+        XCTFail("expected installedBundleNotConfirmed")
+      }
+    }
+
+    // InstalledApps confirms the bundle → launch attempt proceeds (fails because no real device)
+    let confirmed = DeviceDeployer(run: { args, _ in
+      if args.contains("lockState") {
+        return Data(#"{"result":{"passcodeRequired":false,"unlockedSinceBoot":true}}"#.utf8)
+      }
+      if args.contains("install") {
+        return Data(#"{"result":{"installedApplication":{"bundleID":"com.example.agent"}}}"#.utf8)
+      }
+      if args.contains("info") && args.contains("apps") {
+        return Data(#"{"result":{"apps":[{"bundleIdentifier":"com.example.agent"}]}}"#.utf8)
+      }
+      throw DeviceDeploymentError.commandFailed(arguments: args, status: 1)
+    })
+    do {
+      _ = try confirmed.deploy(appURL: directory, deviceIdentifier: "udid", launch: true)
+      XCTFail("Launch must fail without a real device")
+    } catch {
+      let failure = AgentCLI.failure(error, operation: "deploy")
+      XCTAssertEqual(failure.exitCode, 1)
+      XCTAssertEqual((failure.object["error"] as? [String: Any])?["code"] as? String, "launch_failed")
+    }
   }
 
   func testAgentWaitIsBoundedAndStructuredErrorsAreActionable() throws {
