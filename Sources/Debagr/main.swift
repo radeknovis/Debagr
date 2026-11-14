@@ -700,6 +700,7 @@ do {
           "state": result.launched ? "installed_and_launched" : "installed",
           "deviceIdentifier": deviceIdentifier, "bundleIdentifier": result.bundleIdentifier,
           "installed": true, "launched": result.launched,
+          "receiptPath": DeploymentReceipt.url.path,
         ], operation: "deploy", options: options)
     } else {
       print(
