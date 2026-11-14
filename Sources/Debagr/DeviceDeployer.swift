@@ -150,7 +150,8 @@ struct DeviceDeployer {
       FileManager.default.fileExists(atPath: appURL.path, isDirectory: &isDirectory),
       isDirectory.boolValue
     else {
-      throw DeviceDeploymentError.invalidApp("expected an existing .app directory")
+      throw DeviceDeploymentError.invalidApp(
+        "expected an existing .app directory at \(appURL.path)")
     }
 
     let infoURL = appURL.appendingPathComponent("Info.plist")
@@ -160,7 +161,8 @@ struct DeviceDeployer {
       let identifier = dictionary["CFBundleIdentifier"] as? String,
       !identifier.isEmpty
     else {
-      throw DeviceDeploymentError.invalidApp("Info.plist has no CFBundleIdentifier")
+      throw DeviceDeploymentError.invalidApp(
+        "Info.plist has no CFBundleIdentifier (check that \(appURL.path)/Info.plist is valid)")
     }
     let platforms = dictionary["CFBundleSupportedPlatforms"] as? [String] ?? []
     guard platforms.contains("iPhoneOS") || dictionary["DTPlatformName"] as? String == "iphoneos"
