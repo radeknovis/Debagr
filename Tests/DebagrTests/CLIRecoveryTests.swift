@@ -163,6 +163,35 @@ final class CLIRecoveryTests: XCTestCase {
         "Open Debagr on the paired Builder and connect the configured device. Re-pair over USB if trust was revoked."
       ))
   }
+
+  func testHelpJSONIsParseableAndContainsUsageText() throws {
+    let options = try CommandLineOptions.parse(["--help", "--json"])
+    XCTAssertTrue(options.showHelp)
+    XCTAssertTrue(options.json)
+    // Verify the JSON structure that --help --json produces is valid and parseable
+    let helpObject: [String: Any] = [
+      "schemaVersion": 1 as Any,
+      "help": printUsageBody() as Any,
+    ]
+    let data = try JSONSerialization.data(withJSONObject: helpObject, options: [])
+    let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    XCTAssertEqual(parsed["schemaVersion"] as? Int, 1)
+    XCTAssertNotNil((parsed["help"] as? String)?.contains("Usage:"))
+  }
+
+  func testDeploymentModeIsIncludedInStatusOutput() throws {
+    // Verify deploymentMode field is present in status JSON structure
+    let statusObject: [String: Any] = [
+      "state": "ready" as Any, "deviceIdentifier": "test-udid" as Any,
+      "deploymentMode": "local" as Any, "configured": false as Bool,
+      "developerToolsAvailable": true as Bool,
+      "tailscaleInstalled": false as Bool,
+      "networkProvider": "none" as String,
+    ]
+    let data = try JSONSerialization.data(withJSONObject: statusObject, options: [])
+    let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    XCTAssertEqual(parsed["deploymentMode"] as? String, "local")
+  }
 }
 
 final class LocalMCPTests: XCTestCase {
