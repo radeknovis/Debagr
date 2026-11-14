@@ -20,12 +20,12 @@
 | 14 | 2026-11-14 | CLI: reject relative app paths for --deploy-app with dedicated error code | `4cf9597` | Verified | 158 tests pass |
 | 15 | 2026-11-14 | Deploy: verify installed-apps before --launch to confirm bundle ID matches | `5fbd288` | Verified | 159 tests pass |
 | 16 | 2026-11-14 | Tests: add regression test for receiptPath in deploy JSON output | `f99d996` | Verified | 160 tests pass |
+| 17 | 2026-11-14 | CLI: improve device-not-found recovery with --devices hint | `69afff9` | Verified | 160 tests pass |
 
 ## Active Tasks
 
 | # | Area | Description | Priority | Blocked? |
 |---|------|-------------|----------|----------|
-| 17 | CLI | Improve `--status` error message when device is not found (deviceNotFound) | Medium | No |
 | 18 | Docs | Update COMPATIBILITY.md with latest hardware evidence claims | Low | No |
 
 ## Completed Tasks
@@ -48,3 +48,4 @@
 | 14 | 2026-11-14 | CLI: reject relative app paths for --deploy-app with dedicated error code 'invalid_app_path', exit 65, and actionable recovery guidance | `4cf9597` | 158 tests pass (1 new), CLI verified |
 | 15 | 2026-11-14 | Deploy: verify installed-apps before --launch to confirm bundle ID matches; fails with installedBundleNotConfirmed if bundle missing on device | `5fbd288` | 159 tests pass (1 new), tested |
 | 16 | 2026-11-14 | Tests: add regression test for receiptPath in deploy JSON output | `f99d996` | 160 tests pass (1 new), CLI verified |
+| 17 | 2026-11-14 | CLI: improve device-not-found recovery with --devices hint; Apple error code 1000 gets 'Run --devices --json' advice | `69afff9` | 160 tests pass, CLI verified |
