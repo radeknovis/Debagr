@@ -29,7 +29,7 @@ enum CLIError: LocalizedError {
       return "Provide --remote-port <port> initially, or use a profile containing remotePort."
     case .deviceNotFound:
       return
-        "The selected Apple device was not found. Refresh the device list and select its identifier."
+        "The selected Apple device was not found. Run --devices --json and select its identifier."
     case .missingDevice:
       return "Provide --device <UDID>."
     case .deployOptionRequiresApp(let option):

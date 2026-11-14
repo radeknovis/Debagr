@@ -198,14 +198,16 @@ enum AgentCLI {
       code = "installation_timed_out"
       recovery =
         "Installation outcome is unknown. Run --installed-apps --device <UDID> --json before retrying."
-    case DeviceDeploymentError.appleError:
+    case DeviceDeploymentError.appleError(let appleErrorCode, let domain, _):
       code =
         operation == "deploy"
         ? "installation_failed" : (operation == "launch" ? "launch_failed" : "apple_device_error")
       recovery =
         operation == "deploy"
         ? "Check signing, provisioning, device storage and connectivity before retrying."
-        : Self.recovery
+        : (appleErrorCode == 1000
+          ? "Run --devices --json to list available devices. Verify the UDID matches a paired device."
+          : Self.recovery)
       exitCode = operation == "deploy" ? 1 : 2
     case is CLIError:
       code = "invalid_arguments"
