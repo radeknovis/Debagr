@@ -90,7 +90,11 @@ enum AgentCLI {
       let checks =
         command == "diagnose" ? DeviceDiagnostics.checks(deviceIdentifier: identifier) : nil
       do { try waitUntilReady(deviceIdentifier: identifier, timeout: options.timeout) } catch {
-        if let checks { throw DiagnosticFailure(underlying: error, checks: checks) }
+        if let checks {
+          throw DiagnosticFailure(
+            underlying: error, checks: checks,
+            recoverySteps: DeviceDiagnostics.recoverySteps(from: checks, underlyingError: error))
+        }
         throw error
       }
       emit(
@@ -157,6 +161,7 @@ enum AgentCLI {
       var result = failure(diagnostic.underlying, operation: "status")
       result.object["operation"] = operation
       result.object["checks"] = diagnostic.checks
+      result.object["recoverySteps"] = diagnostic.recoverySteps
       return result
     }
     var code = "command_failed"

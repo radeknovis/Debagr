@@ -92,13 +92,20 @@ final class CLIRecoveryTests: XCTestCase {
   }
 
   func testDiagnosticFailureKeepsChecksAndOriginalFailureCode() throws {
+    let checks: [String: Any] = ["savedConfiguration": ["status": "failed", "message": "Invalid saved data"]]
+    let recoverySteps = DeviceDiagnostics.recoverySteps(
+      from: checks, underlyingError: DeviceDeploymentError.deviceLocked)
     let error = DiagnosticFailure(
       underlying: DeviceDeploymentError.deviceLocked,
-      checks: ["savedConfiguration": ["status": "failed", "message": "Invalid saved data"]])
+      checks: checks, recoverySteps: recoverySteps)
     let failure = AgentCLI.failure(error, operation: "diagnose")
     XCTAssertEqual(failure.exitCode, 2)
     XCTAssertEqual((failure.object["error"] as? [String: Any])?["code"] as? String, "device_locked")
     XCTAssertNotNil(failure.object["checks"])
+    let steps = failure.object["recoverySteps"] as? [String]
+    // savedConfiguration failed → recovery step for that check (not the underlying error)
+    XCTAssertTrue(
+      steps?.contains("Open Debagr on the Builder Mac and complete device setup") == true)
   }
 
   func testFailureExitCodeContract() {
@@ -122,6 +129,39 @@ final class CLIRecoveryTests: XCTestCase {
       XCTAssertEqual(failure.exitCode, exit, code)
       XCTAssertEqual((failure.object["error"] as? [String: Any])?["code"] as? String, code)
     }
+  }
+
+  func testRecoveryStepsReflectFailedChecks() throws {
+    let checks: [String: Any] = [
+      "developerTools": ["status": "failed", "message": "Not installed"],
+      "savedConfiguration": ["status": "passed", "message": "Valid"],
+      "appleInventory": ["status": "failed", "message": "Device not found"],
+    ]
+    let steps = DeviceDiagnostics.recoverySteps(
+      from: checks, underlyingError: CLIError.deviceNotFound)
+    XCTAssertEqual(steps.count, 2)
+    XCTAssertTrue(steps.contains("Install Xcode and select its developer directory"))
+    XCTAssertTrue(
+      steps.contains(
+        "Connect the Target Device by USB, unlock it, approve Apple trust, and enable Developer Mode"
+      ))
+
+    // No failed checks: falls back to underlying error
+    let passedChecks: [String: Any] = [
+      "developerTools": ["status": "passed", "message": "Available"],
+    ]
+    let stepsLocked = DeviceDiagnostics.recoverySteps(
+      from: passedChecks, underlyingError: DeviceDeploymentError.deviceLocked)
+    XCTAssertTrue(
+      stepsLocked.contains("Unlock the Target Device and keep it awake"))
+
+    // Generic error when no failed checks
+    let stepsGeneric = DeviceDiagnostics.recoverySteps(
+      from: passedChecks, underlyingError: CLIError.missingValue("--device"))
+    XCTAssertTrue(
+      stepsGeneric.contains(
+        "Open Debagr on the paired Builder and connect the configured device. Re-pair over USB if trust was revoked."
+      ))
   }
 }
 
