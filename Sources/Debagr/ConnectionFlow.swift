@@ -137,7 +137,9 @@ struct ConnectionPathPicker: View {
       Button {
         selection = .usb
       } label: {
-        Label("USB via Mac · keep a paired device on a cable (Experimental)", systemImage: "cable.connector")
+        Label(
+          "USB via Mac · keep a paired device on a cable (Experimental)",
+          systemImage: "cable.connector")
       }
       .buttonStyle(.link)
       .accessibilityLabel(ConnectionPath.usb.accessibilityLabel)

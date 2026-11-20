@@ -573,7 +573,8 @@ private struct DeviceConnectionView: View {
             ? "Plug the unlocked iPhone or iPad into the nearby Mac. The Builder imports it over your VPN so you can start Apple pairing."
             : model.path == .usb
               ? "Forward the services of an already paired phone over its USB cable and your private VPN."
-              : "This Mac builds and deploys. Take your paired device to another Wi-Fi network and keep its VPN connected.")
+              : "This Mac builds and deploys. Take your paired device to another Wi-Fi network and keep its VPN connected."
+        )
         ConnectionPathPicker(selection: Binding(get: { model.path }, set: { model.selectPath($0) }))
         if model.path == .usb {
           Label(ConnectionPath.usbRequirements, systemImage: "exclamationmark.triangle")
@@ -586,8 +587,10 @@ private struct DeviceConnectionView: View {
           )
           .font(.callout).foregroundStyle(.secondary)
           DisclosureGroup("What worked in the iPad test") {
-            Text("The Builder installed and launched a signed app over the shared cable using pymobiledevice3. Xcode saw the iPad only as a restorable device. First-time Trust and deployment after unplugging still need verification.")
-              .font(.callout).foregroundStyle(.secondary)
+            Text(
+              "The Builder installed and launched a signed app over the shared cable using pymobiledevice3. Xcode saw the iPad only as a restorable device. First-time Trust and deployment after unplugging still need verification."
+            )
+            .font(.callout).foregroundStyle(.secondary)
           }
           if let presentation = model.initialPairing {
             InitialPairingContent(presentation: presentation)
