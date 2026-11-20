@@ -2,9 +2,8 @@
 
 Open **Pair via USB/IP** on the two Macs to start temporary USB sharing. This
 experimental route requires a compatible Longcable server on the cable Mac and
-a USB/IP importer with virtual controller access on the Builder. First-time
-Apple trust and subsequent independent iPad deployment still need a hardware
-test. For a previously paired device that stays on its cable, see the
+a USB/IP importer with virtual controller access on the Builder. The [iPad hardware check](#20-november-2026-candidate-check) covers a cabled
+install and launch. Independent wireless deployment after USB setup remains unverified. For a previously paired device that stays on its cable, see the
 [paired cable bridge](CABLE_SHARING.md).
 
 ## What this path is for
@@ -219,21 +218,26 @@ Debagr starts two separately installed tools. Neither is included in the app.
 
 ### The Longcable patch
 
-The Longcable build that was tested with Debagr contains a local source change
-that is not yet published anywhere. Debagr does not include it, and there is no
-download for it.
+The importing Mac can switch an iPad or iPhone to a USB configuration that
+exposes its pairing interfaces. The stock exporter at the revision below
+rejects that switch. The [Debagr patch](../Packaging/longcable-configurations.patch)
+allows configurations advertised by the attached device.
 
-What the change does: Longcable has a guard on the USB `SET_CONFIGURATION`
-request that the importing Mac sends. The tested build relaxes that guard so
-that the server accepts any nonzero configuration, not only the configuration
-that was active when the device was first captured. An iPhone is switched to a
-different configuration during setup (configuration 6 in the test), and only
-then do its usbmux and network (NCM) interfaces appear. In the test, the
-unpatched server listed the iPhone but its configuration stalled, so pairing
-could not continue.
+From the Debagr checkout, build the exporter on the Client Mac:
 
-Until the change is published, you need to build Longcable from source with an
-equivalent change; the unpatched server is not expected to complete pairing.
+```sh
+patch_file="$PWD/Packaging/longcable-configurations.patch"
+git clone https://github.com/Sapd/longcable.git
+cd longcable
+git checkout --detach 6d3448632bf66e50047cd1f2ca210c130e4665e4
+git apply "$patch_file"
+swift build -c release --product longcable-server
+```
+
+Pass the absolute path to the resulting `.build/release/longcable-server`
+to the Client’s `--usbip serve --tool` command below. For the graphical setup,
+select it in **Set Up USB Support…** when prompted. If Debagr already finds a
+stock exporter, install the patched binary at the path Debagr uses.
 
 ### Where to install them
 
@@ -361,17 +365,31 @@ To remove them, stop the setup connection, quit Debagr, run
 
 ## 20 November 2026 candidate check
 
-The locally signed candidate's USB/IP inventory found the selected cabled iPad
-on the MacBook Pro. The same app exposed both USB/IP and the paired cable
-bridge. On the mini the controller probe returned `requires_root` without
-administrator approval. These checks did not export, attach, or pair the iPad.
+The locally signed Debagr candidate exported a cabled iPad from a MacBook Pro
+over Tailscale to a Mac mini. With the stock exporter, the mini saw the correct
+USB serial but could not use the pairing interfaces. With the patched exporter,
+the mini selected USB configuration 5. The Apple USB Multiplexor and NCM network
+interfaces appeared, and an authenticated lockdown query reached the iPad.
 
-## What has not been tested
+The mini built and signed test app build 6. Using `pymobiledevice3` on the mini
+over the import, it installed the app, read back the bundle identifier and build
+from the iPad, and launched it with PID 2188. The commands below reproduce the
+device operations with your own signed app while the USB import is active:
 
-- No hardware acceptance of this path has been run with Debagr 0.3.0: not the
-  two-Mac link, not the USB export and import, and not the wireless hand-over
-  afterwards.
-- A first-time **Trust** prompt through USB/IP has not been observed. An
-  experiment with a development build on 6 November 2026 refreshed a pairing
-  that already existed.
-- iPad, macOS 13 to 15, and VPN providers other than Tailscale are untested.
+```sh
+pymobiledevice3 apps install --developer --udid "$UDID" "$SIGNED_APP"
+pymobiledevice3 apps list --type User --udid "$UDID"
+pymobiledevice3 developer dvt launch --userspace --udid "$UDID" "$BUNDLE_ID"
+```
+
+Xcode on the mini listed the iPad by ECID as a restorable device.
+`devicectl manage pair` could not obtain a RemotePairing device representation.
+Debagr’s normal deployment command still requires that representation. After
+the import and export stopped, the MacBook Pro regained the cabled iPad.
+
+## Remaining hardware checks
+
+- Debagr’s native install and launch on this iPad through CoreDevice.
+- An independent wireless deployment from the mini after disconnecting USB/IP.
+- The on-device first-time **Trust** prompt and the graphical two-Mac setup.
+- macOS 13 through 15 and VPN providers other than Tailscale.
