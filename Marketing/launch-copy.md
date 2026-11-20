@@ -21,6 +21,14 @@ readiness, installs your signed device .app, and confirms launch. Includes Claud
 Code and Codex deployment plugins. Technical preview: one managed remote device,
 Wi-Fi required, cellular-only unsupported.
 
+## Optional new-pairing setup (source candidate)
+
+Already paired? Keep using that Mac over your VPN. If your device needs to
+trust a Builder somewhere else, the experimental **Pair via USB/IP** option
+shares its cable from a nearby Mac. In a cabled iPad test, a Mac mini installed
+and launched its own signed app with `pymobiledevice3`. First-time Apple Trust,
+native Xcode deployment and wireless handoff still need verification.
+
 ## X / Mastodon short post
 
 Your Mac stays home. Your next build comes with you.
@@ -65,7 +73,7 @@ Debagr 0.3.0 technical preview is out.
   optional local MCP interface runs over stdin and stdout, with no network listener.
 - Setup starts with a guided flow for a device your Mac is already paired with.
 - Experimental: link two Macs as Builder and Client and forward USB for a first
-  pairing. It needs separately installed USB tools and has no hardware acceptance yet.
+  pairing. The published build needs separately installed USB tools. The later source-candidate iPad test is described above.
 
 Still a technical preview: one managed remote device, VPN + Wi-Fi required, no
 cellular-only support.

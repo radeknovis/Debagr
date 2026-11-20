@@ -69,13 +69,14 @@ the phone does not become an Xcode destination on another Mac.
 brew install --cask radeknovis/debagr/debagr
 ```
 
-The distribution docs currently list **0.2.0** as the published download.
-This README's screenshots and experimental pairing features describe **0.3.0
-(build 5)** in source; Homebrew does not install that candidate yet. See
-[distribution and updates](docs/DISTRIBUTION.md) for release details.
+Homebrew installs the published **0.3.0 build 5** preview. The screenshots and
+patched USB/IP setup shown here describe the newer source candidate.
+[Distribution and updates](docs/DISTRIBUTION.md)
 
-1. **Pair once.** On the Mac that will build and deploy, install Xcode, connect
-   your device by USB, grant trust, and enable Developer Mode.
+1. **Start on the paired Mac.** Use the Mac your device already trusts, with
+   Xcode installed and Developer Mode enabled. If you need a new pairing,
+   connect directly by USB and approve Trust, or see the
+   [remote USB/IP option](docs/usbip.md) if the Builder is elsewhere.
 2. **Save the connection.** Connect the Mac and device to your private VPN.
    While the device is nearby, choose **Open Debagr** → **Use existing pairing**.
    Select the paired device, its VPN address and its nearby service, confirm
@@ -125,9 +126,25 @@ installation, `--launch-app` retries a launch without reinstalling, and
 
 </details>
 
-## Advanced setup
+## Choose a pairing path
 
-Everyday wireless deployment needs one paired **Builder** Mac.
+**Use existing pairing** for everyday deployment. Run Debagr on the Mac that
+the device already trusts. Save the device’s wireless service while nearby,
+then use that Mac to deploy while the device is on another Wi-Fi network
+with its VPN connected.
+
+**Pair via USB/IP** is an experimental option in the source candidate for a
+device that has never trusted the Builder. Plug the unlocked device into a
+nearby Mac, export its USB connection, and import it on the Builder over the
+private VPN. Approve Apple’s Trust prompt if shown. Both Macs need compatible
+USB tools and administrator approval. [USB/IP setup and requirements](docs/usbip.md)
+
+In the cabled iPad test, the Mac mini installed and launched its signed app
+with `pymobiledevice3`. Xcode listed the iPad only as restorable. First-time
+Trust, native Debagr deployment and the subsequent unplugged VPN connection
+remain unverified for this route.
+
+### Keep an already paired device on a cable
 
 For an already paired phone plugged into another Mac, use the experimental
 [cable service bridge](docs/CABLE_SHARING.md) through `debagr --cable`.
@@ -138,12 +155,6 @@ already be paired with this Builder.
 Authenticated connectivity and signed app installation were verified on one
 MacBook Pro cable host with phone Wi-Fi off. Launch, debugger attachment,
 automatic discovery and reconnect remain unverified or unimplemented.
-
-For an iPhone or iPad that still needs to trust the Builder, choose **Pair via
-USB/IP** on both Macs. The Mac with the cable exports the selected USB device
-and the Builder imports it for Apple’s Trust prompt. This experimental route
-requires separate USB tools and administrator approval. First-time trust over
-USB/IP remains unverified on hardware. See the [USB/IP setup guide](docs/usbip.md).
 
 ## Preview limits
 
@@ -158,7 +169,7 @@ a working Apple deployment path.
 Not yet verified for 0.3.0:
 
 - first launch on a clean Mac, and first launch offline;
-- iPad;
+- independent wireless iPad deployment;
 - recovery after restart, sleep and wake, a network change, revoked trust or
   denied Local Network permission;
 - Headscale, ZeroTier, NetBird and WireGuard;

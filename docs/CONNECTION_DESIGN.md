@@ -3,7 +3,9 @@
 The Builder owns Xcode pairing, signing and deployment. A device can pair
 locally with the Builder. **Pair via USB/IP** also offers an experimental
 first-time pairing route when the device is plugged into another Mac.
-The two deployment routes below use existing Apple trust.
+The connection screen opens on **Use existing pairing** for everyday VPN deployment.
+The second card starts USB/IP setup for a new pairing. A separate **USB via Mac**
+link opens the cable bridge for a device that already trusts the Builder.
 
 ## Wireless deployment
 
@@ -22,7 +24,7 @@ The phone remains plugged into a cable Mac. That Mac forwards RemotePairing
 and tunnel services over Tailscale to the already paired Builder. It does not
 recreate the raw USB device. The phone needs no Wi-Fi on this route.
 
-The **USB via Mac** tab describes the experimental CLI and opens the bundled
+The **USB via Mac** link describes the experimental CLI and opens the bundled
 setup guide. It has no initial-trust action, tool installer, administrator
 prompt, peer-role picker or background discovery service. Starting the CLI owns
 one SSH helper and one bridge session; Ctrl-C closes them. Closing the guide

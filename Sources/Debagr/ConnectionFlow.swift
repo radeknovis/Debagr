@@ -12,16 +12,16 @@ enum ConnectionPath: String, CaseIterable, Identifiable {
   }
   var situation: String {
     switch self {
-    case .existing: return "Paired device on Wi-Fi"
+    case .existing: return "Device already trusts the Builder"
     case .usb: return "Paired device on a cable"
-    case .usbIP: return "Pair a new Builder"
+    case .usbIP: return "Device needs a new pairing"
     }
   }
   var subtitle: String {
     switch self {
-    case .existing: return "Deploy over Wi-Fi and your private VPN."
+    case .existing: return "Deploy from the paired Mac over your VPN."
     case .usb: return "Deploy through another Mac’s USB cable."
-    case .usbIP: return "Share USB and approve Trust on the device."
+    case .usbIP: return "Share the cable from a second Mac to start Apple pairing."
     }
   }
   var symbol: String { self == .existing ? "link" : "cable.connector" }
@@ -94,43 +94,54 @@ struct ConnectionPathPicker: View {
   @Binding var selection: ConnectionPath
 
   var body: some View {
-    HStack(alignment: .top, spacing: 12) {
-      ForEach(ConnectionPath.allCases) { path in
-        Button {
-          selection = path
-        } label: {
-          VStack(alignment: .leading, spacing: 8) {
-            HStack {
-              Image(systemName: path.symbol).font(.title3)
-              Spacer()
-              if path != .existing { ExperimentalBadge() }
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 12) {
+        ForEach([ConnectionPath.existing, .usbIP]) { path in
+          Button {
+            selection = path
+          } label: {
+            VStack(alignment: .leading, spacing: 8) {
+              HStack {
+                Image(systemName: path.symbol).font(.title3)
+                  .foregroundStyle(selection == path ? SettingsStyle.accent : .primary)
+                Spacer()
+                if path != .existing { ExperimentalBadge() }
+              }
+              Text(path.situation).font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
+              Text(path.title).font(.system(size: 11, weight: .medium))
+              Text(path.subtitle).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            Text(path.situation).font(.headline)
-              .fixedSize(horizontal: false, vertical: true)
-            Text(path.title).font(.system(size: 11, weight: .medium))
-            Text(path.subtitle).font(.caption).foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(Color.primary)
+            .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
+            .padding(12)
+            .contentShape(Rectangle())
+            .background(
+              selection == path ? SettingsStyle.accent.opacity(0.06) : Color.clear,
+              in: RoundedRectangle(cornerRadius: 12)
+            )
+            .overlay(
+              RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                  selection == path ? SettingsStyle.accent : SettingsStyle.border,
+                  lineWidth: selection == path ? 1.5 : 1
+                )
+                .allowsHitTesting(false))
           }
-          .foregroundStyle(selection == path ? SettingsStyle.accent : .primary)
-          .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
-          .padding(12)
-          .contentShape(Rectangle())
-          .background(
-            selection == path ? SettingsStyle.accent.opacity(0.06) : Color.clear,
-            in: RoundedRectangle(cornerRadius: 12)
-          )
-          .overlay(
-            RoundedRectangle(cornerRadius: 12)
-              .stroke(
-                selection == path ? SettingsStyle.accent : SettingsStyle.border,
-                lineWidth: selection == path ? 1.5 : 1
-              )
-              .allowsHitTesting(false))
+          .buttonStyle(.plain)
+          .accessibilityLabel(path.accessibilityLabel)
+          .accessibilityAddTraits(selection == path ? .isSelected : [])
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(path.accessibilityLabel)
-        .accessibilityAddTraits(selection == path ? .isSelected : [])
       }
+      Button {
+        selection = .usb
+      } label: {
+        Label("USB via Mac · keep a paired device on a cable (Experimental)", systemImage: "cable.connector")
+      }
+      .buttonStyle(.link)
+      .accessibilityLabel(ConnectionPath.usb.accessibilityLabel)
+      .accessibilityAddTraits(selection == .usb ? .isSelected : [])
     }
     .accessibilityElement(children: .contain).accessibilityLabel("Pairing path")
   }

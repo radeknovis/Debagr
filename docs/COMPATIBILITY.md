@@ -29,7 +29,7 @@ See [provider setup and address restrictions](NETWORK_PROVIDERS.md).
 | First-run guide, Launch at Login, About, diagnostics | Implemented; clean-Mac and offline first launch not verified | Packaged macOS app |
 | Paired-Mac `.app` install and optional launch | Implemented; automated tests pass, live install requires an unlocked device | Current Xcode and a locally paired physical device |
 | Remote invocation | Uses the build server's existing SSH authentication | Any SSH-capable caller; Tailscale optional |
-| Raw USB/IP setup | Experimental exporter, importer and Apple device check. First-time iPad trust is unverified | Two Macs, private VPN, administrator approval, compatible USB tools and Builder controller access |
+| Raw USB/IP setup | [Candidate iPad test](usbip.md#20-november-2026-candidate-check) passed cabled install and launch with `pymobiledevice3`. First-time Trust, CoreDevice deployment and wireless handoff remain unverified | Two Macs, private VPN, administrator approval, compatible USB tools and Builder controller access |
 | Mac cable service bridge | Experimental CLI; one iPhone readiness/install verified, launch/debugger pending | Existing Builder pairing, two Macs, Tailscale, trusted SSH, explicit cable endpoint and port |
 | Manual TCP/UDP relay lab | Implemented; not a customer promise | macOS 26 or later, Tailscale CLI, explicit peer and port |
 | Cross-Mac Xcode or local `devicectl` use | Blocked in the current layer-4 architecture | CoreDevice requires per-Mac pairing and a negotiated link-local IPv6 tunnel |

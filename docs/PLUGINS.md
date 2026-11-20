@@ -42,12 +42,15 @@ Managed remote deployment needs macOS 26 or later on that Mac.
 ### Mac cable service sharing
 
 The Builder owns the existing Xcode pairing. A cable host is another Mac with
-the phone plugged in. The **USB via Mac** tab explains the CLI route;
+the phone plugged in. The **USB via Mac** link explains the CLI route;
 [the cable guide](CABLE_SHARING.md) lists the explicit endpoint, port, profile,
 Tailscale and trusted SSH requirements. The phone does not need Wi-Fi on this
-route. For a new Builder, the separate [USB/IP setup](usbip.md) requires user interaction on the device. Authenticated readiness and
+route. Authenticated readiness and
 installation passed one physical-iPhone test; launch, debugger and recovery
 acceptance remain incomplete.
+
+For a device that needs to trust a new Builder, choose [Pair via USB/IP](usbip.md).
+The nearby Mac shares the device’s USB connection so Apple can pair it with the Builder.
 
 ### Verified and not yet verified
 

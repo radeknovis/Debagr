@@ -25,13 +25,13 @@ the build server, reached over Wi-Fi and Tailscale. One remote iPhone install
 and OS-confirmed launch over Tailscale was verified on real hardware on
 10 November 2026. Managed remote deployment needs macOS 26 or later on the Mac.
 
-The following are in the app but have not passed hardware acceptance for
-0.3.0. Reports about them are welcome; fixes are not promised.
+The table distinguishes the published preview from later source-candidate tests.
 
-| Area | Status in 0.3.0 |
+| Area | Hardware coverage |
 | --- | --- |
-| Mac cable service bridge | Experimental CLI; existing pairing, SSH and Tailscale required. One iPhone readiness/install verified; launch/debugger pending. |
-| iPad | Not verified. |
+| Mac cable service bridge | Source candidate. Experimental CLI; existing pairing, SSH and Tailscale required. One iPhone readiness/install verified; launch/debugger pending. |
+| USB/IP for a new pairing | Experimental source candidate. The mini installed and launched a signed iPad app over the imported cable with `pymobiledevice3`. Xcode saw only a restorable device. [Setup and test details](usbip.md) |
+| iPad over VPN after USB setup | Independent wireless deployment remains unverified. |
 | VPN providers other than Tailscale | Not verified. |
 | macOS 13 to 15 | Not verified. |
 | Clean-Mac first launch and offline first launch | Not verified. |
