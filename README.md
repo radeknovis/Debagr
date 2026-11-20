@@ -18,6 +18,10 @@
 
 <p align="center"><a href="#quick-start">Get started</a> · <a href="docs/PLUGINS.md">Agent plugins</a> · <a href="docs/COMPATIBILITY.md">Compatibility</a></p>
 
+<p align="center">
+  <img src="Marketing/remote-deployment.svg" alt="The paired Builder Mac runs Xcode and Debagr at home; a private VPN carries installs and launches to your iPhone on cafe or airport Wi-Fi. Pair once over USB first." width="1000">
+</p>
+
 **Technical preview:** one managed remote device. One iPhone install and
 OS-confirmed launch verified over Tailscale with a 0.3.0 candidate. Wi-Fi and a
 private VPN required; cellular-only operation is unsupported.
