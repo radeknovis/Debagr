@@ -46,10 +46,10 @@ cable attached. If the cable endpoint or port changes, stop the bridge and
 restart with newly verified values. Use `--status` against the explicit Apple
 identifier, then verify installation and launch separately.
 
-Stop a cable bridge with Ctrl-C before quitting. Disable Launch at Login,
+For raw USB/IP, use [Pair via USB/IP](usbip.md) and stop the temporary session on both Macs. Stop a cable service bridge with Ctrl-C before quitting. Disable Launch at Login,
 quit Debagr and remove the app. Back up profiles before removing
-`~/.config/debagr/` or clearing the `com.debagr.app` preferences. Older setup data
-under `~/Library/Application Support/Debagr/` is ignored; review before deleting.
+`~/.config/debagr/` or clearing the `com.debagr.app` preferences. USB/IP setup keys and session logs live
+under `~/Library/Application Support/Debagr/`. Back them up if needed before removal.
 Removing the app does not revoke Apple trust or uninstall deployed device apps,
 VPNs or separately installed third-party tools. See [privacy](PRIVACY.md).
 

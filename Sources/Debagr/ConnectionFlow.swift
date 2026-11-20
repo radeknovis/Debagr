@@ -1,22 +1,35 @@
 import SwiftUI
 
 enum ConnectionPath: String, CaseIterable, Identifiable {
-  case existing, usb
+  case existing, usb, usbIP
   var id: Self { self }
-  var title: String { self == .existing ? "Use existing pairing" : "USB via Mac" }
+  var title: String {
+    switch self {
+    case .existing: return "Use existing pairing"
+    case .usb: return "USB via Mac"
+    case .usbIP: return "Pair via USB/IP"
+    }
+  }
   var situation: String {
-    self == .existing ? "Already paired with this Mac" : "Phone plugged into another Mac"
+    switch self {
+    case .existing: return "Paired device on Wi-Fi"
+    case .usb: return "Paired device on a cable"
+    case .usbIP: return "Pair a new Builder"
+    }
   }
   var subtitle: String {
-    self == .existing
-      ? "Deploy over Wi-Fi and your private VPN."
-      : "Use an already paired phone through its USB cable."
+    switch self {
+    case .existing: return "Deploy over Wi-Fi and your private VPN."
+    case .usb: return "Deploy through another Mac’s USB cable."
+    case .usbIP: return "Share USB and approve Trust on the device."
+    }
   }
   var symbol: String { self == .existing ? "link" : "cable.connector" }
 
   static let experimentalLabel = "Experimental"
   var accessibilityLabel: String {
-    "\(situation). \(title), \(self == .existing ? "everyday" : "\(Self.experimentalLabel), existing pairing required"). \(subtitle)"
+    [situation, title, self == .existing ? nil : Self.experimentalLabel, subtitle]
+      .compactMap { $0 }.joined(separator: ". ")
   }
 
   static var usbRequirements: String {
@@ -90,9 +103,7 @@ struct ConnectionPathPicker: View {
             HStack {
               Image(systemName: path.symbol).font(.title3)
               Spacer()
-              Text(path == .existing ? "Wireless deployment" : "Cable connection")
-                .font(.system(size: 10, weight: .medium))
-              if path == .usb { ExperimentalBadge() }
+              if path != .existing { ExperimentalBadge() }
             }
             Text(path.situation).font(.headline)
               .fixedSize(horizontal: false, vertical: true)
@@ -248,8 +259,10 @@ private struct DiagramLink: View {
 struct ConnectionProgress: View {
   let step: ConnectionStep
 
+  var isInitialPairing = false
+
   private func title(_ step: ConnectionStep) -> String {
-    step.title
+    isInitialPairing ? ["Macs", "Device trust", "Wireless"][step.rawValue] : step.title
   }
 
   var body: some View {
@@ -285,7 +298,7 @@ struct PairingLocationGuide: View {
       .font(.callout).foregroundStyle(.secondary)
       DisclosureGroup("Paired with a different Mac, or not paired yet?") {
         Text(
-          "Pair the device directly with this Builder first: connect it, unlock it, approve Trust, and enable Developer Mode. A pairing with the cable Mac does not pair this Builder. Remote first-time pairing is not supported."
+          "Pair the device directly with this Builder first: connect it, unlock it, approve Trust, and enable Developer Mode. If the Builder is elsewhere, choose Pair via USB/IP to share the device from the Mac with the cable."
         )
         .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
       }

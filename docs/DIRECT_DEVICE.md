@@ -1,6 +1,6 @@
 # Direct Target Device transport
 
-> Historical evidence. Current USB sharing uses only the [Mac cable service bridge](CABLE_SHARING.md). Earlier raw-USB setup paths and role linking are removed from current source.
+> Historical evidence. Current source includes the [paired cable bridge](CABLE_SHARING.md) and [experimental raw USB/IP setup](usbip.md).
 
 The product must keep the original Build Server's Apple pairing usable when
 the Target Device moves to another network. Tailscale runs on both endpoints.
@@ -148,6 +148,4 @@ and app UI behavior was not checked. Do not apply the older October version matr
 below to this November experiment, or treat it as acceptance of the newly combined
 Debagr build, first-ever Apple trust, VirtualHere, iPad, or cellular transport.
 
-The former raw-USB setup guide, patched backend integration and capability helper
-have been removed. This historical experiment is not a current setup path; see
-[the current cable service bridge](CABLE_SHARING.md) for the remaining USB route.
+For the restored exporter, importer and capability probe, see the [USB/IP setup guide](usbip.md).

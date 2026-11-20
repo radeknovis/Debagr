@@ -10,6 +10,7 @@ final class DeviceSetupModel: ObservableObject {
   @Published var configured: ConfiguredDevice?
   @Published var page = Page.setup
   @Published var path = ConnectionPath.existing
+  @Published var initialPairing: InitialPairingPresentation?
   @Published var step = ConnectionStep.device
   @Published var verification = ConnectionVerification.checking
   @Published var provider = NetworkProvider.tailscale {
@@ -50,6 +51,7 @@ final class DeviceSetupModel: ObservableObject {
   @Published var discoveryStatus = "Looking for devices…"
   var onSaved: (() -> Void)?
   var onExistingPairing: (() -> Void)?
+  var onInitialPairing: (() -> Void)?
   var onCheckConnection: (() -> Void)?
   var onRefresh: (() -> Void)?
   var onClose: (() -> Void)?
@@ -132,7 +134,15 @@ final class DeviceSetupModel: ObservableObject {
 
   func selectPath(_ path: ConnectionPath) {
     guard !isWorking else { return }
-    if path == .existing, let onExistingPairing {
+    guard path != self.path else { return }
+    guard self.path != .usbIP || initialPairing?.canLeave != false else {
+      error = "Stop the temporary USB/IP connection before switching paths."
+      return
+    }
+    error = nil
+    if path == .usbIP, let onInitialPairing {
+      onInitialPairing()
+    } else if path == .existing, let onExistingPairing {
       onExistingPairing()
     } else {
       self.path = path
@@ -384,7 +394,11 @@ struct DeviceSetupView: View {
           }
           if model.page == .setup {
             ConnectionActionBar {
-              ConnectionActions(model: model)
+              if model.path == .usbIP, let presentation = model.initialPairing {
+                InitialPairingActions(presentation: presentation)
+              } else {
+                ConnectionActions(model: model)
+              }
             }
           }
         }
@@ -396,9 +410,11 @@ struct DeviceSetupView: View {
       HStack(spacing: 8) {
         Image(systemName: "info.circle")
         Text(
-          model.path == .usb
-            ? "Builder: this Mac · Keep USB connected to the cable Mac · Both Macs need Tailscale."
-            : "Builder: this Mac · Keep Debagr running · Wireless deployment requires device Wi-Fi + VPN."
+          model.path == .usbIP
+            ? "Start USB sharing on the cable Mac, then attach the device on the Builder."
+            : model.path == .usb
+              ? "Builder: this Mac · Keep USB connected to the cable Mac · Both Macs need Tailscale."
+              : "Builder: this Mac · Keep Debagr running · Wireless deployment requires device Wi-Fi + VPN."
         )
         Spacer(minLength: 0)
       }
@@ -548,21 +564,33 @@ private struct DeviceConnectionView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
         SettingsHeading(
-          eyebrow: "Connection setup", experimental: model.path == .usb,
-          title: model.path == .usb
-            ? "Use your iPhone through another Mac." : "Deploy to your iPhone over Wi-Fi.",
-          subtitle: model.path == .usb
-            ? "Forward the services of an already paired phone over its USB cable and your private VPN."
-            : "This Mac builds and deploys. Your paired iPhone can be on another Wi-Fi network.")
+          eyebrow: "Connection setup", experimental: model.path != .existing,
+          title: model.path == .usbIP
+            ? "Pair this device with a remote Builder."
+            : model.path == .usb
+              ? "Use your iPhone through another Mac." : "Deploy to your iPhone over Wi-Fi.",
+          subtitle: model.path == .usbIP
+            ? "Use a temporary USB/IP connection for the Apple Trust prompt on your iPhone or iPad."
+            : model.path == .usb
+              ? "Forward the services of an already paired phone over its USB cable and your private VPN."
+              : "This Mac builds and deploys. Your paired iPhone can be on another Wi-Fi network.")
         ConnectionPathPicker(selection: Binding(get: { model.path }, set: { model.selectPath($0) }))
         if model.path == .usb {
           Label(ConnectionPath.usbRequirements, systemImage: "exclamationmark.triangle")
             .font(.system(size: 12)).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
-        ConnectionDiagram(
-          path: model.path, deviceName: model.selectedDeviceName,
-          usbLinkLabel: "CoreDevice over VPN")
+        if model.path == .usbIP {
+          Text(
+            "Requires a compatible USB/IP tool and administrator approval on each Mac. The experimental importer requires access to a virtual USB controller on the Builder."
+          )
+          .font(.callout).foregroundStyle(.secondary)
+          if let presentation = model.initialPairing {
+            InitialPairingContent(presentation: presentation)
+          }
+        } else {
+          ConnectionDiagram(path: model.path, deviceName: model.selectedDeviceName)
+        }
         if model.path == .existing {
           ConnectionProgress(step: model.step)
           switch model.step {
@@ -592,7 +620,7 @@ private struct DeviceConnectionView: View {
             Toggle(
               "These selections refer to the same physical device", isOn: $model.confirmedSelection)
           }
-        } else {
+        } else if model.path == .usb {
           CableSharingSetupView()
         }
       }

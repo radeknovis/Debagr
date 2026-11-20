@@ -2,7 +2,7 @@ import AppKit
 
 /// Template artwork keeps status legible in light, dark, and highlighted menu bars.
 enum MenuBarIconState: CaseIterable {
-  case idle, checking, ready, paused, attention
+  case idle, checking, ready, paused, attention, usb
 
   var image: NSImage {
     let image = NSImage(size: NSSize(width: 22, height: 18), flipped: false) { _ in
@@ -52,10 +52,16 @@ enum MenuBarIconState: CaseIterable {
         mark.move(to: NSPoint(x: 15.5, y: 9))
         mark.line(to: NSPoint(x: 15.5, y: 6.5))
         mark.line(to: NSPoint(x: 18, y: 6.5))
+      case .usb:
+        mark.move(to: NSPoint(x: 14, y: 9))
+        mark.line(to: NSPoint(x: 14, y: 7))
+        mark.line(to: NSPoint(x: 17, y: 7))
+        mark.line(to: NSPoint(x: 17, y: 9))
+        mark.move(to: NSPoint(x: 15.5, y: 7))
+        mark.line(to: NSPoint(x: 15.5, y: 4))
       case .idle:
         mark.move(to: NSPoint(x: 13, y: 6.5))
         mark.line(to: NSPoint(x: 18, y: 6.5))
-
       }
       mark.stroke()
       return true

@@ -558,6 +558,7 @@ func printUsage() {
       debagr --launch-app <bundleID> --device <UDID> --json
       debagr --mcp
       debagr --cable help
+      debagr --usbip help
       debagr --devices --json
       debagr --status --device <UDID> --timeout 30 --json
       debagr --diagnose --device <UDID> --json
@@ -620,6 +621,10 @@ atexit {
 }
 
 do {
+  if rawArguments.first == "--usbip" {
+    try USBIPCommand(Array(rawArguments.dropFirst())).run()
+    exit(EXIT_SUCCESS)
+  }
   if rawArguments.first == "--cable" {
     try CableSharing.run(Array(rawArguments.dropFirst()))
     exit(EXIT_SUCCESS)

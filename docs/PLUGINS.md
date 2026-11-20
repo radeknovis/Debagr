@@ -45,7 +45,7 @@ The Builder owns the existing Xcode pairing. A cable host is another Mac with
 the phone plugged in. The **USB via Mac** tab explains the CLI route;
 [the cable guide](CABLE_SHARING.md) lists the explicit endpoint, port, profile,
 Tailscale and trusted SSH requirements. The phone does not need Wi-Fi on this
-route. Remote initial pairing is not supported. Authenticated readiness and
+route. For a new Builder, the separate [USB/IP setup](usbip.md) requires user interaction on the device. Authenticated readiness and
 installation passed one physical-iPhone test; launch, debugger and recovery
 acceptance remain incomplete.
 

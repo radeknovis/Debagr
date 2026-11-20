@@ -26,13 +26,13 @@ final class ConnectionPresentationTests: XCTestCase {
     XCTAssertTrue(ConnectionPath.usb.accessibilityLabel.contains("Experimental"))
   }
 
-  func testFirstRunAndReopenDoNotUseSavedLegacyRoles() {
+  func testModelStartsOnWirelessSetup() {
     XCTAssertEqual(DeviceSetupModel(configured: nil).path, .existing)
   }
 
-  func testRemovedUSBCommandsAreRejected() {
+  func testUnrelatedPrivateProfileTransferCommandsStayUnavailable() {
     for arguments in [
-      ["--usbip", "help"], ["--usb-services", "--json"],
+      ["--usb-services", "--json"],
       ["--usb-profile", "--peer", "phone", "--bonjour-host", "phone.local", "--json"],
     ] {
       XCTAssertThrowsError(try CommandLineOptions.parse(arguments))

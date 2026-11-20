@@ -133,11 +133,17 @@ For an already paired phone plugged into another Mac, use the experimental
 [cable service bridge](docs/CABLE_SHARING.md) through `debagr --cable`.
 It forwards device services over Tailscale, with SSH controlling the cable host.
 It requires an explicit cable endpoint and RemotePairing port. The phone must
-already be paired with this Builder; remote initial pairing is not supported.
+already be paired with this Builder.
 
 Authenticated connectivity and signed app installation were verified on one
 MacBook Pro cable host with phone Wi-Fi off. Launch, debugger attachment,
 automatic discovery and reconnect remain unverified or unimplemented.
+
+For an iPhone or iPad that still needs to trust the Builder, choose **Pair via
+USB/IP** on both Macs. The Mac with the cable exports the selected USB device
+and the Builder imports it for Apple’s Trust prompt. This experimental route
+requires separate USB tools and administrator approval. First-time trust over
+USB/IP remains unverified on hardware. See the [USB/IP setup guide](docs/usbip.md).
 
 ## Preview limits
 

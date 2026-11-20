@@ -1,8 +1,9 @@
 # Connection design
 
-The Builder owns Xcode pairing, signing and deployment. Initial trust must be
-created directly with that Builder. Debagr provides two routes for that saved
-pairing; no raw-USB sharing backend or remote first-time pairing remains.
+The Builder owns Xcode pairing, signing and deployment. A device can pair
+locally with the Builder. **Pair via USB/IP** also offers an experimental
+first-time pairing route when the device is plugged into another Mac.
+The two deployment routes below use existing Apple trust.
 
 ## Wireless deployment
 
@@ -39,6 +40,7 @@ passed from a Mac mini Builder through a MacBook Pro cable host with phone
 Wi-Fi disabled. Launch, debugger, automatic discovery, reconnect and wider
 hardware coverage are not accepted by that run.
 
-Legacy role preferences and installed external tools are left untouched; current
-source does not load or run them. Historical release records describe older
+The USB/IP setup screen restores saved Builder/Client roles and can resume
+monitoring a running setup session. See the [USB/IP setup guide](usbip.md).
+Historical release records describe older
 binaries, not the current connection paths.

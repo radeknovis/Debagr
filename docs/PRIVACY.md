@@ -43,6 +43,96 @@ authenticates the device connection. The helper does not inspect USB serial
 numbers, scan other Macs, exchange role keys, or create initial Apple trust.
 Closing the controlling SSH session releases those listeners.
 
+### Builder/Client setup (peer discovery and role pairing)
+
+The **Initial device pairing** screen links two of your Macs as Builder and
+Client. To do that, Debagr runs two small network services:
+
+- peer discovery on TCP port 49388, advertised over Bonjour as `_debagr._tcp`;
+- role pairing on TCP port 49389, advertised over Bonjour as `_debagr-role._tcp`.
+
+These services do not start when the app launches. They run only while the
+**Initial device pairing** screen is open, or while a Builder or Client role is
+saved on this Mac. Otherwise Debagr has no such listener, publishes no Bonjour
+advertisement, does not poll local processes or USB devices every five seconds,
+and does not contact your tailnet. To switch them off after linking two Macs,
+open the screen, choose **Show Diagnostics**, then **Unpair This Mac**, and
+close the window.
+
+The commands `debagr --usbip discover` (about nine seconds) and
+`debagr --usbip advertise` (until you press Ctrl-C) also start both services
+for as long as the command runs, whatever role is saved.
+
+While the services run, they listen on all IPv4 interfaces of this Mac. They
+answer only connections whose source address is this Mac itself, a private
+network range (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), or the carrier-grade
+NAT range used by Tailscale (100.64.0.0/10). Connections from other addresses
+are closed without a reply.
+
+Any device on the same private network or VPN can connect without
+authentication and learn the following about this Mac:
+
+- the discovery protocol version;
+- a random node ID that Debagr generated for this Mac;
+- the Mac's name, which is also the Bonjour service name;
+- which Debagr processes are running: the app, a USB export process, a USB
+  import process;
+- the saved machine role (Builder, Client, or none) and the node ID of the Mac
+  it is paired with;
+- this Mac's public key for role pairing.
+
+Two further values are sent only to this Mac itself and to a connection that
+Debagr has verified as coming from a device owned by the same Tailscale user as
+this Mac:
+
+- whether System Integrity Protection is on, off, or customised;
+- the USB product names of plugged-in Apple mobile devices, for example
+  "iPhone". Serial numbers and device identifiers are never sent.
+
+Other Macs show those two values as unknown. To make the ownership check,
+Debagr runs `tailscale status --json` on this Mac when a connection arrives
+from a Tailscale address, at most once every 30 seconds for each connecting
+tailnet device. The check is local; it sends nothing to the other device.
+
+The role-pairing service sends a connecting device this Mac's node ID, its
+public key, and a one-time random value. Role updates are signed. They contain
+the two Macs' node IDs and names and which one is the Builder.
+
+### The scan for other Macs
+
+When you open the **Initial device pairing** screen, click **Refresh**, or a
+role change is applied, Debagr looks for other Macs:
+
+- It browses Bonjour for `_debagr._tcp` on the local network and connects to
+  each Mac it finds on TCP 49388.
+- If the Tailscale CLI is installed, it runs `tailscale status --json` on this
+  Mac and connects to every online peer in your tailnet on TCP 49388 and on
+  TCP 3240. Port 3240 receives a standard USB/IP device-list request, which
+  recognises a USB/IP server that is already running. This includes devices in
+  the tailnet that belong to other people; they see a connection attempt from
+  this Mac's tailnet address and nothing else.
+
+Each connection is closed after at most three seconds. While the screen is open
+or a role is saved, Debagr contacts the Macs it has already found again about
+every five seconds to refresh their status. `debagr --usbip discover` runs the
+same scan from the command line.
+
+### Linking Macs without a pairing code
+
+Two Macs are linked without a pairing code only when the local Tailscale
+client's network map shows that the other Mac belongs to the same Tailscale
+user as this Mac. Tagged devices, devices of other users in a shared tailnet,
+and all ordinary local-network connections show a pairing code on both Macs.
+Each Mac asks you to compare the codes before it accepts. See
+[security](SECURITY.md).
+
+### Temporary USB sharing
+
+The USB/IP path sends the raw USB traffic of the selected iPhone or iPad from
+the Client Mac to the Builder Mac, to the private IPv4 address you choose.
+USB/IP itself has no authentication and no encryption, so use it only across
+your VPN.
+
 ### Diagnostics
 
 **Copy Diagnostics** places a report on the clipboard. Nothing is sent unless
@@ -61,23 +151,42 @@ Debagr does not receive payment credentials or embed a payment SDK.
 | Location | Contents |
 | --- | --- |
 | `~/.config/debagr/` | Device connection profiles, the managed remote device, and the last deployment receipt. Profiles can contain device identifiers, private VPN endpoints, and captured Bonjour service metadata. |
-| Preferences domain `com.debagr.app` | UI preferences and launch/setup state. Older preferences from removed setup paths are ignored. |
+| `~/Library/Application Support/Debagr/role-sync-key.raw` | The private signing key this Mac uses for role pairing, with its lock file. |
+| `~/Library/Application Support/Debagr/USBIPSessions/` | One folder for each USB/IP setup connection: the request, its state, and the USB tool's output log. These can contain the selected device's USB serial number, private addresses, and the path of the USB tool. |
+| `/private/tmp/debagr-usbip-<UUID>/` | While a USB/IP setup connection runs: a root-owned copy of the selected USB tool. Removed when the connection ends; after a forced kill it stays until macOS clears `/private/tmp`. |
+| Preferences domain `com.debagr.app` | The node ID, the saved Builder or Client role with the other Mac's node ID and name, that Mac's pinned public key, the USB tools you selected, the location of the last USB session folder, and a first-run flag. |
 
-Keep profiles private. Apple manages pairing keys on the paired Builder. Debagr
-stores no administrator or SSH passwords. Legacy setup data from earlier builds
-is not automatically deleted.
+Private files are written with mode 0600 in directories with mode 0700. They
+stay until you remove them; keep them private and do not include them in public
+reports. Temporary command output is written to the system's temporary
+directory and deleted when the command finishes. Apple pairing keys remain
+managed by Apple on the paired Mac. Debagr stores no passwords: the macOS
+administrator prompt belongs to macOS.
 
 ## Removing local data
 
-1. Stop any cable bridge with Ctrl-C. Turn off Launch at Login and quit Debagr.
-2. Move the app to Trash. Back up profiles you want to keep, then remove
-   `~/.config/debagr/` and clear the `com.debagr.app` preferences if desired.
-3. Older builds may have stored setup keys and logs under
-   `~/Library/Application Support/Debagr/`. These are no longer used by this
-   build; review them before removing them.
+1. If a USB/IP setup connection is running, open **Pair via USB/IP**
+   and choose **Stop Setup Connection**. The connection keeps running after
+   the window is closed or the app quits.
+2. Stop any foreground cable bridge with Ctrl-C. Turn off **Launch at Login**, quit Debagr, and move the app to Trash.
+3. Delete the preferences, which also removes the saved role and the pinned key
+   of the other Mac:
 
-Removing Debagr does not revoke Apple pairing, uninstall VPNs or other tools,
-or remove previously deployed device apps.
+   ```sh
+   defaults delete com.debagr.app
+   ```
+
+4. Back up any profiles you want to keep, then remove the two data directories:
+
+   ```sh
+   rm -rf ~/.config/debagr
+   rm -rf ~/Library/Application\ Support/Debagr
+   ```
+
+This does not revoke Apple pairing, uninstall your VPN, remove the separately
+installed USB tools or their own settings, or remove apps previously deployed
+to a device. A Mac that was linked to this one keeps this Mac's public key
+until you choose **Unpair This Mac** there.
 
 ## Future paid product
 

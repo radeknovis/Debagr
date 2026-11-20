@@ -130,7 +130,7 @@ cross-Mac Xcode access.
 
 ## Restored connection interface
 
-`DeviceSetupView` keeps one root window for wireless setup and the cable guide.
+`DeviceSetupView` keeps one root window for wireless setup, the paired cable guide, and the USB/IP setup coordinator.
 `DeviceSetupModel` preserves explicit identity confirmation, saved profiles,
 asynchronous developer-tool checks and editable invalid addresses. The cable
 bridge is started through its CLI; the guide does not create a pairing or start

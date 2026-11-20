@@ -1,6 +1,6 @@
 import AppKit
 
-// Discovery, readiness and a deployment receipt are different evidence.
+// Discovery, USB ownership, readiness, and a deployment receipt are different evidence.
 enum MenuReadiness {
   case checking, ready
   case attention(String)
@@ -18,13 +18,26 @@ struct MenuConnectionPresentation {
   let iconState: MenuBarIconState
 
   init(
-    configured: ConfiguredDevice?,
+    configured: ConfiguredDevice?, selection: MachineRoleSelection?, usbActive: Bool,
     readiness: MenuReadiness, receipt: DeploymentReceipt?
   ) {
-    scope = "This Mac"
-    title = configured?.displayName ?? "Connect your iPhone"
+    scope =
+      selection?.role == .client ? "Client" : selection?.role == .builder ? "Builder" : "This Mac"
+    title =
+      configured?.displayName
+      ?? (selection?.role == .client ? "Your device, with you" : "Connect your iPhone")
     actionTitle = "Open Debagr"
-    if let configured {
+    if usbActive {
+      iconState = .usb
+      status = selection?.role == .client ? "Temporary USB sharing" : "Temporary USB import"
+      detail = "Open Connections to check the device or stop this setup session."
+      tone = .neutral
+    } else if configured == nil, selection?.role == .client {
+      iconState = .idle
+      status = "Client Mac"
+      detail = "Builder: \(selection!.peerName). Open setup to share your plugged-in device."
+      tone = .neutral
+    } else if let configured {
       if !configured.enabled {
         iconState = .paused
         status = "Connection paused"
@@ -52,7 +65,7 @@ struct MenuConnectionPresentation {
     } else {
       iconState = .idle
       status = "No device configured"
-      detail = "Pair your device with this Mac in Xcode, then configure its connection."
+      detail = "Use an existing Apple pairing or create one with a nearby Mac."
       tone = .neutral
     }
     if let receipt, receipt.deviceIdentifier == configured?.deviceIdentifier {

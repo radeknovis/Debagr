@@ -83,8 +83,11 @@ It requires prior Xcode pairing with this Builder, trusted SSH access and
 Tailscale on both Macs. Run `debagr --cable help` and follow the bundled
 `Cable-Sharing.md` guide only when the user requests cable setup. Do not infer
 readiness from relay startup; check the explicit Apple device ID. Phone Wi-Fi
-is not required for this cable route. Initial pairing must happen with the
-Builder directly; forwarding services does not establish new Apple trust.
+is not required for this cable route. For a new Builder with the device
+plugged into another Mac, open **Pair via USB/IP** on both Macs and use the
+bundled `USB-IP-Setup.md` guide. The user approves Apple trust on the device.
+After detaching USB, check the selected device and verify a fresh deployment
+from the Builder before reporting independent wireless access.
 
 Use `--configure` only when the user requests setup or a configuration change.
 For setup/capture, `--provider` accepts `tailscale` (default), `headscale`,
