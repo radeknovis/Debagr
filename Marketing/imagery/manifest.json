@@ -1,0 +1,31 @@
+{
+  "generated_on": "2026-11-14",
+  "generator": "Built-in image_gen tool",
+  "role": "AI-generated conceptual marketing artwork; not UI screenshots or hardware test evidence.",
+  "assets": [
+    {
+      "file": "cable-hero-v1.png",
+      "width": 1672,
+      "height": 941,
+      "bytes": 1699592,
+      "sha256": "c6821f9686f38703368819b913286e1dbf8b208599aa3937901051724fafcfa1",
+      "prompt": "Use case: ads-marketing. Asset type: wide landscape website hero artwork for Debagr, a macOS developer tool. Create one refined, premium 3D editorial product illustration, approximately 16:9 composition. Warm off-white background #f4f3ee, graphite #18201e, brushed silver aluminum, restrained cobalt blue #245be8. Scene: on the right two physically separated low plinths. The nearer plinth holds an open silver MacBook-like laptop and a single upright modern iPhone-like phone immediately beside it. One clearly visible short off-white USB-C data cable runs from the bottom of this phone into a side port on that laptop. The further plinth holds a compact silver Mac-mini-like desktop computer. A thin cobalt-blue luminous dotted arc connects the two computers, communicating a private network, distinct from the physical phone-to-laptop cable. The phone is NOT directly cabled to the distant desktop. Blank dark device screens, no interfaces. Intentionally generous quiet negative space across the left 40 percent for website copy to be added later. Soft natural studio side light, precise contact shadows, finely detailed metal and cable materials, credible elegant industrial design, minimal set, restrained visual hierarchy. No people, no stock office props, no clouds, no padlocks, no code, no lettering, no labels, no logos, no badges, no watermark. This is conceptual marketing artwork, not a screenshot or proof of a working deployment. Deliver one complete image, not a collage or contact sheet."
+    },
+    {
+      "file": "cable-editorial-v1.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2277140,
+      "sha256": "e374bed97da5eda401ae1a758b08010083cc178d5a5f11c3781e249d5d504441",
+      "prompt": "Use case: stylized-concept. Asset type: landscape editorial connection illustration for Debagr's Mac cable service bridge. One cohesive high-end architectural miniature rendered in 3D, clean elevated three-quarter view, approximately 3:2 image. Background is warm paper off-white #f4f3ee. Two separated shallow rectangular desk islands define different locations, large clear gap between them. On one island a single open silver laptop and a modern graphite smartphone lying face-up next to it, visibly joined by a short curved ivory USB-C cable from the bottom of the phone to the laptop side. On the other island only a compact silver desktop computer, the paired Builder. A precise thin cobalt-blue dotted path travels across the gap from LAPTOP to DESKTOP, symbolizing the private VPN. The physical USB cable stays exclusively on the phone/laptop island. Use silver, graphite and the one blue accent #245be8. Beautiful tactile matte materials, slight paper grain, soft ambient shadows, tasteful simplified geometry, no glassmorphism. Entire hardware composition large enough to read at article width. Balanced generous margins. No labels or text anywhere, no screens showing apps, no code, no logos, no people, no extra devices, no floating UI, no connection directly from phone to remote desktop. Visual metaphor only: no claims of new pairing, remote USB import, or debugger success. Deliver a finished standalone editorial illustration, not a technical schematic or screenshot."
+    },
+    {
+      "file": "cable-social-v1.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1822907,
+      "sha256": "0f70dac35644d23561780c503291e4dfbae7f49ea18c9feaf3d966eb470fd8cd",
+      "prompt": "Use case: ads-marketing. Asset type: square social-media cover for Debagr's USB via Mac feature. Produce a polished designed campaign image, square 1:1. Deep warm graphite background #18201e, finely lit silver hardware, vivid restrained cobalt #245be8 accents. Strong typography upper left: exactly 'Debagr' in large crisp white modern neo-grotesk sans-serif, with exactly 'USB via Mac' beneath in smaller muted off-white type. Spell D-e-b-a-g-r accurately. No other words or text. Lower two-thirds: art-directed 3D still life of a silver laptop with one graphite smartphone next to it, joined by a visible short white USB-C cable. A compact silver desktop computer sits separately on the other side with a generous gap. A thin blue dotted network path connects the laptop and the separate desktop; it is visibly a conceptual network mark, not a second USB cable. Refined cinematic side lighting, exact clean silhouettes, controlled highlights, matte charcoal surface, no excessive bloom, no purple gradients. Keep all devices fully inside safe margins. Device screens blank and dark. No people, no third-party logos, no fabricated app interface, no success checkmarks, no code, no watermark, no additional slogan or technical claims. Communicate the phone's cable to the nearby Mac and a private-network bridge to the paired Builder, as conceptual product artwork. One final composed image, not a contact sheet."
+    }
+  ]
+}

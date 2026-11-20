@@ -7,7 +7,7 @@ struct ConnectionDeviceCheck: Sendable {
       throw USBIPError.invalid(
         "Install Xcode and select its developer tools on this Builder, then Check Device again.")
     }
-    return try CoreDeviceInventory.load(pairedMacNodeID: "local")
+    return try CoreDeviceInventory.load(pairedMacNodeID: "local", wiredOnly: true)
   }
   var verify: @Sendable (String) throws -> Void = {
     try DeviceDeployer().checkReady(deviceIdentifier: $0, timeout: 15)

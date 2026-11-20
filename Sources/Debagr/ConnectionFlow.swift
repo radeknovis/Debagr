@@ -1,31 +1,41 @@
 import SwiftUI
 
 enum ConnectionPath: String, CaseIterable, Identifiable {
-  case existing, usb
+  case existing, usb, usbIP
   var id: Self { self }
-  var title: String { self == .existing ? "Use existing pairing" : "Initial device pairing" }
+  var title: String {
+    switch self {
+    case .existing: return "Use existing pairing"
+    case .usb: return "USB via Mac"
+    case .usbIP: return "Pair via USB/IP"
+    }
+  }
+  var situation: String {
+    switch self {
+    case .existing: return "Device already trusts the Builder"
+    case .usb: return "Paired device on a cable"
+    case .usbIP: return "Device needs a new pairing"
+    }
+  }
   var subtitle: String {
-    self == .existing
-      ? "Your Builder already knows this device." : "Forward USB from a Mac near your iPhone."
+    switch self {
+    case .existing: return "Deploy from the paired Mac over your VPN."
+    case .usb: return "Deploy through another Mac’s USB cable."
+    case .usbIP: return "Share the cable from a second Mac to start Apple pairing."
+    }
   }
   var symbol: String { self == .existing ? "link" : "cable.connector" }
 
-  /// The USB path covers both USB/IP and VirtualHere; neither has hardware acceptance yet.
   static let experimentalLabel = "Experimental"
   var accessibilityLabel: String {
-    "\(title), \(self == .existing ? "everyday" : "\(Self.experimentalLabel), one-time setup"). \(subtitle)"
+    [situation, title, self == .existing ? nil : Self.experimentalLabel, subtitle]
+      .compactMap { $0 }.joined(separator: ". ")
   }
 
-  /// Shown on both USB screens above the primary action.
   static var usbRequirements: String {
-    "Requires two Macs running Debagr \(ProductSupport.version) and a separately installed USB tool (a patched Longcable server plus usbip-macos, or VirtualHere). USB/IP also requires an administrator password on both Macs and System Integrity Protection turned off on the Builder, which reduces that Mac's protection."
+    "Requires existing Xcode pairing with this Builder, a phone connected to another Mac, Tailscale and trusted SSH access. Start the cable service bridge from the CLI."
   }
 
-  /// Where first run and reopening the app land. A saved device does not matter: a new user
-  /// starts on the existing-pairing form. Only a Client Mac or an open USB screen stays on USB.
-  static func start(role: DebagrMachineRole?, open: ConnectionPath?) -> Self {
-    role == .client || open == .usb ? .usb : .existing
-  }
 }
 
 struct ExperimentalBadge: View {
@@ -57,9 +67,9 @@ enum ConnectionVerification: Equatable {
 
   var title: String {
     switch self {
-    case .checking: return "Checking the way through."
-    case .ready: return "Ready for your next build."
-    case .attention: return "One more thing to resolve."
+    case .checking: return "Checking device connection"
+    case .ready: return "Device connection verified"
+    case .attention: return "Connection needs attention"
     }
   }
 
@@ -84,43 +94,56 @@ struct ConnectionPathPicker: View {
   @Binding var selection: ConnectionPath
 
   var body: some View {
-    HStack(alignment: .top, spacing: 12) {
-      ForEach(ConnectionPath.allCases) { path in
-        Button {
-          selection = path
-        } label: {
-          VStack(alignment: .leading, spacing: 8) {
-            HStack {
-              Image(systemName: path.symbol).font(.title3)
-              Spacer()
-              Text(path == .existing ? "EVERYDAY" : "ONE-TIME SETUP")
-                .font(.system(size: 9, weight: .semibold)).tracking(0.6)
-              if path == .usb { ExperimentalBadge() }
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 12) {
+        ForEach([ConnectionPath.existing, .usbIP]) { path in
+          Button {
+            selection = path
+          } label: {
+            VStack(alignment: .leading, spacing: 8) {
+              HStack {
+                Image(systemName: path.symbol).font(.title3)
+                  .foregroundStyle(selection == path ? SettingsStyle.accent : .primary)
+                Spacer()
+                if path != .existing { ExperimentalBadge() }
+              }
+              Text(path.situation).font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
+              Text(path.title).font(.system(size: 11, weight: .medium))
+              Text(path.subtitle).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            Text(path.title).font(.headline)
-            Text(path.subtitle).font(.caption).foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(Color.primary)
+            .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
+            .padding(12)
+            .contentShape(Rectangle())
+            .background(
+              selection == path ? SettingsStyle.accent.opacity(0.06) : Color.clear,
+              in: RoundedRectangle(cornerRadius: 12)
+            )
+            .overlay(
+              RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                  selection == path ? SettingsStyle.accent : SettingsStyle.border,
+                  lineWidth: selection == path ? 1.5 : 1
+                )
+                .allowsHitTesting(false))
           }
-          .foregroundStyle(selection == path ? SettingsStyle.accent : .primary)
-          .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
-          .padding(12)
-          .contentShape(Rectangle())
-          .background(
-            selection == path ? SettingsStyle.accent.opacity(0.06) : Color.clear,
-            in: RoundedRectangle(cornerRadius: 12)
-          )
-          .overlay(
-            RoundedRectangle(cornerRadius: 12)
-              .stroke(
-                selection == path ? SettingsStyle.accent : SettingsStyle.border,
-                lineWidth: selection == path ? 1.5 : 1
-              )
-              .allowsHitTesting(false))
+          .buttonStyle(.plain)
+          .accessibilityLabel(path.accessibilityLabel)
+          .accessibilityAddTraits(selection == path ? .isSelected : [])
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(path.accessibilityLabel)
-        .accessibilityAddTraits(selection == path ? .isSelected : [])
       }
+      Button {
+        selection = .usb
+      } label: {
+        Label(
+          "USB via Mac · keep a paired device on a cable (Experimental)",
+          systemImage: "cable.connector")
+      }
+      .buttonStyle(.link)
+      .accessibilityLabel(ConnectionPath.usb.accessibilityLabel)
+      .accessibilityAddTraits(selection == .usb ? .isSelected : [])
     }
     .accessibilityElement(children: .contain).accessibilityLabel("Pairing path")
   }
@@ -130,18 +153,18 @@ struct ConnectionPathPicker: View {
 struct ConnectionDiagram: View {
   let path: ConnectionPath
   var deviceName = "Your iPhone"
-  var usbLinkLabel = "USB over SSH"
+  var usbLinkLabel = "CoreDevice over VPN"
 
   var topologyDescription: String {
     path == .existing
       ? "Connection diagram. Your device connects over a private VPN to the Builder that already owns its Apple pairing. No Client Mac is required."
-      : "Connection diagram. Your iPhone connects by USB cable to a Client Mac. The Client forwards USB to the remote Builder using \(usbLinkLabel). Approve new trust on the iPhone. The cable is required during pairing."
+      : "Connection diagram. Your iPhone connects by USB cable to a cable Mac. The cable Mac forwards device services to the already paired Builder using \(usbLinkLabel). Keep the USB cable connected."
   }
 
   var body: some View {
     VStack(spacing: 12) {
       HStack {
-        Text(path == .existing ? "THE EVERYDAY CONNECTION" : "THE ONE-TIME USB BRIDGE")
+        Text(path == .existing ? "THE EVERYDAY CONNECTION" : "THE CABLE SERVICE BRIDGE")
           .font(.system(size: 9, weight: .semibold)).tracking(1)
         Spacer()
         Image(systemName: "arrow.left.arrow.right").accessibilityHidden(true)
@@ -152,17 +175,17 @@ struct ConnectionDiagram: View {
         DiagramLink(
           label: path == .existing ? "Private VPN" : "USB cable", wireless: path == .existing)
         if path == .usb {
-          DiagramEndpoint(kind: .laptop, title: "Client Mac", detail: "Shares USB")
+          DiagramEndpoint(kind: .laptop, title: "Cable Mac", detail: "Forwards services")
           DiagramLink(label: usbLinkLabel, wireless: true)
         }
         DiagramEndpoint(
           kind: .server, title: "Builder",
-          detail: path == .existing ? "Owns Apple pairing" : "Creates Apple pairing")
+          detail: path == .existing ? "Builds, signs & deploys" : "Uses existing pairing")
       }
       Label(
         path == .existing
           ? "Existing trust · the Builder stays paired"
-          : "New trust · approve the Builder on your iPhone",
+          : "Existing trust · keep the USB cable connected",
         systemImage: "lock.shield"
       )
       .font(.caption).foregroundStyle(SettingsStyle.accent)
@@ -248,6 +271,7 @@ private struct DiagramLink: View {
 
 struct ConnectionProgress: View {
   let step: ConnectionStep
+
   var isInitialPairing = false
 
   private func title(_ step: ConnectionStep) -> String {
@@ -287,7 +311,7 @@ struct PairingLocationGuide: View {
       .font(.callout).foregroundStyle(.secondary)
       DisclosureGroup("Paired with a different Mac, or not paired yet?") {
         Text(
-          "A pairing on your Client Mac does not pair your Builder. Connect the device directly to the Builder once, unlock it, approve Trust, and enable Developer Mode. If the Builder is far away, use the new-pairing USB flow above."
+          "Pair the device directly with this Builder first: connect it, unlock it, approve Trust, and enable Developer Mode. If the Builder is elsewhere, choose Pair via USB/IP to share the device from the Mac with the cable."
         )
         .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
       }

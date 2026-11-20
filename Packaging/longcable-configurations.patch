@@ -1,0 +1,90 @@
+diff --git a/Sources/LongcableCore/Session.swift b/Sources/LongcableCore/Session.swift
+index b46b7a8..f47c7d5 100644
+--- a/Sources/LongcableCore/Session.swift
++++ b/Sources/LongcableCore/Session.swift
+@@ -349,7 +349,8 @@ final class Session {
+           finish(job, result: request.wValue <= 127 && request.wIndex == 0 && request.wLength == 0
+             ? kIOReturnSuccess : pipeStalled, bytes: 0)
+         } else if request.bmRequestType == 0 && request.bRequest == 9 {
+-          guard request.wValue == UInt16(target.identity?.configuration ?? 0),
++          guard let value = UInt8(exactly: request.wValue), value != 0, let identity = target.identity,
++            value == identity.configuration || identity.alternateConfigurations.contains(value),
+             request.wIndex == 0, request.wLength == 0 else {
+             finish(job, result: pipeStalled, bytes: 0); return
+           }
+diff --git a/Sources/LongcableCore/USBHardware.swift b/Sources/LongcableCore/USBHardware.swift
+index f5b28e7..938658f 100644
+--- a/Sources/LongcableCore/USBHardware.swift
++++ b/Sources/LongcableCore/USBHardware.swift
+@@ -86,6 +86,7 @@ struct Identity {
+   var name: String
+   var serial: String
+   var registryID: UInt64 = 0
++  var alternateConfigurations: Set<UInt8> = []
+ }
+ func loadIdentity(_ config: TargetConfig, busID: String, wireID: UInt32) throws -> Identity {
+   guard let service = findDevice(config) else {
+@@ -124,6 +125,13 @@ func loadIdentity(_ config: TargetConfig, busID: String, wireID: UInt32) throws
+     let c = try device.configurationDescriptor(with: 0)
+     let configData = descriptorData(c, Int(UInt16(littleEndian: c.pointee.wTotalLength)))
+     guard configData.count >= 9 else { throw USBError.message("Invalid configuration") }
++    var alternateConfigurations = Set<UInt8>()
++    if desc[17] > 1 {
++      for index in 1..<desc[17] {
++        guard let descriptor = try? device.configurationDescriptor(with: Int(index)) else { continue }
++        alternateConfigurations.insert(descriptor.pointee.bConfigurationValue)
++      }
++    }
+     var record = Data(count: 312)
+     record.putString(
+       0, 256,
+@@ -159,7 +167,7 @@ func loadIdentity(_ config: TargetConfig, busID: String, wireID: UInt32) throws
+       record: record, classes: classes, configuration: configData[5],
+       overlaySerial: !config.label.isEmpty && desc[16] == 0,
+       name: name.isEmpty ? config.label : name, serial: serial.isEmpty ? config.label : serial,
+-      registryID: registryID)
++      registryID: registryID, alternateConfigurations: alternateConfigurations)
+   }
+ }
+ final class CapturedDevice: SessionDevice {
+diff --git a/Tests/LongcableCoreTests/USBTransferTests.swift b/Tests/LongcableCoreTests/USBTransferTests.swift
+index 45a0135..0f254af 100644
+--- a/Tests/LongcableCoreTests/USBTransferTests.swift
++++ b/Tests/LongcableCoreTests/USBTransferTests.swift
+@@ -96,7 +96,7 @@ final class FakeUSBTransport: USBTransferTransport {
+ }
+
+ final class USBTransferTests: XCTestCase {
+-  private func fixture(now: @escaping () -> Int64 = monotonicMS,
++  private func fixture(alternateConfigurations: Set<UInt8> = [], now: @escaping () -> Int64 = monotonicMS,
+     log: @escaping (String) -> Void = { EventLog.shared.write($0) }) throws -> (Session, Connection, FakeUSBTransport) {
+     var fds: [Int32] = [0, 0]
+     guard socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0 else { throw USBError.message("socketpair") }
+@@ -105,7 +105,7 @@ final class USBTransferTests: XCTestCase {
+     XCTAssertTrue(peer.configureLocal())
+     let target = Target(TargetConfig(vendor: 1, product: 2, location: 3, label: "TEST"), slot: 0)
+     target.identity = Identity(record: Data(count: 312), classes: Data(), configuration: 1,
+-      overlaySerial: false, name: "Test", serial: "Test")
++      overlaySerial: false, name: "Test", serial: "Test", alternateConfigurations: alternateConfigurations)
+     let transport = FakeUSBTransport()
+     return (Session(target, server, transport: transport, now: now, log: log), peer, transport)
+   }
+@@ -438,6 +438,18 @@ final class USBTransferTests: XCTestCase {
+       XCTAssertEqual(fresh.u32(4), 5); XCTAssertEqual(fresh.u32(20), 0)
+     }
+   }
++  func testSwitchToAdvertisedConfiguration() throws {
++    let (session, peer, transport) = try fixture(alternateConfigurations: [6])
++    var request = header(1, endpoint: 0, direction: 0, length: 0)
++    request[40] = 0; request[41] = 9
++    for value: UInt8 in [0, 2, 6] {
++      request[42] = value
++      XCTAssertTrue(try session.submit(request))
++      let status = try XCTUnwrap(peer.read(48)).u32(20)
++      XCTAssertEqual(status == 0, value == 6)
++    }
++    XCTAssertEqual(transport.configurations, [6])
++  }
+   func testSameConfigurationActuallyRebuildsHardwareAndLateTeardownCallbackIsSilent() throws {
+     let (session, peer, transport) = try fixture()
+     var request = header(1, endpoint: 0, direction: 0, length: 0)

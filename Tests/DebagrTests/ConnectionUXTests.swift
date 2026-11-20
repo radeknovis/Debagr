@@ -131,14 +131,14 @@ final class ConnectionUXTests: XCTestCase {
     var wireless = 0
     var alternative = 0
     controller.onWirelessSetup = { wireless += 1 }
-    controller.onVirtualHereSetup = { alternative += 1 }
+    controller.onCableSharingSetup = { alternative += 1 }
     @MainActor
     func descendants(_ view: NSView) -> [NSView] {
       [view] + ((view as? NSStackView)?.views ?? view.subviews).flatMap { descendants($0) }
     }
     let buttons = descendants(try XCTUnwrap(window.contentView)).compactMap { $0 as? NSButton }
     let handoff = try XCTUnwrap(buttons.first { $0.title == "Set up wireless deployment…" })
-    let other = try XCTUnwrap(buttons.first { $0.title == "Use VirtualHere instead…" })
+    let other = try XCTUnwrap(buttons.first { $0.title == "Use paired cable bridge…" })
     for role in [DebagrMachineRole.builder, .client] {
       try MachineRoleStore(defaults: defaults).save(
         MachineRoleSelection(role: role, peerID: "other", peerName: "Other Mac"),
@@ -244,7 +244,12 @@ final class ConnectionUXTests: XCTestCase {
       inventory: { [phone] },
       verify: { identifier in verifiedIDs.withValue { $0.append(identifier) } })
     let controller = InitialPairingCoordinator(
-      discovery: discovery, session: session, deviceCheck: checker)
+      discovery: discovery, session: session,
+      chooseItem: { title, choices in
+        XCTAssertTrue(title.contains("Confirm the wired device"))
+        XCTAssertEqual(choices.count, 1)
+        return 0
+      }, deviceCheck: checker)
     let window = try XCTUnwrap(controller.window)
     defer { window.close() }
     @MainActor

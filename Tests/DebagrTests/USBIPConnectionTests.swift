@@ -295,6 +295,36 @@ final class USBIPConnectionTests: XCTestCase {
   }
 
   @MainActor
+  func testSecondStartWaitsForApprovedSupervisorToPublishState() throws {
+    let suite = "USBIPStartup-\(UUID())"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let session = USBIPSessionController(
+      defaults: defaults, approvalExecutablePath: "/usr/bin/true", sessionsDirectory: folder)
+    let approved = expectation(description: "approval finished")
+    session.onChange = { message, _ in
+      if message == "Starting connection process…" { approved.fulfill() }
+    }
+    let args = ["attach", "--tool", "/usr/bin/true", "--remote", "10.0.0.2", "--busid", "1-1"]
+    try session.start(arguments: args)
+    wait(for: [approved], timeout: 3)
+    XCTAssertTrue(session.busy)
+    XCTAssertFalse(session.waitingForApproval)
+    XCTAssertThrowsError(try session.start(arguments: args))
+    let request = try XCTUnwrap(defaults.string(forKey: "usbip-session-request"))
+    let stateURL = URL(fileURLWithPath: request).deletingLastPathComponent()
+      .appendingPathComponent("state.json")
+    try JSONEncoder().encode(
+      USBIPSessionState(supervisorPID: 0, phase: "failed", message: "Stopped")
+    )
+    .write(to: stateURL)
+    session.poll()
+    XCTAssertFalse(session.busy)
+  }
+
+  @MainActor
   func testPendingAdministratorApprovalKeepsMainQueueResponsiveAndCanBeCancelled() throws {
     let suite = "ApprovalResponsiveness-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!

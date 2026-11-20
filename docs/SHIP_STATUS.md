@@ -1,7 +1,15 @@
 # Debagr 0.3.0 shipping status
 
+> Historical evidence. Current source includes the [paired cable bridge](CABLE_SHARING.md) and [experimental raw USB/IP setup](usbip.md).
+
 Updated 12 November 2026. **0.3.0 build 5 is published** as a technical preview.
 The 0.2.0 record is retained below as history.
+
+A locally signed development candidate was tested on 20 November with a cabled
+iPad, the patched Longcable exporter on a MacBook Pro, and the importer on a
+Mac mini. Install, build readback, and launch succeeded through USB/IP using
+`pymobiledevice3`. CoreDevice deployment remains open. See the
+[hardware check](usbip.md#20-november-2026-candidate-check).
 
 ## Release identity
 

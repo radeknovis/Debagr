@@ -24,15 +24,15 @@ struct MenuConnectionPresentation {
     scope =
       selection?.role == .client ? "Client" : selection?.role == .builder ? "Builder" : "This Mac"
     title =
-      selection?.role == .client
-      ? "Your device, with you" : configured?.displayName ?? "Connect your iPhone"
+      configured?.displayName
+      ?? (selection?.role == .client ? "Your device, with you" : "Connect your iPhone")
     actionTitle = "Open Debagr"
     if usbActive {
       iconState = .usb
       status = selection?.role == .client ? "Temporary USB sharing" : "Temporary USB import"
       detail = "Open Connections to check the device or stop this setup session."
       tone = .neutral
-    } else if selection?.role == .client {
+    } else if configured == nil, selection?.role == .client {
       iconState = .idle
       status = "Client Mac"
       detail = "Builder: \(selection!.peerName). Open setup to share your plugged-in device."
@@ -68,9 +68,7 @@ struct MenuConnectionPresentation {
       detail = "Use an existing Apple pairing or create one with a nearby Mac."
       tone = .neutral
     }
-    if let receipt, receipt.deviceIdentifier == configured?.deviceIdentifier,
-      selection?.role != .client
-    {
+    if let receipt, receipt.deviceIdentifier == configured?.deviceIdentifier {
       history =
         "Last deploy · \(receipt.launched ? "Installed & launched" : "Installed") · \(receipt.completedAt.formatted(date: .omitted, time: .shortened))"
     } else {

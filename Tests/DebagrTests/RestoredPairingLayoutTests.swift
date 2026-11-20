@@ -7,7 +7,7 @@ import XCTest
 @MainActor
 final class RestoredPairingLayoutTests: XCTestCase {
   @MainActor
-  func testBothPathsUseOneRootContentAndPreserveTheWindowFrame() async throws {
+  func testThreePathsUseOneRootContentAndPreserveTheWindowFrame() async throws {
     _ = NSApplication.shared
     let suite = "UnifiedPairing-\(UUID())"
     let defaults = UserDefaults(suiteName: suite)!
@@ -28,18 +28,18 @@ final class RestoredPairingLayoutTests: XCTestCase {
     XCTAssertTrue(root is NSHostingView<DeviceSetupView>)
     let presentation = initial.activate(in: window)
     controller.model.initialPairing = presentation
-    controller.model.onInitialPairing = { controller.model.path = .usb }
+    controller.model.onInitialPairing = { controller.model.path = .usbIP }
     window.setContentSize(NSSize(width: 1010, height: 870))
     let frame = window.frame
-    for path in [ConnectionPath.usb, .existing, .usb, .existing] {
+    for path in [ConnectionPath.usbIP, .usb, .existing, .usbIP, .existing] {
       controller.model.selectPath(path)
       try await Task.sleep(nanoseconds: 100_000_000)
       XCTAssertTrue(window.contentView === root)
       XCTAssertEqual(window.frame, frame)
-      XCTAssertEqual(controller.model.isInitialPairing, path == .usb)
+      XCTAssertEqual(controller.model.path, path)
       XCTAssertTrue(initial.window === window, "Native sheets must use the same window")
     }
-    controller.model.selectPath(.usb)
+    controller.model.selectPath(.usbIP)
     try await Task.sleep(nanoseconds: 200_000_000)
     if ProcessInfo.processInfo.environment["DEBAGR_CAPTURE_RESTORED"] == "1" {
       let folder = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
@@ -52,7 +52,7 @@ final class RestoredPairingLayoutTests: XCTestCase {
           ("minimum", NSSize(width: 880, height: 740)),
         ] {
           window.setContentSize(size)
-          for path in [ConnectionPath.usb, .existing] {
+          for path in [ConnectionPath.usbIP, .existing] {
             controller.model.selectPath(path)
             if path == .existing { controller.model.step = .review }
             try await Task.sleep(nanoseconds: 150_000_000)
@@ -125,6 +125,7 @@ final class RestoredPairingLayoutTests: XCTestCase {
     let checked = LockedValue<[String]>([])
     let coordinator = InitialPairingCoordinator(
       embedded: true, discovery: discovery, session: session,
+      chooseItem: { _, _ in 0 },
       deviceCheck: ConnectionDeviceCheck(
         inventory: { [device] },
         verify: { identifier in checked.withValue { $0.append(identifier) } }),
@@ -134,9 +135,9 @@ final class RestoredPairingLayoutTests: XCTestCase {
     let presentation = coordinator.activate(in: window)
     let model = DeviceSetupModel(configured: nil)
     model.initialPairing = presentation
-    model.path = .usb
+    model.path = .usbIP
     model.selectPath(.existing)
-    XCTAssertEqual(model.path, .usb, "An active transport must block navigation")
+    XCTAssertEqual(model.path, .usbIP, "An active transport must block navigation")
     XCTAssertNotNil(model.error)
     XCTAssertNil(presentation.actions.first { $0.id == "start" })
     XCTAssertTrue(try XCTUnwrap(presentation.actions.first { $0.id == "stop" }).enabled)

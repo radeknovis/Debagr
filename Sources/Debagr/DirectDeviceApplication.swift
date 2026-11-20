@@ -17,11 +17,19 @@ final class DirectDeviceApplication: ApplicationLifecycle {
   private var lease: RelayLease?
   private let configuredProfile: DeviceProfile?
   private let onTunnelPort: ((UInt16) -> Void)?
+  private let prepareRemotePort: ((UInt16) throws -> Void)?
+  private let isCancelled: () -> Bool
 
-  init(options: CommandLineOptions) {
+  init(
+    options: CommandLineOptions, profile: DeviceProfile? = nil,
+    isCancelled: @escaping () -> Bool = { false },
+    prepareRemotePort: ((UInt16) throws -> Void)? = nil
+  ) {
     self.options = options
-    configuredProfile = nil
+    configuredProfile = profile
     onTunnelPort = nil
+    self.prepareRemotePort = prepareRemotePort
+    self.isCancelled = isCancelled
   }
 
   init(device: ConfiguredDevice, onTunnelPort: ((UInt16) -> Void)? = nil) {
@@ -31,6 +39,8 @@ final class DirectDeviceApplication: ApplicationLifecycle {
     self.options = options
     configuredProfile = device.profile
     self.onTunnelPort = onTunnelPort
+    prepareRemotePort = nil
+    isCancelled = { false }
   }
 
   static func captureProfile(options: CommandLineOptions) throws {
@@ -93,6 +103,7 @@ final class DirectDeviceApplication: ApplicationLifecycle {
   }
 
   func start() throws {
+    if isCancelled() { throw CancellationError() }
     guard let peerName = options.peerName,
       let profile = try configuredProfile ?? ProfileStore(url: options.profileURL).load()
     else { throw CLIError.invalidDirectDeviceOptions }
@@ -123,6 +134,7 @@ final class DirectDeviceApplication: ApplicationLifecycle {
           do {
             try startRelay(port: port, binding: binding, peer: peer)
           } catch {
+            if error is CancellationError { throw error }
             print("Tunnel relay unavailable on \(port): \(error.localizedDescription)")
           }
         }
@@ -139,7 +151,8 @@ final class DirectDeviceApplication: ApplicationLifecycle {
             for old in Array(self.pairs.keys) where !retained.contains(old) {
               self.pairs.removeValue(forKey: old)?.stop()
             }
-            for next in learned.tunnelPortRange[0]...learned.tunnelPortRange[1] where next != port {
+            for next in learned.tunnelPortRange[0]...learned.tunnelPortRange[1]
+            where next != port {
               try? self.startRelay(port: next, binding: binding, peer: peer)
             }
             self.onTunnelPort?(port)
@@ -160,7 +173,9 @@ final class DirectDeviceApplication: ApplicationLifecycle {
       "Direct-device proxy ready on \(binding.ipv4Address):\(profile.remotePort), forwarding to \(peer.ipAddress)."
     )
     print(
-      "Verify CoreDevice and deployment after disconnecting USB and moving the Target Device off the local network."
+      prepareRemotePort == nil
+        ? "Verify CoreDevice and deployment after disconnecting USB and moving the Target Device off the local network."
+        : "Keep USB connected to the cable Mac. Disable phone Wi-Fi and verify CoreDevice and deployment."
     )
     print("This process must remain running. No deployment success has been established.")
   }
@@ -182,8 +197,11 @@ final class DirectDeviceApplication: ApplicationLifecycle {
   private func startRelay(
     port: UInt16, binding: InterfaceBinding, peer: SelectedNetworkPeer
   ) throws {
+    if isCancelled() { throw CancellationError() }
     if pairs[port]?.isHealthy == true { return }
     pairs.removeValue(forKey: port)?.stop()
+    // Open the cable host before advertising a usable local relay.
+    try prepareRemotePort?(port)
     let pair = try RelayPair(
       bindInterface: binding.networkInterface,
       remoteHost: NWEndpoint.Host(peer.ipAddress), remotePort: port, localPort: port,

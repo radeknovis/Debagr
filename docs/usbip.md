@@ -1,17 +1,15 @@
 # Initial device pairing over USB/IP (Experimental)
 
-**Experimental.** Everything in this guide is an experimental part of the
-Debagr 0.3.0 technical preview. It depends on third-party tools that Debagr
-does not ship, it runs one of them as root, and its Builder side currently
-works only with System Integrity Protection turned off. No part of it has
-passed hardware acceptance with Debagr 0.3.0. If your iPhone or iPad already
-trusts the Mac that builds your apps, you do not need this guide: choose
-**Use existing pairing** instead.
+Open **Pair via USB/IP** on the two Macs to start temporary USB sharing. This
+experimental route requires a compatible Longcable server on the cable Mac and
+a USB/IP importer with virtual controller access on the Builder. The [iPad hardware check](#20-november-2026-candidate-check) covers a cabled
+install and launch. Independent wireless deployment after USB setup remains unverified. For a previously paired device that stays on its cable, see the
+[paired cable bridge](CABLE_SHARING.md).
 
 ## What this path is for
 
 An iPhone or iPad must trust the Mac that deploys to it, and Apple creates that
-trust over a USB cable. This path lets a device that is plugged into a nearby
+trust through its device-pairing workflow. This path lets a device that is plugged into a nearby
 Mac (the **Client**) appear as a USB device on a remote Mac (the **Builder**),
 long enough to complete Apple pairing on the Builder. You usually need it once
 for each device and Builder, and again only if the device's trust is reset or
@@ -31,8 +29,7 @@ You need all of the following.
   rules.
 - A separately installed USB tool. Debagr does not include or download one.
   For USB/IP that is a patched `longcable-server` on the Client and
-  `usbip-macos` on the Builder; see [USB tools](#usb-tools). The alternative is
-  VirtualHere, which has its own flow behind **Use VirtualHere instead…**.
+  `usbip-macos` on the Builder; see [USB tools](#usb-tools).
 - For USB/IP, an administrator password on both Macs. Starting and stopping the
   connection each show the macOS administrator prompt.
 - For USB/IP, System Integrity Protection (SIP) turned off on the Builder. The
@@ -68,7 +65,7 @@ Read this before you turn anything off.
 
 Click the Debagr icon in the menu bar and choose **Open Debagr**. The
 Connections window opens on **Use existing pairing**. In the path picker,
-choose **Initial device pairing**, which is marked Experimental.
+choose **Pair via USB/IP**, which is marked Experimental.
 
 The screen shows the Builder and the Client side by side, each with its Mac
 name and its job. The arrow between them describes the roles, not a live USB
@@ -79,7 +76,7 @@ of the USB processes and of the device check.
 
 ### Discovery
 
-Open **Initial device pairing** on both Macs. Debagr then checks which USB
+Open **Pair via USB/IP** on both Macs. Debagr then checks which USB
 processes run on this Mac and looks for other Macs through Bonjour on the
 local network and among the online peers of your Tailscale network.
 **Refresh** scans again.
@@ -221,22 +218,26 @@ Debagr starts two separately installed tools. Neither is included in the app.
 
 ### The Longcable patch
 
-The Longcable build that was tested with Debagr contains a local source change
-that is not yet published anywhere. Debagr does not include it, and there is no
-download for it.
+The importing Mac can switch an iPad or iPhone to a USB configuration that
+exposes its pairing interfaces. The stock exporter at the revision below
+rejects that switch. The [Debagr patch](../Packaging/longcable-configurations.patch)
+allows configurations advertised by the attached device.
 
-What the change does: Longcable has a guard on the USB `SET_CONFIGURATION`
-request that the importing Mac sends. The tested build relaxes that guard so
-that the server accepts any nonzero configuration, not only the configuration
-that was active when the device was first captured. An iPhone is switched to a
-different configuration during setup (configuration 6 in the test), and only
-then do its usbmux and network (NCM) interfaces appear. In the test, the
-unpatched server listed the iPhone but its configuration stalled, so pairing
-could not continue.
+From the Debagr checkout, build the exporter on the Client Mac:
 
-Until the change is published, you need to build Longcable from source with an
-equivalent change; the unpatched server is not expected to complete pairing.
-Otherwise use VirtualHere.
+```sh
+patch_file="$PWD/Packaging/longcable-configurations.patch"
+git clone https://github.com/Sapd/longcable.git
+cd longcable
+git checkout --detach 6d3448632bf66e50047cd1f2ca210c130e4665e4
+git apply "$patch_file"
+swift build -c release --product longcable-server
+```
+
+Pass the absolute path to the resulting `.build/release/longcable-server`
+to the Client’s `--usbip serve --tool` command below. For the graphical setup,
+select it in **Set Up USB Support…** when prompted. If Debagr already finds a
+stock exporter, install the patched binary at the path Debagr uses.
 
 ### Where to install them
 
@@ -263,8 +264,7 @@ not available to the Client Mac itself.
 ## Builder SIP status
 
 Debagr reads `csrutil status` without administrator access and shows the result
-under the Builder card. Click it for the explanation and for Apple's
-instructions.
+under the Builder card. Click it for the explanation of the USB controller requirements.
 
 - **SIP off** means the experimental importer can attempt to run. It also means
   the Builder's system protection is reduced. It is not a recommended state.
@@ -274,14 +274,6 @@ instructions.
 
 The status never proves that USB import works; the capability probe at
 connection time decides that.
-
-SIP can be changed only by you, on the Builder, in macOS Recovery:
-
-1. Shut down the Builder. Hold the power button until the startup options
-   appear, then choose Options and Continue.
-2. Open Utilities, then Terminal, and run `csrutil disable`. Restart.
-3. When pairing is finished, return to Recovery, run `csrutil enable`, and
-   restart. With SIP on, the USB importer can be blocked again.
 
 `usbip-macos` documents an Apple-approved alternative to SIP off: the
 `com.apple.developer.usb.host-controller-interface` entitlement with a
@@ -349,10 +341,10 @@ executable you name, as root for `serve` and `attach`.
 
 ## Verify the result
 
-Approve **Trust** on the device if it asks. In another Terminal window, check
+On the Builder, select the imported iPad or iPhone in Xcode. Unlock the device and approve **Trust** when prompted. In another Terminal window, check
 the device with `xcrun devicectl device info details --device <UDID>`, then run
 `debagr --status --device <UDID> --timeout 60 --json`. A listed USB device is
-not proof. Use a real install and launch to verify deployment.
+not proof. Use a real install and launch to verify deployment. For independent wireless acceptance, stop the USB import and export, unplug the cable, move the device to a different Wi-Fi from the Builder, and deploy a fresh build from the Builder.
 
 ## What Debagr stores for this path
 
@@ -371,13 +363,33 @@ To remove them, stop the setup connection, quit Debagr, run
 `defaults delete com.debagr.app`, and delete
 `~/Library/Application Support/Debagr/`.
 
-## What has not been tested
+## 20 November 2026 candidate check
 
-- No hardware acceptance of this path has been run with Debagr 0.3.0: not the
-  two-Mac link, not the USB export and import, and not the wireless hand-over
-  afterwards.
-- A first-time **Trust** prompt through USB/IP has not been observed. An
-  experiment with a development build on 6 November 2026 refreshed a pairing
-  that already existed.
-- iPad, macOS 13 to 15, and VPN providers other than Tailscale are untested.
-- The VirtualHere alternative has automated tests only.
+The locally signed Debagr candidate exported a cabled iPad from a MacBook Pro
+over Tailscale to a Mac mini. With the stock exporter, the mini saw the correct
+USB serial but could not use the pairing interfaces. With the patched exporter,
+the mini selected USB configuration 5. The Apple USB Multiplexor and NCM network
+interfaces appeared, and an authenticated lockdown query reached the iPad.
+
+The mini built and signed test app build 6. Using `pymobiledevice3` on the mini
+over the import, it installed the app, read back the bundle identifier and build
+from the iPad, and launched it with PID 2188. The commands below reproduce the
+device operations with your own signed app while the USB import is active:
+
+```sh
+pymobiledevice3 apps install --developer --udid "$UDID" "$SIGNED_APP"
+pymobiledevice3 apps list --type User --udid "$UDID"
+pymobiledevice3 developer dvt launch --userspace --udid "$UDID" "$BUNDLE_ID"
+```
+
+Xcode on the mini listed the iPad by ECID as a restorable device.
+`devicectl manage pair` could not obtain a RemotePairing device representation.
+Debagr’s normal deployment command still requires that representation. After
+the import and export stopped, the MacBook Pro regained the cabled iPad.
+
+## Remaining hardware checks
+
+- Debagr’s native install and launch on this iPad through CoreDevice.
+- An independent wireless deployment from the mini after disconnecting USB/IP.
+- The on-device first-time **Trust** prompt and the graphical two-Mac setup.
+- macOS 13 through 15 and VPN providers other than Tailscale.

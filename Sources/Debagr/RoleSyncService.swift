@@ -392,6 +392,11 @@ final class RoleSyncService: @unchecked Sendable {
             DispatchQueue.main.async { [self] in
               @Sendable func decide(_ accepted: Bool) {
                 queue.async { [self] in
+                  defer {
+                    if accepted {
+                      DispatchQueue.main.async { [weak self] in self?.onApplying?(false) }
+                    }
+                  }
                   if !trusted { pendingApproval = false }
                   guard !channel.closed else {
                     close()
@@ -408,7 +413,6 @@ final class RoleSyncService: @unchecked Sendable {
                     changed()
                     reply(assignment: winner, error: nil)
                   } catch { reply(assignment: nil, error: error.localizedDescription) }
-                  DispatchQueue.main.async { [weak self] in self?.onApplying?(false) }
                 }
               }
               guard canChangeRoles() else {

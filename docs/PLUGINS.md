@@ -39,29 +39,18 @@ does not install Xcode or a VPN, establish SSH access, or change Apple trust.
 One remote device is supported. The paired Mac retains signing and pairing data.
 Managed remote deployment needs macOS 26 or later on that Mac.
 
-### Builder and Client
+### Mac cable service sharing
 
-Debagr's interface calls the Mac that builds, owns the Apple pairing and deploys
-the Builder. Everyday wireless deployment needs only a Builder. A Client is a
-second Mac that has the device plugged in by cable. It is used only by the
-window's other path, **Initial device pairing**, which is labelled Experimental.
-That path forwards USB from the Client so that a Builder you cannot reach can
-create Apple trust with the device.
+The Builder owns the existing Xcode pairing. A cable host is another Mac with
+the phone plugged in. The **USB via Mac** link explains the CLI route;
+[the cable guide](CABLE_SHARING.md) lists the explicit endpoint, port, profile,
+Tailscale and trusted SSH requirements. The phone does not need Wi-Fi on this
+route. Authenticated readiness and
+installation passed one physical-iPhone test; launch, debugger and recovery
+acceptance remain incomplete.
 
-The experimental USB path requires two Macs running Debagr 0.3.0 and a
-separately installed USB tool: a patched Longcable server plus usbip-macos, or
-VirtualHere. USB/IP also asks for an administrator password on both Macs and
-needs System Integrity Protection turned off on the Builder. Turning it off lowers that
-Mac's protection. None of the USB paths, and no two-Mac Builder/Client link,
-has passed hardware acceptance. When you can, connect the device to the Builder
-by cable once and stay on the **Use existing pairing** path.
-
-Debagr listens for other Debagr Macs (TCP 49388 and 49389, with Bonjour
-advertisements) only while the **Initial device pairing** screen is open,
-while a Builder or Client role is saved on that Mac, or while you run
-`debagr --usbip discover` or `debagr --usbip advertise` yourself. Two Macs link without a
-code only when Tailscale reports that the same Tailscale user owns both.
-Otherwise both Macs show a pairing code to compare.
+For a device that needs to trust a new Builder, choose [Pair via USB/IP](usbip.md).
+The nearby Mac shares the device’s USB connection so Apple can pair it with the Builder.
 
 ### Verified and not yet verified
 

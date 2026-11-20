@@ -1,5 +1,7 @@
 # Direct Target Device transport
 
+> Historical evidence. Current source includes the [paired cable bridge](CABLE_SHARING.md) and [experimental raw USB/IP setup](usbip.md).
+
 The product must keep the original Build Server's Apple pairing usable when
 the Target Device moves to another network. Tailscale runs on both endpoints.
 
@@ -146,6 +148,4 @@ and app UI behavior was not checked. Do not apply the older October version matr
 below to this November experiment, or treat it as acceptance of the newly combined
 Debagr build, first-ever Apple trust, VirtualHere, iPad, or cellular transport.
 
-The patched backend remains outside Debagr; neither Longcable nor usbip-macos is
-redistributed by the app. See [USB/IP setup](usbip.md) for its privilege and capability
-requirements, and [connection design](CONNECTION_DESIGN.md) for the two native paths.
+For the restored exporter, importer and capability probe, see the [USB/IP setup guide](usbip.md).

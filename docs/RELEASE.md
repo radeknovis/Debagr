@@ -191,18 +191,8 @@ Record exact Mac, macOS, Xcode, device, iOS/iPadOS, network/provider, artifact
 checksum, and each result. Private device IDs and pairing metadata belong in a
 private test record, not marketing assets or public issue reports.
 
-1. **Notarization of the USBIPProbe helper.** Build 5 is the first notarized
-   bundle that contains `Contents/MacOS/USBIPProbe`. Read both Apple logs even
-   though the status is `Accepted`, and look for any issue or warning that names
-   the helper. Then check it in the stapled app:
-
-   ```sh
-   codesign --verify --strict --verbose=2 Debagr.app/Contents/MacOS/USBIPProbe
-   codesign -dv --verbose=4 Debagr.app/Contents/MacOS/USBIPProbe
-   ```
-
-   The second command must show the Developer ID authority, a secure timestamp
-   and the hardened runtime flag.
+1. **Bundle contents.** Verify the main executable, strict app signature and
+   bundled `Cable-Sharing.md` guide. No separate USB capability helper is shipped.
 2. **Local DMG check.** Verify the SHA-256 from `dist/`, mount the DMG
    read-only, check the Applications link, copy the app out and verify its
    strict signature, `xcrun stapler validate`, Gatekeeper acceptance, version
@@ -238,12 +228,11 @@ private test record, not marketing assets or public issue reports.
    ```sh
    brew upgrade --cask radeknovis/debagr/debagr
    debagr --version          # 0.3.0 (5), through the Homebrew link
-   debagr --usbip probe      # without sudo: JSON state requires_root, exit status 2
+   debagr --cable help
    debagr --devices --json
    ```
 
-   The `requires_root` state is printed by the bundled helper, so it shows that
-   `debagr`, run through the Homebrew symlink, found USBIPProbe. Also confirm
+   Confirm that the Homebrew symlink reaches the cable command. Also confirm
    the installed app's strict signature, stapled ticket and Gatekeeper
    acceptance, that `~/.config/debagr/` is unchanged, and that a device saved
    in 0.2.0 is still shown. Test a fresh `brew install --cask` as well.
@@ -254,8 +243,8 @@ private test record, not marketing assets or public issue reports.
    it validated, and for each VPN provider before promoting it from implemented
    to verified. Check app and Mac restart, sleep/wake, a locked or offline
    device, network changes, revoked and restored trust, and denied Local
-   Network permission. Run USB/IP, VirtualHere and two-Mac Builder and Client
-   linking on real hardware before describing any of them as verified. Keep
+   Network permission. Test cable sharing with phone Wi-Fi off, through the already paired Builder;
+   verify readiness, installation, launch and debugger behavior separately. Keep
    unsupported cellular-only operation explicit and the one-device scope visible.
 
 When a gap closes before publication, remove it from

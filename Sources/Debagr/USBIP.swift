@@ -128,9 +128,9 @@ struct USBIPCommand {
       guard matches.count == 1, let device = matches.first else {
         throw USBIPError.invalid("Select exactly one connected USB serial from --usbip devices.")
       }
-      guard device.vendorID == 0x05ac else {
+      guard device.isAppleMobileDevice else {
         throw USBIPError.invalid(
-          "This pairing fallback only exports explicitly selected Apple devices.")
+          "This pairing fallback only exports explicitly selected Apple mobile devices.")
       }
       if let savedExports {
         guard

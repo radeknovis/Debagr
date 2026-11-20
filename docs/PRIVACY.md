@@ -1,6 +1,6 @@
 # Debagr privacy policy
 
-Technical-preview policy for Debagr 0.3.0, updated 11 November 2026.
+Technical-preview policy for Debagr 0.3.0, updated 13 November 2026.
 Publisher: Radek Novak. Counsel review is required before any sale.
 
 ## Summary
@@ -28,6 +28,20 @@ private connection profile and are left out of logs and diagnostics.
 Deployment traffic goes from this Mac to your own iPhone or iPad over your
 local network or your private VPN. Remote callers reach Debagr through your
 Mac's own SSH service; Debagr opens no network listener for deployment commands.
+
+### Mac cable service sharing
+
+When you run `debagr --cable connect`, Debagr uses your existing SSH identity
+and trusted host key to start a helper on the selected cable Mac. It sends that
+helper the fixed cable-side IPv6 endpoint, the Builder's Tailscale address, and
+port-opening requests. No SSH passwords or private keys are stored by Debagr.
+
+The helper opens TCP/UDP listeners on the cable Mac's selected Tailscale IPv4
+address and permits only the selected Builder's Tailscale source address. It
+forwards device services to the fixed cable endpoint. Apple's existing pairing
+authenticates the device connection. The helper does not inspect USB serial
+numbers, scan other Macs, exchange role keys, or create initial Apple trust.
+Closing the controlling SSH session releases those listeners.
 
 ### Builder/Client setup (peer discovery and role pairing)
 
@@ -119,15 +133,6 @@ the Client Mac to the Builder Mac, to the private IPv4 address you choose.
 USB/IP itself has no authentication and no encryption, so use it only across
 your VPN.
 
-The VirtualHere path uses your existing SSH access from the Builder to the
-Client Mac. Over that SSH connection Debagr checks the VirtualHere server's
-listening address, asks the Debagr app on the Client for the names of nearby
-wireless device services, and, when you choose to go wireless, receives the
-selected device's connection profile. The profile contains the device's
-Bonjour service metadata and VPN address. It is written to this Mac's private
-profile directory and is never sent anywhere else. Debagr stores no SSH
-credentials.
-
 ### Diagnostics
 
 **Copy Diagnostics** places a report on the clipboard. Nothing is sent unless
@@ -160,10 +165,10 @@ administrator prompt belongs to macOS.
 
 ## Removing local data
 
-1. If a USB/IP setup connection is running, open **Initial device pairing**
+1. If a USB/IP setup connection is running, open **Pair via USB/IP**
    and choose **Stop Setup Connection**. The connection keeps running after
    the window is closed or the app quits.
-2. Turn off **Launch at Login**, quit Debagr, and move the app to Trash.
+2. Stop any foreground cable bridge with Ctrl-C. Turn off **Launch at Login**, quit Debagr, and move the app to Trash.
 3. Delete the preferences, which also removes the saved role and the pinned key
    of the other Mac:
 

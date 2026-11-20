@@ -4,18 +4,6 @@ import XCTest
 
 @MainActor
 final class DeviceSetupTests: XCTestCase {
-  func testInitialPairingRoutesToMacDiagramWithoutStartingVirtualHere() {
-    let model = DeviceSetupModel(configured: nil)
-    var opened = 0
-    model.onInitialPairing = { opened += 1 }
-    model.selectPath(.usb)
-    XCTAssertEqual(opened, 1)
-    XCTAssertEqual(model.path, .existing)
-    XCTAssertFalse(model.usb.hasSession)
-    model.isWorking = true
-    model.selectPath(.usb)
-    XCTAssertEqual(opened, 1)
-  }
 
   private let device = TargetDevice(
     identity: .apple(pairedMacNodeID: "mac", identifier: "ipad"),
@@ -137,7 +125,7 @@ final class DeviceSetupTests: XCTestCase {
     XCTAssertFalse(model.canSave)
   }
 
-  func testUSBPathCannotBypassItsOwnPairingWorkflow() throws {
+  func testCableGuideCannotSaveWirelessConfiguration() throws {
     let configured = try DeviceSetupModel.configuration(
       device: device, provider: .wireguard, peer: peer, profile: profile)
     let model = DeviceSetupModel(configured: configured)
@@ -211,22 +199,6 @@ final class DeviceSetupTests: XCTestCase {
     model.provider = .netbird
     XCTAssertFalse(model.confirmedSelection)
     XCTAssertNil(model.importedProfile)
-  }
-
-  func testPrivateHelpersRetainStrictCommandOptionValidation() throws {
-    XCTAssertEqual(
-      try CommandLineOptions.parse(["--usb-services", "--json"]).agentCommand, "usb-services")
-    for arguments in [
-      ["--usb-services", "--devices", "--json"],
-      ["--usb-services", "--timeout", "5", "--json"],
-      [
-        "--usb-profile", "--peer", "10.20.0.2", "--bonjour-host", "phone.local.", "--device",
-        "ipad", "--json",
-      ],
-      [
-        "--usb-profile", "--peer", "10.20.0.2", "--bonjour-host", "phone.local.", "--mcp", "--json",
-      ],
-    ] { XCTAssertThrowsError(try CommandLineOptions.parse(arguments)) }
   }
 
 }

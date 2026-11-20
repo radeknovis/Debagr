@@ -62,6 +62,7 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
   private let stopButton = NSButton(title: "Stop Setup Connection", target: nil, action: nil)
   private let checkButton = NSButton(title: "Check Device", target: nil, action: nil)
   private let connectedDevices: () throws -> [USBIPDevice]
+  private let chooseItem: @MainActor (String, [String]) -> Int?
   private let deviceCheck: ConnectionDeviceCheck
   private let peerVerifier:
     (DiscoveredDebagrPeer, @escaping @MainActor @Sendable (Result<Void, Error>) -> Void) -> Void
@@ -96,14 +97,14 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
   private let startNote = NSTextField(wrappingLabelWithString: "")
   private let wirelessButton = NSButton(
     title: "Set up wireless deployment…", target: nil, action: nil)
-  private let virtualHereButton = NSButton(
-    title: "Use VirtualHere instead…", target: nil, action: nil)
+  private let cableSharingButton = NSButton(
+    title: "Use paired cable bridge…", target: nil, action: nil)
   private let handoffNote = NSTextField(wrappingLabelWithString: "")
   private let presentation = InitialPairingPresentation()
   var onWirelessSetup: (() -> Void)? {
     didSet { updateConnectionControls(active: session.isRunning) }
   }
-  var onVirtualHereSetup: (() -> Void)? {
+  var onCableSharingSetup: (() -> Void)? {
     didSet { updateConnectionControls(active: session.isRunning) }
   }
 
@@ -124,6 +125,8 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
   init(
     embedded: Bool = false,
     discovery: DebagrPeerDiscovery, session suppliedSession: USBIPSessionController? = nil,
+    chooseItem: @escaping @MainActor (String, [String]) -> Int? = InitialPairingCoordinator
+      .selectItem,
     deviceCheck: ConnectionDeviceCheck = ConnectionDeviceCheck(),
     connectedDevices: @escaping () throws -> [USBIPDevice] = USBIPDevice.connected,
     peerVerifier: (
@@ -133,6 +136,7 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
     let session = suppliedSession ?? USBIPSessionController()
     self.discovery = discovery
     self.session = session
+    self.chooseItem = chooseItem
     self.deviceCheck = deviceCheck
     self.connectedDevices = connectedDevices
     localDeviceNames = (try? connectedDevices())?.filter(\.isAppleMobileDevice).map(\.inventoryName)
@@ -467,12 +471,12 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
     }
     wirelessButton.target = self
     wirelessButton.action = #selector(openWirelessSetup)
-    virtualHereButton.target = self
-    virtualHereButton.action = #selector(openVirtualHereSetup)
-    for button in [wirelessButton, virtualHereButton] { button.bezelStyle = .rounded }
+    cableSharingButton.target = self
+    cableSharingButton.action = #selector(openCableSharingSetup)
+    for button in [wirelessButton, cableSharingButton] { button.bezelStyle = .rounded }
     handoffNote.font = .systemFont(ofSize: 12)
     handoffNote.textColor = .secondaryLabelColor
-    let destinations = NSStackView(views: [wirelessButton, virtualHereButton])
+    let destinations = NSStackView(views: [wirelessButton, cableSharingButton])
     destinations.orientation = .horizontal
     destinations.spacing = 12
     let stack = NSStackView(views: [
@@ -566,13 +570,13 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
     let locked = active || preparing || session.busy || syncingRoles || remoteApplyingRoles
     let setup = selection == nil
     wirelessButton.isEnabled = canOpenOtherSetup && isLocalBuilder && onWirelessSetup != nil
-    virtualHereButton.isEnabled = canOpenOtherSetup && isLocalBuilder && onVirtualHereSetup != nil
+    cableSharingButton.isEnabled = canOpenOtherSetup && isLocalBuilder && onCableSharingSetup != nil
     handoffNote.stringValue =
       !isLocalBuilder
       ? "After temporary sharing stops, continue wireless setup on the Builder."
       : !canOpenOtherSetup
         ? "Stop the setup connection before switching to wireless or another USB method."
-        : "Already trusted this Builder? Set up Wi-Fi + VPN for everyday deployment. VirtualHere is an optional USB alternative."
+        : "Already trusted this Builder? Set up Wi-Fi + VPN for everyday deployment. For a device that stays plugged in, use the paired cable bridge."
     if waitingForDevice, currentClientDeviceNames?.isEmpty == false {
       waitingForDevice = false
       hasConnectionFeedback = false
@@ -593,10 +597,10 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
       } ?? "Start Setup Connection"
     stopButton.isHidden = !active && !preparing && !session.busy
     stopButton.title =
-      session.busy
+      session.waitingForApproval
       ? "Cancel Approval"
       : verifyingPeer ? "Cancel Check" : (preparing ? "Cancel Waiting" : "Stop Setup Connection")
-    stopButton.isEnabled = active || preparing || session.busy
+    stopButton.isEnabled = session.waitingForApproval || (!session.busy && (active || preparing))
     checkButton.isHidden = selection?.role != .builder || !session.isRunning || setup
     checkButton.isEnabled =
       !checkingDevice && !session.busy && !syncingRoles && !remoteApplyingRoles
@@ -627,7 +631,7 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
     builderSIPStatus = chosenRole == .builder ? localSIPStatus : (remoteSIP ?? .unknown)
     builderSIPAnnotation.title = builderSIPStatus.annotation
     builderSIPAnnotation.toolTip =
-      builderSIPStatus.explanation + " Click for requirements and Recovery instructions."
+      builderSIPStatus.explanation + " Click for USB controller requirements."
     builderSIPAnnotation.setAccessibilityValue(builderSIPStatus.explanation)
     // SIP off lets the experimental path run but weakens the Builder, so no state is shown as good.
     let sipTint: NSColor = builderSIPStatus == .unknown ? .secondaryLabelColor : .systemOrange
@@ -647,7 +651,10 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
           ? ("Waiting for the Client to share its device…", .systemOrange)
           : ("Getting ready…", .systemOrange))
     } else if session.busy {
-      headline = ("Waiting for administrator approval…", .systemOrange)
+      headline = (
+        session.waitingForApproval
+          ? "Waiting for administrator approval…" : "Starting USB session…", .systemOrange
+      )
     } else if session.isRunning {
       if selection?.role == .client {
         headline = ("Temporary USB sharing running", .systemBlue)
@@ -726,9 +733,9 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
     onWirelessSetup?()
   }
 
-  @objc private func openVirtualHereSetup() {
+  @objc private func openCableSharingSetup() {
     guard canOpenOtherSetup, isLocalBuilder else { return }
-    onVirtualHereSetup?()
+    onCableSharingSetup?()
   }
 
   private var missingDeviceInstruction: String {
@@ -901,7 +908,7 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
     updateConnectionControls(active: session.isRunning)
   }
 
-  private func selectItem(title: String, choices: [String]) -> Int? {
+  private static func selectItem(title: String, choices: [String]) -> Int? {
     guard !choices.isEmpty else { return nil }
     let alert = NSAlert()
     alert.messageText = title
@@ -1037,9 +1044,9 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
       if selection.role == .client {
         checkedDeviceMessage = nil
         guard
-          let index = selectItem(
-            title: "Choose the device to share with \(remote.peer.name)",
-            choices: devices.map { "\($0.name) — \($0.serial)" })
+          let index = chooseItem(
+            "Choose the device to share with \(remote.peer.name)",
+            devices.map { "\($0.name) — \($0.serial)" })
         else { return }
         let automatic = (try? NetworkSupport.resolveTailscaleInterface().ipv4Address) ?? ""
         guard let listen = try address(title: "This Client Mac's address", suggestion: automatic)
@@ -1091,9 +1098,9 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
             guard
               let index = found.count == 1
                 ? 0
-                : self.selectItem(
-                  title: "Choose the Client device to import",
-                  choices: found.enumerated().map { index, _ in
+                : self.chooseItem(
+                  "Choose the Client device to import",
+                  found.enumerated().map { index, _ in
                     "Apple device \(index + 1) shared by \(remote.peer.name)"
                   })
             else {
@@ -1245,17 +1252,14 @@ final class InitialPairingCoordinator: NSWindowController, NSTableViewDataSource
           let devices = try result.get()
           guard !devices.isEmpty else {
             throw USBIPError.invalid(
-              "No device is visible to the Builder. Confirm that \(selection.peerName) is sharing the device and approve Trust on the device if asked."
+              "No wired iPhone or iPad is visible to the Builder. Confirm that \(selection.peerName) is sharing the device and approve Trust on the device if asked."
             )
           }
           guard
-            let index = devices.count == 1
-              ? 0
-              : self.selectItem(
-                title: "Which device should Debagr check?",
-                choices: devices.map {
-                  "\($0.displayName) (…\($0.identity.value.suffix(6)))"
-                })
+            let index = self.chooseItem(
+              "Confirm the wired device shared by \(selection.peerName)",
+              devices.map { "\($0.displayName) · \($0.identity.value)" }),
+            devices.indices.contains(index)
           else {
             self.checkingDevice = false
             self.connectionStatus.stringValue =

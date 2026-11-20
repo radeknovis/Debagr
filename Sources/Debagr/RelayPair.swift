@@ -14,7 +14,7 @@ final class RelayPair {
   private var completion: ((Result<Void, Error>) -> Void)?
 
   init(
-    bindInterface: NWInterface,
+    bindInterface: NWInterface?,
     remoteHost: NWEndpoint.Host,
     remotePort: UInt16,
     localPort: UInt16,
@@ -107,7 +107,7 @@ final class RelayPair {
 }
 
 final class RelayManager {
-  private let bindInterface: NWInterface
+  private let bindInterface: NWInterface?
   private let remoteHost: NWEndpoint.Host
   private let localInterfaceAddress: String
   private let localPortRange: ClosedRange<UInt16>
@@ -119,7 +119,7 @@ final class RelayManager {
   private var stopped = false
 
   private init(
-    bindInterface: NWInterface,
+    bindInterface: NWInterface?,
     remoteHost: NWEndpoint.Host,
     localInterfaceAddress: String,
     localPortRange: ClosedRange<UInt16>,
@@ -133,7 +133,7 @@ final class RelayManager {
   }
 
   convenience init(
-    bindInterface: NWInterface,
+    bindInterface: NWInterface?,
     remoteHost: String,
     localInterfaceAddress: String,
     localPortRange: ClosedRange<UInt16>,
@@ -155,7 +155,7 @@ final class RelayManager {
   }
 
   convenience init(
-    bindInterface: NWInterface,
+    bindInterface: NWInterface?,
     remoteHost: String,
     localInterfaceAddress: String,
     localPortRange: ClosedRange<UInt16>,

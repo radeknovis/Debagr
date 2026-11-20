@@ -22,6 +22,27 @@ Technical preview 0.3.0, updated 11 November 2026.
   argument arrays, and owned process identifiers.
 - App diagnostics omit Bonjour TXT records and payload data.
 
+## Mac cable service sharing
+
+The paired cable bridge forwards device network services from another Mac;
+it does not import the raw USB device. It requires existing Apple pairing with
+the Builder. The cable endpoint is a fixed, scoped link-local IPv6 address for
+one session. Debagr does not silently select another phone after reconnect.
+
+SSH authenticates the control channel. Batch mode and strict host-key checking
+are required; there is no password prompt, host-key auto-acceptance, or Debagr
+control listener. The remote helper accepts only bounded, unprivileged port
+requests. It cannot be told to forward an arbitrary host. Each session is
+limited to 256 listeners pairs, and terminates when SSH input closes.
+
+Data listeners bind to the cable Mac's exact Tailscale IPv4 address and accept
+only the selected Builder's Tailscale source address. Tailscale carries that
+traffic; apply its access rules to restrict the two Macs. Apple pairing protects
+the device session. Relay payloads and Bonjour TXT values are not logged.
+
+The route starts no privileged USB tool or driver, requests no administrator
+password, and makes no changes to System Integrity Protection.
+
 ## Peer discovery and role pairing
 
 The **Initial device pairing** screen links two Macs as Builder and Client.
@@ -110,7 +131,7 @@ Macs are contacted again about every five seconds while discovery runs.
 
 ## Processes that run as root
 
-The VirtualHere path does not elevate Debagr. The USB/IP path does:
+USB/IP requires administrator approval on each Mac.
 
 - **Start Setup Connection** shows the macOS administrator prompt. After you
   approve it, Debagr runs its own executable as root as a supervisor. The
@@ -158,35 +179,20 @@ Protection turned off. That reduces protection for the whole system, not only
 for Debagr. Debagr reads the status with `csrutil status` and never changes
 it. Turn SIP back on when the setup is finished.
 
-## Stored secrets
+## Stored data and remote access
 
-- The role-pairing private key is stored in
-  `~/Library/Application Support/Debagr/role-sync-key.raw`, mode 0600, in a
-  directory with mode 0700. It is not in the Keychain. Debagr refuses a key
-  file with a different owner or mode.
-- The other Mac's pinned public key and the saved role are stored in the
-  `com.debagr.app` preferences.
-- Connection profiles under `~/.config/debagr/` are written with mode 0600.
-- USB session folders under
-  `~/Library/Application Support/Debagr/USBIPSessions/` hold the request, the
-  state, and the USB tool's output log.
-- Debagr stores no passwords and no SSH credentials.
-
-The privacy policy (`PRIVACY.md`) lists what each location contains and how to
-delete it.
-
-## Remote access boundary
-
-Anyone allowed to invoke Debagr through SSH acts with that macOS account's
-device-development privileges. Require public-key authentication, least-
-privilege accounts, a private network such as Tailscale, and normal SSH audit
-and revocation practices. Do not expose Remote Login directly to the internet.
+Connection profiles and receipts remain under `~/.config/debagr/`; retain the
+existing private file permissions and avoid sharing profiles. Apple owns pairing
+keys, and SSH retains its own identity and host-key management. Temporary test
+artifacts and captured output can include private endpoints; keep them private.
+See [privacy and removal](PRIVACY.md).
 
 ## Preview limits
 
-This is a technical preview. USB/IP, VirtualHere, and two-Mac Builder/Client
-linking have automated tests but no hardware acceptance for 0.3.0. The
-compatibility matrix (`COMPATIBILITY.md`) lists what has been verified.
+The cable bridge is experimental. One physical iPhone has passed authenticated
+readiness and signed-app installation with Wi-Fi off. Launch, debugger, automatic
+discovery, reconnect and broader device/OS coverage remain incomplete. A live
+listener or advertisement is not authenticated readiness or deployment proof.
 
 ## Reporting
 

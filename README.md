@@ -73,13 +73,14 @@ the phone does not become an Xcode destination on another Mac.
 brew install --cask radeknovis/debagr/debagr
 ```
 
-The distribution docs currently list **0.2.0** as the published download.
-This README's screenshots and experimental pairing features describe **0.3.0
-(build 5)** in source; Homebrew does not install that candidate yet. See
-[distribution and updates](docs/DISTRIBUTION.md) for release details.
+Homebrew installs the published **0.3.0 build 5** preview. The screenshots and
+patched USB/IP setup shown here describe the newer source candidate.
+[Distribution and updates](docs/DISTRIBUTION.md)
 
-1. **Pair once.** On the Mac that will build and deploy, install Xcode, connect
-   your device by USB, grant trust, and enable Developer Mode.
+1. **Start on the paired Mac.** Use the Mac your device already trusts, with
+   Xcode installed and Developer Mode enabled. If you need a new pairing,
+   connect directly by USB and approve Trust, or see the
+   [remote USB/IP option](docs/usbip.md) if the Builder is elsewhere.
 2. **Save the connection.** Connect the Mac and device to your private VPN.
    While the device is nearby, choose **Open Debagr** → **Use existing pairing**.
    Select the paired device, its VPN address and its nearby service, confirm
@@ -129,47 +130,35 @@ installation, `--launch-app` retries a launch without reinstalling, and
 
 </details>
 
-## Advanced setup
+## Choose a pairing path
 
-Everyday wireless deployment needs one paired **Builder** Mac. A second
-**Client** Mac is used only for experimental initial USB pairing.
+**Use existing pairing** for everyday deployment. Run Debagr on the Mac that
+the device already trusts. Save the device’s wireless service while nearby,
+then use that Mac to deploy while the device is on another Wi-Fi network
+with its VPN connected.
 
-<details>
-<summary>Builder/Client roles and experimental USB pairing</summary>
+**Pair via USB/IP** is an experimental option in the source candidate for a
+device that has never trusted the Builder. Plug the unlocked device into a
+nearby Mac, export its USB connection, and import it on the Builder over the
+private VPN. Approve Apple’s Trust prompt if shown. Both Macs need compatible
+USB tools and administrator approval. [USB/IP setup and requirements](docs/usbip.md)
 
-### Builder and Client
+In the cabled iPad test, the Mac mini installed and launched its signed app
+with `pymobiledevice3`. Xcode listed the iPad only as restorable. First-time
+Trust, native Debagr deployment and the subsequent unplugged VPN connection
+remain unverified for this route.
 
-Debagr names two roles for a Mac. The **Builder** compiles apps, holds the Apple
-pairing and deploys. Everyday wireless deployment needs only a Builder. A
-**Client** is a second Mac that has the device plugged in by cable. It is needed
-only to create the first Apple trust when you cannot bring the device to the
-Builder.
+### Keep an already paired device on a cable
 
-A role is saved when you link two Macs on the **Initial device pairing** screen.
-Debagr listens for other Debagr Macs on your private network (TCP 49388 and
-49389, with Bonjour advertisements) only while that screen is open, while a
-role is saved on the Mac, or while you run `debagr --usbip discover` or
-`debagr --usbip advertise` yourself. Two Macs link without a code only when Tailscale
-reports that the same Tailscale user owns both. In every other case both Macs
-show a pairing code that you compare before accepting.
+For an already paired phone plugged into another Mac, use the experimental
+[cable service bridge](docs/CABLE_SHARING.md) through `debagr --cable`.
+It forwards device services over Tailscale, with SSH controlling the cable host.
+It requires an explicit cable endpoint and RemotePairing port. The phone must
+already be paired with this Builder.
 
-### Experimental USB pairing
-
-**Initial device pairing** is the second option in the window's path picker and
-is labelled Experimental. It forwards USB from the Client so that the Builder
-can pair with a device plugged into the Client. It requires:
-
-- two Macs running Debagr 0.3.0;
-- a separately installed USB tool: a patched Longcable server plus usbip-macos,
-  or VirtualHere;
-- for USB/IP, an administrator password on both Macs and System Integrity
-  Protection turned off on the Builder, which lowers that Mac's protection.
-
-No USB path has passed hardware acceptance. See
-[USB setup prerequisites](docs/usbip.md) and the
-[connection design](docs/CONNECTION_DESIGN.md).
-
-</details>
+Authenticated connectivity and signed app installation were verified on one
+MacBook Pro cable host with phone Wi-Fi off. Launch, debugger attachment,
+automatic discovery and reconnect remain unverified or unimplemented.
 
 ## Preview limits
 
@@ -184,13 +173,13 @@ a working Apple deployment path.
 Not yet verified for 0.3.0:
 
 - first launch on a clean Mac, and first launch offline;
-- iPad;
+- independent wireless iPad deployment;
 - recovery after restart, sleep and wake, a network change, revoked trust or
   denied Local Network permission;
 - Headscale, ZeroTier, NetBird and WireGuard;
 - macOS 13 to 15;
 - the Homebrew upgrade from 0.2.0 to 0.3.0;
-- all hardware use of USB/IP, VirtualHere and two-Mac Builder/Client linking.
+- cable bridge launch/debugger attachment and recovery.
 
 </details>
 

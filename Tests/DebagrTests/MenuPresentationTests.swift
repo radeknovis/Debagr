@@ -103,9 +103,8 @@ final class MenuPresentationTests: XCTestCase {
       configured: configured,
       selection: MachineRoleSelection(role: .client, peerID: "builder", peerName: "Other Mac"),
       usbActive: false, readiness: .ready, receipt: nil)
-    XCTAssertEqual(client.status, "Client Mac")
-    XCTAssertNotEqual(client.tone, .good)
-    XCTAssertTrue(client.detail.contains("Other Mac"))
+    XCTAssertEqual(client.status, "Ready for deployment")
+    XCTAssertEqual(client.title, configured.displayName)
   }
 
   func testNativeMenuKeepsFrequentActionsAtTheTopAndToolsInSubmenus() throws {

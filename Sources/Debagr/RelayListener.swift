@@ -8,7 +8,7 @@ final class RelayListener {
     () -> Void
   )
   private let transport: Transport
-  private let bindInterface: NWInterface
+  private let bindInterface: NWInterface?
   private let remoteHost: NWEndpoint.Host
   private let remotePort: NWEndpoint.Port
   private let localPort: NWEndpoint.Port
@@ -24,7 +24,7 @@ final class RelayListener {
   private var completion: ((Result<Void, Error>) -> Void)?
 
   init(
-    transport: Transport, bindInterface: NWInterface, remoteHost: NWEndpoint.Host,
+    transport: Transport, bindInterface: NWInterface?, remoteHost: NWEndpoint.Host,
     remotePort: UInt16, localPort: UInt16, localInterfaceAddress: String,
     accessPolicy: RelayAccessPolicy, makeFlow: @escaping MakeFlow
   ) throws {

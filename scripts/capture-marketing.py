@@ -36,7 +36,8 @@ def main():
         build.stdout.close()
         assert build.wait() == 0 and formatter.returncode == 0, "Screenshot harness build failed"
         subprocess.run([str(fixture / ".build/debug/debagr"), str(output)], check=True, timeout=30)
-    for name in ("device-setup-light", "agent-tools-light", "device-setup-dark", "agent-tools-dark"):
+    for name in ("device-setup-light", "agent-tools-light", "device-setup-dark", "agent-tools-dark",
+                 "connection-saved-light", "connection-saved-dark"):
         assert (output / f"{name}.png").stat().st_size > 20_000
     (output / "provenance.json").write_text(json.dumps({
         "kind": "Native AppKit/SwiftUI view captures with synthetic device data",

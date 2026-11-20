@@ -49,7 +49,8 @@ def main():
             assert (page.parent / unquote(path.path)).exists(), (page.name, link)
         if page == MARKETING / "site/index.html":
             scripts = parser.scripts
-    for name in ("device-setup-light", "device-setup-dark", "agent-tools-light", "agent-tools-dark"):
+    for name in ("device-setup-light", "device-setup-dark", "agent-tools-light", "agent-tools-dark",
+                 "connection-saved-light", "connection-saved-dark"):
         data = (MARKETING / f"screenshots/{name}.png").read_bytes()
         assert data[:8] == b"\x89PNG\r\n\x1a\n"
         assert struct.unpack(">II", data[16:24]) == (2000, 1680)

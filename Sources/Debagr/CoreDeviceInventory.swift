@@ -19,7 +19,7 @@ enum CoreDeviceInventoryError: LocalizedError {
 }
 
 enum CoreDeviceInventory {
-  static func load(pairedMacNodeID: String) throws -> [TargetDevice] {
+  static func load(pairedMacNodeID: String, wiredOnly: Bool = false) throws -> [TargetDevice] {
     let outputURL = FileManager.default.temporaryDirectory
       .appendingPathComponent("debagr-devices-\(UUID().uuidString).json")
     defer { try? FileManager.default.removeItem(at: outputURL) }
@@ -51,7 +51,7 @@ enum CoreDeviceInventory {
     do {
       return try decodeDevices(
         from: Data(contentsOf: outputURL),
-        pairedMacNodeID: pairedMacNodeID
+        pairedMacNodeID: pairedMacNodeID, wiredOnly: wiredOnly
       )
     } catch let error as CoreDeviceInventoryError {
       throw error
@@ -60,9 +60,19 @@ enum CoreDeviceInventory {
     }
   }
 
-  static func decodeDevices(from data: Data, pairedMacNodeID: String) throws -> [TargetDevice] {
+  static func decodeDevices(from data: Data, pairedMacNodeID: String, wiredOnly: Bool = false)
+    throws -> [TargetDevice]
+  {
     let output = try JSONDecoder().decode(Output.self, from: data)
     return output.result.devices.compactMap { device in
+      let connection = device.properties?.connection
+      if wiredOnly {
+        let transport = connection?.transportType ?? device.connectionProperties?.transportType
+        let state = connection?.state ?? device.connectionProperties?.state
+        guard transport == "wired", state != "unavailable", state != "disconnected" else {
+          return nil
+        }
+      }
       let hardware = device.properties?.hardware
       let deviceType = hardware?.deviceType ?? device.hardwareProperties?.deviceType
       let reality = hardware?.reality ?? device.hardwareProperties?.reality
@@ -99,6 +109,7 @@ enum CoreDeviceInventory {
     let properties: Properties?
     let hardwareProperties: LegacyHardware?
     let deviceProperties: LegacyDevice?
+    let connectionProperties: Connection?
   }
 
   private struct State: Decodable { let name: String? }
@@ -118,6 +129,7 @@ enum CoreDeviceInventory {
   }
 
   private struct Connection: Decodable {
+    let transportType: String?
     let state: String?
   }
 

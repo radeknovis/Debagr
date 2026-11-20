@@ -271,7 +271,8 @@ final class USBIPSessionController {
   private var approvalCancelled = false
   // Main-thread polling; Timer.invalidate is also safe during nonisolated destruction.
   nonisolated(unsafe) private var timer: Timer?
-  private(set) var busy = false
+  var waitingForApproval: Bool { approvalProcess != nil }
+  var busy: Bool { waitingForApproval || waitingSince != nil }
   private var waitingSince: Date?
   private var feedbackContext: String?
   private var filtersFeedback = false
@@ -315,7 +316,6 @@ final class USBIPSessionController {
     ignoredRequestPath = requestURL?.path
     observedActiveRequestPath = nil
     diagnostics = ""
-    waitingSince = nil
   }
 
   func backendPath(for role: DebagrMachineRole) -> String? {
@@ -403,9 +403,7 @@ final class USBIPSessionController {
   }
 
   private func authorize(command: String, starting: Bool) {
-    busy = true
     approvalCancelled = false
-    onChange?("Waiting for administrator approval…", true)
     // The system helper owns the blocking authentication request; AppKit stays responsive.
     let process = Process()
     process.executableURL = URL(fileURLWithPath: approvalExecutablePath)
@@ -421,7 +419,6 @@ final class USBIPSessionController {
       DispatchQueue.main.async { [weak self] in
         guard let self, self.approvalProcess === process else { return }
         self.approvalProcess = nil
-        self.busy = false
         if self.approvalCancelled || process.terminationStatus != 0 {
           self.diagnostics = detail
           self.onChange?(
@@ -437,9 +434,9 @@ final class USBIPSessionController {
       }
     }
     approvalProcess = process
+    onChange?("Waiting for administrator approval…", true)
     do { try process.run() } catch {
       approvalProcess = nil
-      busy = false
       diagnostics = error.localizedDescription
       onChange?("Unable to open administrator approval. Check Diagnostics, then retry.", isRunning)
     }
@@ -455,7 +452,7 @@ final class USBIPSessionController {
   }
 
   func poll() {
-    guard !busy, let url = requestURL else { return }
+    guard !waitingForApproval, let url = requestURL else { return }
     let active = isRunning
     if active { observedActiveRequestPath = url.path }
     if !active {

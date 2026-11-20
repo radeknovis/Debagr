@@ -74,7 +74,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
   private var setupWindowOpen = false
 
   @objc private func showUSBIPSetup() {
-    if let model = setupWindowController?.model, model.isWorking || model.usb.hasSession {
+    if let model = setupWindowController?.model, model.isWorking {
       setupWindowController?.present(page: .setup)
       return
     }
@@ -82,7 +82,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
       let controller = InitialPairingCoordinator(
         embedded: true, discovery: peerDiscovery, session: usbipSession)
       controller.onWirelessSetup = { [weak self] in self?.configureRemoteDevice() }
-      controller.onVirtualHereSetup = { [weak self] in self?.showVirtualHereSetup() }
+      controller.onCableSharingSetup = { [weak self] in self?.showCableSharingSetup() }
       initialPairingCoordinator = controller
     }
     presentSetup(page: .setup)
@@ -91,8 +91,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     {
       let model = setup.model
       model.initialPairing = controller.activate(in: window)
-      model.usesVirtualHere = false
-      model.path = .usb
+      model.path = .usbIP
       syncPairingScreen()
     }
   }
@@ -101,10 +100,10 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
   private func syncPairingScreen() {
     let model = setupWindowController?.model
     peerDiscovery.setPairingScreenOpen(
-      setupWindowOpen && model?.page == .setup && model?.isInitialPairing == true)
+      setupWindowOpen && model?.page == .setup && model?.path == .usbIP)
   }
 
-  private func showVirtualHereSetup() {
+  private func showCableSharingSetup() {
     guard !usbipSession.isRunning, !usbipSession.busy,
       initialPairingCoordinator?.canOpenOtherSetup != false
     else {
@@ -112,14 +111,17 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
       return
     }
     presentSetup(page: .setup)
-    setupWindowController?.model.usesVirtualHere = true
     setupWindowController?.model.path = .usb
   }
 
   @objc private func showConnectionSetup() {
-    let start = ConnectionPath.start(
-      role: (try? peerDiscovery.localSelection)?.role, open: setupWindowController?.model.path)
-    if start == .usb { showUSBIPSetup() } else { configureRemoteDevice() }
+    if usbipSession.isRunning || setupWindowController?.model.path == .usbIP
+      || (setupWindowController == nil && (try? peerDiscovery.localSelection)?.role == .client)
+    {
+      showUSBIPSetup()
+    } else {
+      presentSetup(page: .setup)
+    }
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -322,7 +324,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
     connectionSummary.update(presentation)
     statusItem?.button?.image = presentation.iconState.image
     openConnectionItem?.title = presentation.actionTitle
-    managedToggleItem?.isHidden = menuConfiguredDevice == nil || selection?.role == .client
+    managedToggleItem?.isHidden = menuConfiguredDevice == nil
     statusItem?.button?.toolTip = "Debagr · \(presentation.title) · \(presentation.status)"
     statusItem?.button?.setAccessibilityLabel(
       "Debagr. \(presentation.title). \(presentation.status)")
@@ -354,11 +356,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
         }
       }
     }
-    if let usb = setupWindowController?.model.usb {
-      usb.shutdown(completion: finish)
-    } else {
-      finish()
-    }
+    finish()
     return .terminateLater
   }
 
@@ -425,7 +423,11 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
   }
 
   @objc private func openDebagr() {
-    presentSetup(page: setupWindowController?.model.page ?? .setup)
+    if usbipSession.isRunning || usbipSession.busy || setupWindowController == nil {
+      showConnectionSetup()
+    } else {
+      presentSetup(page: setupWindowController?.model.page ?? .setup)
+    }
   }
 
   @objc private func toggleLaunchAtLogin() {
@@ -728,8 +730,7 @@ final class MenuBarApplication: NSObject, NSApplicationDelegate, NSMenuDelegate 
   }
 
   @objc private func configureRemoteDevice() {
-    guard (try? peerDiscovery.localSelection)?.role != .client,
-      !usbipSession.isRunning, !usbipSession.busy,
+    guard !usbipSession.isRunning, !usbipSession.busy,
       initialPairingCoordinator?.canOpenOtherSetup != false
     else {
       showUSBIPSetup()

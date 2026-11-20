@@ -22,6 +22,34 @@ final class USBIPTests: XCTestCase {
       XCTAssertThrowsError(try command.backendArguments(devices: [device], savedExports: saved))
     }
   }
+  func testUSBIPCheckIgnoresWirelessAndUnavailableDevices() throws {
+    let hardware = ["deviceType": "iPad", "reality": "physical"]
+    func device(_ id: String, _ transport: String, _ state: String) -> [String: Any] {
+      [
+        "hardwareProperties": hardware.merging(["udid": id]) { _, new in new },
+        "connectionProperties": ["transportType": transport],
+        "properties": ["connection": ["state": state]],
+      ]
+    }
+    let data = try JSONSerialization.data(withJSONObject: [
+      "result": [
+        "devices": [
+          device("wired", "wired", "connected"), device("other", "localNetwork", "connected"),
+          device("absent", "wired", "unavailable"), device("unknown", "", "connected"),
+          [
+            "hardwareProperties": hardware.merging(["udid": "legacy"]) { _, new in new },
+            "connectionProperties": ["state": "disconnected", "transportType": "wired"],
+          ],
+        ]
+      ]
+    ])
+    let wired = try CoreDeviceInventory.decodeDevices(
+      from: data, pairedMacNodeID: "local", wiredOnly: true)
+    XCTAssertEqual(wired.map(\.identity.value), ["wired"])
+    XCTAssertEqual(
+      try CoreDeviceInventory.decodeDevices(from: data, pairedMacNodeID: "local").count, 5)
+  }
+
   func testClientPassesExplicitArgumentsWithoutShell() throws {
     let list = try USBIPCommand([
       "list", "--tool", "/tmp/tool with spaces", "--remote", "100.80.103.100",
@@ -98,6 +126,9 @@ final class USBIPTests: XCTestCase {
     let other = USBIPDevice(
       serial: "phone", name: "Other", vendorID: 1, productID: 2, locationID: 3)
     XCTAssertThrowsError(try command.backendArguments(devices: [other]))
+    let keyboard = USBIPDevice(
+      serial: "phone", name: "Apple Keyboard", vendorID: 0x05ac, productID: 2, locationID: 3)
+    XCTAssertThrowsError(try command.backendArguments(devices: [keyboard]))
     let moved = USBIPDevice(
       serial: "phone", name: "iPhone", vendorID: 0x05ac,
       productID: 0x12a8, locationID: 0x0110_0000)

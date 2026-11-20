@@ -68,11 +68,6 @@ enum SystemIntegrityStatus: String, Codable {
 
     Disabling SIP reduces system-wide protection. "SIP off" means only that this experimental backend can try to run; the actual USB capability probe still runs when connecting. Apple recommends disabling SIP only temporarily for development.
 
-    If you choose the experimental path, change SIP on the Builder only:
-    • Apple silicon: shut down, hold the power button until startup options appear, then select Options → Continue.
-    • Intel: restart while holding Command-R.
-    • In Recovery, open Utilities → Terminal, run csrutil disable, then restart.
-
-    Restore protection by returning to Recovery, running csrutil enable, and restarting. Reenabling SIP can block this experimental USB importer again. Debagr only reads SIP status and never changes it.
+    Debagr reads SIP status. It does not change system settings.
     """
 }

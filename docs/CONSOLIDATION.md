@@ -1,5 +1,7 @@
 # Connection design restoration
 
+> Historical evidence. Current source includes the [paired cable bridge](CABLE_SHARING.md) and [experimental raw USB/IP setup](usbip.md).
+
 The restoration starts from audit PR #15, merged as `2c9d975`, rather than replacing
 the audited source with the older app. The design source is `a84b122` on
 `t3/streamlined-device-pairing`, plus its uncommitted Agent tools/menu refinements.
