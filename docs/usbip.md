@@ -220,13 +220,13 @@ Debagr starts two separately installed tools. Neither is included in the app.
 
 The importing Mac can switch an iPad or iPhone to a USB configuration that
 exposes its pairing interfaces. The stock exporter at the revision below
-rejects that switch. The [Debagr patch](../Packaging/longcable-configurations.patch)
+rejects that switch. The included `longcable-configurations.patch`
 allows configurations advertised by the attached device.
 
-From the Debagr checkout, build the exporter on the Client Mac:
+On the Client Mac, build the exporter using the patch included in the installed Debagr app:
 
 ```sh
-patch_file="$PWD/Packaging/longcable-configurations.patch"
+patch_file="/Applications/Debagr.app/Contents/Resources/longcable-configurations.patch"
 git clone https://github.com/Sapd/longcable.git
 cd longcable
 git checkout --detach 6d3448632bf66e50047cd1f2ca210c130e4665e4
