@@ -31,6 +31,7 @@ fi
 mkdir -p "$staged_app/Contents/MacOS" "$staged_app/Contents/Resources"
 cp "$binary_path" "$staged_app/Contents/MacOS/Debagr"
 cp "$project_directory/.build/$configuration/USBIPProbe" "$staged_app/Contents/MacOS/USBIPProbe"
+cp "Packaging/longcable-configurations.patch" "$staged_app/Contents/Resources/longcable-configurations.patch"
 cp "docs/usbip.md" "$staged_app/Contents/Resources/USB-IP-Setup.md"
 cp "docs/CABLE_SHARING.md" "$staged_app/Contents/Resources/Cable-Sharing.md"
 cp "Packaging/Debagr.app/Contents/Info.plist" "$staged_app/Contents/Info.plist"

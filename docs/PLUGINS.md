@@ -14,7 +14,7 @@ Debagr's Connections window keeps network and device selection together. Validat
 and recovery messages appear inline; saved-profile imports use a file-picker
 sheet. Closing the window leaves the menu-bar app running.
 
-1. Install Debagr 0.3.0 in `/Applications` on the Mac that will build and deploy your app.
+1. Install Debagr 0.3.1 in `/Applications` on the Mac that will build and deploy your app.
    Install Xcode, pair the device over USB, grant trust, and enable Developer Mode.
 2. Connect that Mac and device to your chosen VPN. While the device's Bonjour service
    is available locally, choose **Open Debagr** in the menu-bar menu. With no saved

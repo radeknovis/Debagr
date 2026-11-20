@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — Technical preview
+
+Build 9, Apple silicon. Setup opens on existing Apple pairing over VPN. A second option starts experimental USB/IP setup for a new Builder. The paired cable bridge and updated setup guides are included.
+
 ## 0.3.0 — Technical preview
 
 Build 5, Apple silicon. Published 12 November 2026.
