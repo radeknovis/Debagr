@@ -89,3 +89,23 @@ Other devices/OS versions, changed service identities, tunnel ranges outside
 the saved window and recovery still require physical-device validation. If the
 cable-side service is unavailable, this route cannot create it merely by opening
 relay sockets.
+
+### 20 November 2026 iPad test
+
+The MacBook Pro and an unlocked iPad Pro shared Wi-Fi. The iPad was also
+plugged into the Pro. The Mac mini was on a different network. Both Macs ran
+the release binary built from `65e1dc3`. The Pro's Apple tools reported a wired,
+paired connection. The iPad's USB link advertised RemotePairing on port 49152
+with a different service instance name from the saved Wi-Fi profile. The test
+used a fresh profile matching the cable advertisement.
+
+The mini started the bridge and resolved its local Bonjour advertisement. In a
+separate TCP check, the Pro's cable helper held simultaneous established
+connections from the mini and to the iPad's verified USB address on port 49152.
+Six additional tunnel ports were already in use during bridge startup.
+
+Apple's device list on the mini contained no matching iPad before or during the
+test. Three readiness checks and one native `devicectl manage pair` attempt on
+the mini returned CoreDevice error 1000 (device not found). The mini did not
+install or launch test build 5. After the test, the mini's original iPhone relay
+resumed and the iPhone returned `state: ready`.
