@@ -3,29 +3,26 @@ import SwiftUI
 enum ConnectionPath: String, CaseIterable, Identifiable {
   case existing, usb
   var id: Self { self }
-  var title: String { self == .existing ? "Use existing pairing" : "Initial device pairing" }
+  var title: String { self == .existing ? "Use existing pairing" : "USB via Mac" }
+  var situation: String {
+    self == .existing ? "Already paired with this Mac" : "Phone plugged into another Mac"
+  }
   var subtitle: String {
     self == .existing
-      ? "Your Builder already knows this device." : "Forward USB from a Mac near your iPhone."
+      ? "Deploy over Wi-Fi and your private VPN."
+      : "Use an already paired phone through its USB cable."
   }
   var symbol: String { self == .existing ? "link" : "cable.connector" }
 
-  /// The USB path covers both USB/IP and VirtualHere; neither has hardware acceptance yet.
   static let experimentalLabel = "Experimental"
   var accessibilityLabel: String {
-    "\(title), \(self == .existing ? "everyday" : "\(Self.experimentalLabel), one-time setup"). \(subtitle)"
+    "\(situation). \(title), \(self == .existing ? "everyday" : "\(Self.experimentalLabel), existing pairing required"). \(subtitle)"
   }
 
-  /// Shown on both USB screens above the primary action.
   static var usbRequirements: String {
-    "Requires two Macs running Debagr \(ProductSupport.version) and a separately installed USB tool (a patched Longcable server plus usbip-macos, or VirtualHere). USB/IP also requires an administrator password on both Macs and System Integrity Protection turned off on the Builder, which reduces that Mac's protection."
+    "Requires existing Xcode pairing with this Builder, a phone connected to another Mac, Tailscale and trusted SSH access. Start the cable service bridge from the CLI."
   }
 
-  /// Where first run and reopening the app land. A saved device does not matter: a new user
-  /// starts on the existing-pairing form. Only a Client Mac or an open USB screen stays on USB.
-  static func start(role: DebagrMachineRole?, open: ConnectionPath?) -> Self {
-    role == .client || open == .usb ? .usb : .existing
-  }
 }
 
 struct ExperimentalBadge: View {
@@ -57,9 +54,9 @@ enum ConnectionVerification: Equatable {
 
   var title: String {
     switch self {
-    case .checking: return "Checking the way through."
-    case .ready: return "Ready for your next build."
-    case .attention: return "One more thing to resolve."
+    case .checking: return "Checking device connection"
+    case .ready: return "Device connection verified"
+    case .attention: return "Connection needs attention"
     }
   }
 
@@ -93,11 +90,13 @@ struct ConnectionPathPicker: View {
             HStack {
               Image(systemName: path.symbol).font(.title3)
               Spacer()
-              Text(path == .existing ? "EVERYDAY" : "ONE-TIME SETUP")
-                .font(.system(size: 9, weight: .semibold)).tracking(0.6)
+              Text(path == .existing ? "Wireless deployment" : "Cable connection")
+                .font(.system(size: 10, weight: .medium))
               if path == .usb { ExperimentalBadge() }
             }
-            Text(path.title).font(.headline)
+            Text(path.situation).font(.headline)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(path.title).font(.system(size: 11, weight: .medium))
             Text(path.subtitle).font(.caption).foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
           }
@@ -130,18 +129,18 @@ struct ConnectionPathPicker: View {
 struct ConnectionDiagram: View {
   let path: ConnectionPath
   var deviceName = "Your iPhone"
-  var usbLinkLabel = "USB over SSH"
+  var usbLinkLabel = "CoreDevice over VPN"
 
   var topologyDescription: String {
     path == .existing
       ? "Connection diagram. Your device connects over a private VPN to the Builder that already owns its Apple pairing. No Client Mac is required."
-      : "Connection diagram. Your iPhone connects by USB cable to a Client Mac. The Client forwards USB to the remote Builder using \(usbLinkLabel). Approve new trust on the iPhone. The cable is required during pairing."
+      : "Connection diagram. Your iPhone connects by USB cable to a cable Mac. The cable Mac forwards device services to the already paired Builder using \(usbLinkLabel). Keep the USB cable connected."
   }
 
   var body: some View {
     VStack(spacing: 12) {
       HStack {
-        Text(path == .existing ? "THE EVERYDAY CONNECTION" : "THE ONE-TIME USB BRIDGE")
+        Text(path == .existing ? "THE EVERYDAY CONNECTION" : "THE CABLE SERVICE BRIDGE")
           .font(.system(size: 9, weight: .semibold)).tracking(1)
         Spacer()
         Image(systemName: "arrow.left.arrow.right").accessibilityHidden(true)
@@ -152,17 +151,17 @@ struct ConnectionDiagram: View {
         DiagramLink(
           label: path == .existing ? "Private VPN" : "USB cable", wireless: path == .existing)
         if path == .usb {
-          DiagramEndpoint(kind: .laptop, title: "Client Mac", detail: "Shares USB")
+          DiagramEndpoint(kind: .laptop, title: "Cable Mac", detail: "Forwards services")
           DiagramLink(label: usbLinkLabel, wireless: true)
         }
         DiagramEndpoint(
           kind: .server, title: "Builder",
-          detail: path == .existing ? "Owns Apple pairing" : "Creates Apple pairing")
+          detail: path == .existing ? "Builds, signs & deploys" : "Uses existing pairing")
       }
       Label(
         path == .existing
           ? "Existing trust · the Builder stays paired"
-          : "New trust · approve the Builder on your iPhone",
+          : "Existing trust · keep the USB cable connected",
         systemImage: "lock.shield"
       )
       .font(.caption).foregroundStyle(SettingsStyle.accent)
@@ -248,10 +247,9 @@ private struct DiagramLink: View {
 
 struct ConnectionProgress: View {
   let step: ConnectionStep
-  var isInitialPairing = false
 
   private func title(_ step: ConnectionStep) -> String {
-    isInitialPairing ? ["Macs", "Device trust", "Wireless"][step.rawValue] : step.title
+    step.title
   }
 
   var body: some View {
@@ -287,7 +285,7 @@ struct PairingLocationGuide: View {
       .font(.callout).foregroundStyle(.secondary)
       DisclosureGroup("Paired with a different Mac, or not paired yet?") {
         Text(
-          "A pairing on your Client Mac does not pair your Builder. Connect the device directly to the Builder once, unlock it, approve Trust, and enable Developer Mode. If the Builder is far away, use the new-pairing USB flow above."
+          "Pair the device directly with this Builder first: connect it, unlock it, approve Trust, and enable Developer Mode. A pairing with the cable Mac does not pair this Builder. Remote first-time pairing is not supported."
         )
         .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
       }

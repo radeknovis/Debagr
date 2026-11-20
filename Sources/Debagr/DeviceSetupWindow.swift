@@ -9,17 +9,7 @@ final class DeviceSetupModel: ObservableObject {
   @Published var confirmedSelection = false
   @Published var configured: ConfiguredDevice?
   @Published var page = Page.setup
-  @Published var path = ConnectionPath.existing {
-    didSet {
-      if oldValue != path {
-        error = nil
-        if oldValue == .usb { usb.stop() }
-      }
-    }
-  }
-  @Published var initialPairing: InitialPairingPresentation?
-  @Published var usesVirtualHere = false
-  var isInitialPairing: Bool { path == .usb && initialPairing != nil && !usesVirtualHere }
+  @Published var path = ConnectionPath.existing
   @Published var step = ConnectionStep.device
   @Published var verification = ConnectionVerification.checking
   @Published var provider = NetworkProvider.tailscale {
@@ -59,9 +49,7 @@ final class DeviceSetupModel: ObservableObject {
   @Published var error: String?
   @Published var discoveryStatus = "Looking for devices…"
   var onSaved: (() -> Void)?
-  var onInitialPairing: (() -> Void)?
   var onExistingPairing: (() -> Void)?
-  let usb = USBPairingModel()
   var onCheckConnection: (() -> Void)?
   var onRefresh: (() -> Void)?
   var onClose: (() -> Void)?
@@ -144,21 +132,8 @@ final class DeviceSetupModel: ObservableObject {
 
   func selectPath(_ path: ConnectionPath) {
     guard !isWorking else { return }
-    if isInitialPairing && path == self.path { return }
-    guard !isInitialPairing || initialPairing?.canLeave == true else {
-      error = "Stop the temporary setup connection before switching pairing paths."
-      return
-    }
     if path == .existing, let onExistingPairing {
       onExistingPairing()
-      return
-    }
-    if path == .usb, let onInitialPairing {
-      guard !usb.hasSession else {
-        error = "Stop the VirtualHere session before choosing another USB setup method."
-        return
-      }
-      onInitialPairing()
     } else {
       self.path = path
     }
@@ -186,27 +161,6 @@ final class DeviceSetupModel: ObservableObject {
       let failure = AgentCLI.failure(error, operation: "status").object["error"] as? [String: Any]
       verification = .attention(failure?["recovery"] as? String ?? error.localizedDescription)
     }
-  }
-
-  func acceptUSBConfiguration(_ configured: ConfiguredDevice) {
-    self.configured = configured
-    provider = NetworkProvider(rawValue: configured.profile.provider) ?? .tailscale
-    deviceID = configured.deviceIdentifier
-    peerIP = configured.profile.peerIP
-    address = provider.discoversPeers ? "" : peerIP
-    importedProfile = configured.profile
-    if !devices.contains(where: { $0.identity.value == deviceID }) {
-      devices.append(
-        TargetDevice(
-          identity: .apple(pairedMacNodeID: "local", identifier: deviceID),
-          displayName: configured.displayName, kind: configured.kind ?? .unknown, service: nil,
-          status: .paired))
-    }
-    confirmedSelection = true
-    verification = .checking
-    path = .existing
-    page = .saved
-    onSaved?()
   }
 
   func loadPeers() {
@@ -370,7 +324,6 @@ final class DeviceSetupWindowController: NSWindowController, NSWindowDelegate {
   required init?(coder: NSCoder) { return nil }
 
   func present(page: DeviceSetupModel.Page) {
-    if page == .guide { model.usb.stop() }
     if !model.isWorking {
       model.page = page
       model.error = nil
@@ -381,8 +334,6 @@ final class DeviceSetupWindowController: NSWindowController, NSWindowDelegate {
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool { !model.isWorking }
-
-  func windowWillClose(_ notification: Notification) { model.usb.stop() }
 
   private func importProfile() {
     guard let window, !model.isWorking else { return }
@@ -433,11 +384,7 @@ struct DeviceSetupView: View {
           }
           if model.page == .setup {
             ConnectionActionBar {
-              if model.isInitialPairing, let presentation = model.initialPairing {
-                InitialPairingActions(presentation: presentation)
-              } else {
-                ConnectionActions(model: model)
-              }
+              ConnectionActions(model: model)
             }
           }
         }
@@ -449,7 +396,9 @@ struct DeviceSetupView: View {
       HStack(spacing: 8) {
         Image(systemName: "info.circle")
         Text(
-          "Builder: this Mac · Keep Debagr running · Wireless deployment requires device Wi-Fi + VPN."
+          model.path == .usb
+            ? "Builder: this Mac · Keep USB connected to the cable Mac · Both Macs need Tailscale."
+            : "Builder: this Mac · Keep Debagr running · Wireless deployment requires device Wi-Fi + VPN."
         )
         Spacer(minLength: 0)
       }
@@ -496,7 +445,6 @@ struct SettingsSidebar: View {
           isSelected: model.page == .guide
         ) {
           model.page = .guide
-          model.usb.stop()
           model.error = nil
         }
         SettingsNavigationItem(
@@ -601,14 +549,11 @@ private struct DeviceConnectionView: View {
       VStack(alignment: .leading, spacing: 14) {
         SettingsHeading(
           eyebrow: "Connection setup", experimental: model.path == .usb,
-          title: model.isInitialPairing
-            ? "Pair your iPhone once."
-            : model.path == .usb ? "Pair using VirtualHere." : "Your iPhone. Your Builder.",
-          subtitle: model.isInitialPairing
-            ? "Create Apple trust with your Builder, then connect across networks."
-            : model.path == .usb
-              ? "Bring a nearby USB device to this Builder over SSH."
-              : "Keep your existing Apple pairing connected across networks.")
+          title: model.path == .usb
+            ? "Use your iPhone through another Mac." : "Deploy to your iPhone over Wi-Fi.",
+          subtitle: model.path == .usb
+            ? "Forward the services of an already paired phone over its USB cable and your private VPN."
+            : "This Mac builds and deploys. Your paired iPhone can be on another Wi-Fi network.")
         ConnectionPathPicker(selection: Binding(get: { model.path }, set: { model.selectPath($0) }))
         if model.path == .usb {
           Label(ConnectionPath.usbRequirements, systemImage: "exclamationmark.triangle")
@@ -617,10 +562,8 @@ private struct DeviceConnectionView: View {
         }
         ConnectionDiagram(
           path: model.path, deviceName: model.selectedDeviceName,
-          usbLinkLabel: model.isInitialPairing ? "USB over VPN" : "USB over SSH")
-        if model.isInitialPairing, let presentation = model.initialPairing {
-          InitialPairingContent(presentation: presentation)
-        } else if model.path == .existing {
+          usbLinkLabel: "CoreDevice over VPN")
+        if model.path == .existing {
           ConnectionProgress(step: model.step)
           switch model.step {
           case .device:
@@ -650,7 +593,7 @@ private struct DeviceConnectionView: View {
               "These selections refer to the same physical device", isOn: $model.confirmedSelection)
           }
         } else {
-          USBPairingView(model: model.usb)
+          CableSharingSetupView()
         }
       }
       .frame(maxWidth: 660, alignment: .leading)
@@ -815,7 +758,9 @@ private struct ConnectionActions: View {
   var body: some View {
     HStack(spacing: 12) {
       if model.path == .usb {
-        USBPairingActions(model: model.usb, onConfigured: model.acceptUSBConfiguration)
+        Text("Use the cable bridge CLI to start and stop sharing.").font(.caption).foregroundStyle(
+          .secondary)
+        Spacer(minLength: 0)
       } else {
         if model.step != .device {
           Button("Back") { model.step = model.step == .review ? .network : .device }
@@ -892,6 +837,15 @@ private struct AgentToolsView: View {
           detail:
             "The Debagr skill teaches your agent how to find your device, check its connection, and install and launch a build. Tell it which Builder to use and what you want to run."
         )
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Try a request like this").font(.headline)
+          Text("Use Debagr on my Builder to install and launch /path/to/MyApp.app on my iPhone.")
+            .font(.callout).textSelection(.enabled)
+          Text("Use your Builder’s SSH alias and the signed app’s path on that Mac.")
+            .font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
         Text("Current target devices: iPhone and iPad. Mac targets are not implemented.")
           .font(.system(size: 11)).foregroundStyle(.secondary)
       }
@@ -930,6 +884,18 @@ private struct SetupSavedView: View {
           eyebrow: "Connection saved", title: model.verification.title,
           subtitle: model.verification.detail)
         ConnectionDiagram(path: .existing, deviceName: model.selectedDeviceName)
+        if let configured = model.configured {
+          VStack(alignment: .leading, spacing: 10) {
+            LabeledContent("Deploys from", value: "This Mac · Builder")
+            LabeledContent("Device", value: configured.displayName)
+            LabeledContent(
+              "Private VPN",
+              value: "\(model.provider.displayName) · \(configured.profile.peerIP)")
+          }
+          .font(.callout).textSelection(.enabled)
+          .padding(16)
+          .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        }
         Label("Connection profile saved on this Mac", systemImage: "checkmark.circle.fill")
         if case .checking = model.verification {
           HStack {

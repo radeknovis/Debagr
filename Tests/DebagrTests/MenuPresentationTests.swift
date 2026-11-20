@@ -5,6 +5,14 @@ import XCTest
 
 @MainActor
 final class MenuPresentationTests: XCTestCase {
+  func testMissingConfigurationCannotClaimReadiness() {
+    let presentation = MenuConnectionPresentation(
+      configured: nil, readiness: .ready, receipt: nil)
+    XCTAssertEqual(presentation.status, "No device configured")
+    XCTAssertEqual(presentation.tone, .neutral)
+    XCTAssertEqual(presentation.iconState, .idle)
+  }
+
   func testStatusIconsAreDistinctTemplateArtwork() throws {
     var artwork = Set<Data>()
     for state in MenuBarIconState.allCases {
@@ -43,34 +51,12 @@ final class MenuPresentationTests: XCTestCase {
         localPortRange: [55000, 58000]))
   }
 
-  func testSetupAndUSBActivityCannotClaimReadiness() {
-    let setup = MenuConnectionPresentation(
-      configured: nil, selection: nil, usbActive: false,
-      readiness: .ready, receipt: nil)
-    XCTAssertEqual(setup.status, "No device configured")
-    XCTAssertEqual(setup.actionTitle, "Open Debagr")
-    XCTAssertEqual(setup.tone, .neutral)
-    XCTAssertEqual(setup.iconState, .idle)
-    let importing = MenuConnectionPresentation(
-      configured: configured, selection: nil, usbActive: true,
-      readiness: .ready, receipt: nil)
-    XCTAssertEqual(importing.status, "Temporary USB import")
-    XCTAssertEqual(importing.tone, .neutral)
-    XCTAssertEqual(importing.iconState, .usb)
-    let client = MachineRoleSelection(role: .client, peerID: "builder", peerName: "Build Mac")
-    let sharing = MenuConnectionPresentation(
-      configured: configured, selection: client, usbActive: true,
-      readiness: .ready, receipt: nil)
-    XCTAssertEqual(sharing.status, "Temporary USB sharing")
-    XCTAssertEqual(sharing.tone, .neutral)
-  }
-
   func testReadyStatusAndReceiptRemainSeparate() {
     let installed = DeploymentReceipt(
       deviceIdentifier: "fixture-phone", bundleIdentifier: "example.app",
       launched: false, completedAt: Date())
     let ready = MenuConnectionPresentation(
-      configured: configured, selection: nil, usbActive: false,
+      configured: configured,
       readiness: .ready, receipt: installed)
     XCTAssertEqual(ready.status, "Ready for deployment")
     XCTAssertEqual(ready.tone, .good)
@@ -81,31 +67,9 @@ final class MenuPresentationTests: XCTestCase {
       deviceIdentifier: "other-phone", bundleIdentifier: "other.app",
       launched: true, completedAt: Date())
     let unrelated = MenuConnectionPresentation(
-      configured: configured, selection: nil, usbActive: false,
+      configured: configured,
       readiness: .checking, receipt: other)
     XCTAssertEqual(unrelated.history, "No deployment recorded for this device")
-  }
-
-  func testPausedAttentionAndClientStatesHaveUsefulNextSteps() {
-    var paused = configured
-    paused.enabled = false
-    let summary = MenuConnectionPresentation(
-      configured: paused, selection: nil, usbActive: false,
-      readiness: .ready, receipt: nil)
-    XCTAssertEqual(summary.status, "Connection paused")
-    XCTAssertNotEqual(summary.tone, .good)
-    let recovery = MenuConnectionPresentation(
-      configured: configured, selection: nil, usbActive: false,
-      readiness: .attention("Unlock the phone, then try again."), receipt: nil)
-    XCTAssertEqual(recovery.detail, "Unlock the phone, then try again.")
-    XCTAssertEqual(recovery.tone, .attention)
-    let client = MenuConnectionPresentation(
-      configured: configured,
-      selection: MachineRoleSelection(role: .client, peerID: "builder", peerName: "Other Mac"),
-      usbActive: false, readiness: .ready, receipt: nil)
-    XCTAssertEqual(client.status, "Client Mac")
-    XCTAssertNotEqual(client.tone, .good)
-    XCTAssertTrue(client.detail.contains("Other Mac"))
   }
 
   func testNativeMenuKeepsFrequentActionsAtTheTopAndToolsInSubmenus() throws {
@@ -137,7 +101,7 @@ final class MenuPresentationTests: XCTestCase {
     let view = MenuConnectionSummaryView()
     view.update(
       MenuConnectionPresentation(
-        configured: configured, selection: nil, usbActive: false,
+        configured: configured,
         readiness: .attention(
           "Unlock your iPhone and keep Wi-Fi and your VPN connected, then open Connections to retry."
         ), receipt: nil))

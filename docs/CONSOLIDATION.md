@@ -1,5 +1,7 @@
 # Connection design restoration
 
+> Historical evidence. Current USB sharing uses only the [Mac cable service bridge](CABLE_SHARING.md). Earlier raw-USB setup paths and role linking are removed from current source.
+
 The restoration starts from audit PR #15, merged as `2c9d975`, rather than replacing
 the audited source with the older app. The design source is `a84b122` on
 `t3/streamlined-device-pairing`, plus its uncommitted Agent tools/menu refinements.

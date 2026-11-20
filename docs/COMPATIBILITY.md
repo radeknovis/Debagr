@@ -29,10 +29,7 @@ See [provider setup and address restrictions](NETWORK_PROVIDERS.md).
 | First-run guide, Launch at Login, About, diagnostics | Implemented; clean-Mac and offline first launch not verified | Packaged macOS app |
 | Paired-Mac `.app` install and optional launch | Implemented; automated tests pass, live install requires an unlocked device | Current Xcode and a locally paired physical device |
 | Remote invocation | Uses the build server's existing SSH authentication | Any SSH-capable caller; Tailscale optional |
-| USB/IP initial setup and pairing refresh | **Experimental.** Not hardware-accepted | Two Macs running Debagr 0.3.0; separately installed Longcable server with a local patch that is not yet published, and usbip-macos; private VPN; administrator password; successful capability probe; System Integrity Protection turned off on the Builder |
-| VirtualHere USB pairing alternative | **Experimental.** Automated coverage only; not hardware-accepted | Two Macs running Debagr 0.3.0; separately installed VirtualHere Client and licensed macOS Server, SSH and a USB cable to the Client |
-| Mac role linking (Builder/Client) and local unpair | **Experimental.** Automated coverage only; two-Mac linking not hardware-accepted | Signed role updates and pinned peer keys. Code-free pairing only between devices of the same Tailscale user; otherwise a pairing code on both Macs. Authorizes role synchronization; each Mac approves its own privileged USB process |
-| Peer discovery and role-sync listeners | Run only while the **Initial device pairing** screen is open, a Builder/Client role is saved, or the `debagr --usbip discover` or `advertise` command runs | TCP 49388 and 49389 on private IPv4 networks |
+| Mac cable service bridge | Experimental CLI; one iPhone readiness/install verified, launch/debugger pending | Existing Builder pairing, two Macs, Tailscale, trusted SSH, explicit cable endpoint and port |
 | Manual TCP/UDP relay lab | Implemented; not a customer promise | macOS 26 or later, Tailscale CLI, explicit peer and port |
 | Cross-Mac Xcode or local `devicectl` use | Blocked in the current layer-4 architecture | CoreDevice requires per-Mac pairing and a negotiated link-local IPv6 tunnel |
 | Managed relay recovery | Rebuilds unhealthy listeners and refreshes after wake; recovery not verified on hardware | One managed device |
@@ -58,8 +55,7 @@ without your own test.
 - VPN providers other than Tailscale.
 - macOS 13–15.
 - The Homebrew upgrade from 0.2.0 to 0.3.0.
-- All hardware acceptance of USB/IP, VirtualHere, and two-Mac Builder/Client
-  linking.
+- Cable bridge launch, debugger attachment and reconnect.
 
 ## Evidence required before paid access
 

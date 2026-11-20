@@ -6,7 +6,7 @@ final class UDPRelay {
   var isHealthy: Bool { listener.isHealthy }
 
   init(
-    bindInterface: NWInterface, remoteHost: NWEndpoint.Host, remotePort: UInt16,
+    bindInterface: NWInterface?, remoteHost: NWEndpoint.Host, remotePort: UInt16,
     localPort: UInt16, localInterfaceAddress: String, accessPolicy: RelayAccessPolicy
   ) throws {
     listener = try RelayListener(

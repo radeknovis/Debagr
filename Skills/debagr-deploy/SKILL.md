@@ -78,12 +78,13 @@ restart the relay; **Launch at Login** restores the app after login. One remote
 device is supported by this milestone; ordinary local Apple device deployment
 remains available. Debagr's interface calls the Build Server the Builder.
 
-The window's other path, **Initial device pairing**, is labelled Experimental.
-It links two Macs running Debagr 0.3.0, a Builder that builds and deploys and a
-Client that has the device plugged in, to create Apple trust over forwarded
-USB. It needs separately installed USB tools and has not passed hardware
-acceptance. Do not start it or run `--usbip` commands unless the user asks for
-that setup.
+The **USB via Mac** tab describes the experimental cable service bridge.
+It requires prior Xcode pairing with this Builder, trusted SSH access and
+Tailscale on both Macs. Run `debagr --cable help` and follow the bundled
+`Cable-Sharing.md` guide only when the user requests cable setup. Do not infer
+readiness from relay startup; check the explicit Apple device ID. Phone Wi-Fi
+is not required for this cable route. Initial pairing must happen with the
+Builder directly; forwarding services does not establish new Apple trust.
 
 Use `--configure` only when the user requests setup or a configuration change.
 For setup/capture, `--provider` accepts `tailscale` (default), `headscale`,

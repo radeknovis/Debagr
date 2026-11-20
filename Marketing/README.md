@@ -6,8 +6,10 @@ gallery. Status and remaining gaps are in
 
 | Asset | Format | Use |
 | --- | --- | --- |
+| [`imagery/`](imagery/README.md) | PNG, landscape and square | Primary: roaming iPhone at café/airport with paired Mac at home. Secondary: cable-sharing artwork. Full prompts included. |
 | `screenshots/device-setup-{light,dark}.png` | 2000 × 1680 PNG | Native setup UI |
 | `screenshots/agent-tools-{light,dark}.png` | 2000 × 1680 PNG | Native agent onboarding |
+| `screenshots/connection-saved-{light,dark}.png` | 2000 × 1680 PNG | Saved connection and separate deployment checks |
 | `video/debagr-promo-landscape.mp4` | 1920 × 1080, 24 s, H.264, 24 fps | Website and landscape social |
 | `video/debagr-promo-vertical.mp4` | 1080 × 1920, 24 s, H.264, 24 fps | Vertical social |
 | `video/debagr-promo.vtt` | English WebVTT | Accessible captions for both cuts |
@@ -61,6 +63,7 @@ served by GitHub Pages at https://radeknovis.github.io/debagr-site/. To update i
 whole `site/` directory into that repository and push. Its `og:image` is an
 absolute URL on that host; change it if the site moves.
 
-The kit contains original product graphics and native UI. No stock, generated
-people, licensed music, third-party testimonials, or fabricated deployment
+The kit contains original product graphics, native UI captures and explicitly
+AI-generated campaign artwork. People and hands in campaign imagery are generated;
+they are not customers or testimonials. No licensed music or fabricated deployment
 results are included. Brand references identify compatibility, not endorsement.

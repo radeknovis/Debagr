@@ -1,7 +1,7 @@
 // Compiled only in a temporary copy by capture-marketing.py; never bundled in Debagr.
 import AppKit
 
-// Only the setup window is built: no menu-bar application, so no peer discovery, role sync,
+// Only the setup window is built: no menu-bar application, so no deployment relay,
 // listener or device inventory can start. The model's refresh callbacks stay unset.
 @MainActor
 func captureMarketing() {
@@ -22,10 +22,18 @@ func captureMarketing() {
   model.serviceHosts = ["My-iPhone.local"]
   model.serviceHost = "My-iPhone.local"
   model.discoveryStatus = "One paired device found"
+  let configured = ConfiguredDevice(
+    deviceIdentifier: device.identity.value, displayName: device.displayName,
+    peerName: "my-iphone",
+    profile: DeviceProfile(
+      bonjourName: "My iPhone", bonjourTXT: ["identity": "sample"],
+      provider: "tailscale", peerIP: "100.64.0.2", remotePort: 49152,
+      localPortRange: [55000, 58000]))
   controller.window?.setContentSize(NSSize(width: 1000, height: 840))
   let captures: [(String, DeviceSetupModel.Page, NSAppearance.Name)] = [
     ("device-setup-light", .setup, .aqua), ("agent-tools-light", .guide, .aqua),
     ("device-setup-dark", .setup, .darkAqua), ("agent-tools-dark", .guide, .darkAqua),
+    ("connection-saved-light", .saved, .aqua), ("connection-saved-dark", .saved, .darkAqua),
   ]
 
   func capture(_ index: Int) {
@@ -34,6 +42,10 @@ func captureMarketing() {
     model.deviceID = page == .guide ? "" : device.identity.value
     controller.window?.appearance = NSAppearance(named: appearance)
     controller.present(page: page)
+    if page == .saved {
+      model.configured = configured
+      model.verification = .ready("Sample connection check passed. Installation and launch are checked when you deploy.")
+    }
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
       guard let view = controller.window?.contentView,
         let bitmap = NSBitmapImageRep(

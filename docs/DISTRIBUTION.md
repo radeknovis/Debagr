@@ -18,9 +18,7 @@ The CLI is also inside `Debagr.app/Contents/MacOS/Debagr`; run it as the user wh
 owns the Apple pairing. The app and its bundled instructions do not configure
 SSH, VPN accounts, signing or Apple trust. Follow the [setup guide](../Marketing/site/setup.html).
 
-Homebrew links `debagr` and preserves connection profiles. From 0.3.0, the
-linked `debagr` finds the app's bundled USBIPProbe helper when it is run through
-that symlink. Uninstalling the app does not revoke Apple pairing or uninstall
+Homebrew links `debagr` and preserves connection profiles. Uninstalling the app does not revoke Apple pairing or uninstall
 deployed apps. See [privacy and removal](PRIVACY.md).
 
 There is no automatic updater. The upgrade from 0.2.0 to 0.3.0, by DMG or by

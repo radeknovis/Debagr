@@ -1,0 +1,32 @@
+{
+  "generated_on": "2026-11-14",
+  "generator": "Built-in image_gen tool",
+  "direction": "Primary product story: iPhone roaming on cafe/airport Wi-Fi; paired build Mac at home on another network; private VPN directly between phone and Mac.",
+  "role": "AI-generated conceptual artwork, not UI screenshots or deployment evidence.",
+  "assets": [
+    {
+      "file": "roaming-cafe-hero-v1.png",
+      "width": 1672,
+      "height": 941,
+      "bytes": 1903112,
+      "sha256": "21b5c32a7f28f5a10a92a1e172139bb5508989baaa9f17d9f7af88dcb32e79f6",
+      "prompt": "Use case: ads-marketing. Asset type: premium landscape website hero artwork for Debagr. Core story: Your Mac stays home; your next build comes with you. The iPhone alone is with its owner in a CAFE on the cafe's Wi-Fi; its already paired Mac remains at HOME on a completely different network. The phone and remote Mac connect directly across a private VPN. Create a beautiful photographic editorial DIPTYCH, approximately 16:9, with an unmistakable vertical warm off-white gutter dividing TWO DIFFERENT LOCATIONS. Left panel, approximately 35 percent: quiet home office desk with a single compact silver Mac-mini-like desktop computer, warm lamp light and a subtle home window. Right panel, approximately 65 percent: inviting real cafe in daylight, single modern graphite iPhone standing slightly angled on the cafe table close to the camera, a coffee cup nearby and softly blurred cafe interior/window behind it. The iPhone is the visual hero, large and beautifully lit. No laptop or other computer at the cafe. A restrained thin cobalt-blue dotted conceptual path crosses the gutter from the Mac in the home panel directly to the phone in the cafe panel. The two devices are not physically in the same room. No USB cables anywhere. Refined natural photography with tactile wood, warm paper off-white #f4f3ee, graphite #18201e, silver and cobalt #245be8 accent; genuine-looking lighting, elegant calm composition and crisp industrial design. Phone screen dark and unbranded, no made-up app UI or success badges. No text or labels, no logo, no padlocks, no cloud icon, no people, no watermark. This is conceptual campaign imagery, not a screenshot or documentary deployment evidence. One finished image, not a contact sheet."
+    },
+    {
+      "file": "roaming-airport-editorial-v1.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1928161,
+      "sha256": "52791a20f44a84ef28b7f83fd66a53dcf97326fdc72a3e9bcd30950c7696269b",
+      "prompt": "Use case: ads-marketing. Asset type: landscape editorial illustration for Debagr, approximately 3:2. Communicate an iPhone independently at an AIRPORT while its paired build Mac stays at HOME on a different Wi-Fi network; a private VPN connects the phone directly to that distant Mac. Composition: dominant large photographic panel on the right, occupying about 70 percent, shows ONE natural human hand holding one modern graphite iPhone in an airport departure lounge. Behind it, an out-of-focus aircraft is visible through large terminal windows and distant gate seating makes the airport setting unmistakable. No readable boarding information or airline logos. No laptop or second computer accompanying the phone. Phone screen dark, blank and unbranded. A clearly separated smaller panel on the left shows the quiet HOME office: one compact silver Mac-mini-like desktop computer on a simple wooden desk, warm residential lamp light. A visible warm off-white gutter separates the two locations. ONE tasteful thin cobalt-blue dotted conceptual connection links the HOME MAC directly to the AIRPORT PHONE across this gutter. Absolutely no cables to the phone, no physical connection across the panels, no computer in the airport panel. Editorial photographic realism, careful elegant art direction, natural hand anatomy, warm neutral palette, silver, graphite, #245be8 blue accent, soft controlled daylight, simple readable silhouettes, premium uncluttered composition. No text, no labels, no UI overlays, no app screens, no code, no logos, no watermark. The separated scenes must clearly show different networks and distance, not a workstation shared by phone and Mac. One final image."
+    },
+    {
+      "file": "roaming-social-v1.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1678234,
+      "sha256": "48490e2773396c237f15f94d8f49512a2be6cd0e59fc5ab47489b895638234e7",
+      "prompt": "Use case: ads-marketing. Asset type: square social cover for Debagr, 1:1 composition. The core product benefit is using an iPhone while away at a CAFE or AIRPORT on another Wi-Fi network, while the ALREADY PAIRED MAC stays HOME and builds/signs/deploys remotely over a private VPN. NOT USB sharing, NOT carrying a laptop, NOT cellular-only operation. Design an elegant premium photographic campaign layout on a deep graphite #18201e canvas. Top quarter typography exactly: 'Debagr' in bold clean white neo-grotesk sans-serif, then the two lines 'Your Mac stays home.' and 'Your next build comes with you.' in smaller off-white text. Use these exact words, spell D-e-b-a-g-r correctly, no other slogan. Below the type, two clearly separated photographic windows: small left window shows a compact silver Mac-mini-like computer on a HOME desk with warm lamp light; larger right window shows a single modern iPhone held in one natural hand at a cafe with coffee and a softly blurred lively daylight interior. Thin off-white borders and a dark gutter keep the locations distinctly separate. A restrained cobalt-blue dotted line crosses the gap directly from HOME MAC to CAFE PHONE, symbolizing a private VPN. Below the windows put the exact small caption 'Separate Wi-Fi networks. Connected over VPN.' All text must be accurate and legible, fully inside safe margins. No laptop in the cafe, no USB cables anywhere, no cloud icon, no padlocks, no fake app screenshots, no third-party logos, no success badges, no code, no watermark. The phone is the hero, its screen blank and dark. Tactile realistic photography, controlled warm highlights, beautifully composed simple geometry. One cohesive final graphic, not a contact sheet."
+    }
+  ]
+}

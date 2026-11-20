@@ -5,7 +5,7 @@ import Network
 struct InterfaceBinding {
   let name: String
   let ipv4Address: String
-  let networkInterface: NWInterface
+  let networkInterface: NWInterface?
 }
 
 enum NetworkSupportError: LocalizedError {
@@ -67,11 +67,12 @@ enum NetworkSupport {
         continue
       }
 
-      let networkInterface = try networkInterface(named: interfaceName)
+      // VPN interfaces may be absent from NWPath.availableInterfaces.
+      // Listeners still bind exclusively to the selected local IPv4 address.
       return InterfaceBinding(
         name: interfaceName,
         ipv4Address: ipv4Address,
-        networkInterface: networkInterface
+        networkInterface: nil
       )
     }
 

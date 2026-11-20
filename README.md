@@ -127,45 +127,17 @@ installation, `--launch-app` retries a launch without reinstalling, and
 
 ## Advanced setup
 
-Everyday wireless deployment needs one paired **Builder** Mac. A second
-**Client** Mac is used only for experimental initial USB pairing.
+Everyday wireless deployment needs one paired **Builder** Mac.
 
-<details>
-<summary>Builder/Client roles and experimental USB pairing</summary>
+For an already paired phone plugged into another Mac, use the experimental
+[cable service bridge](docs/CABLE_SHARING.md) through `debagr --cable`.
+It forwards device services over Tailscale, with SSH controlling the cable host.
+It requires an explicit cable endpoint and RemotePairing port. The phone must
+already be paired with this Builder; remote initial pairing is not supported.
 
-### Builder and Client
-
-Debagr names two roles for a Mac. The **Builder** compiles apps, holds the Apple
-pairing and deploys. Everyday wireless deployment needs only a Builder. A
-**Client** is a second Mac that has the device plugged in by cable. It is needed
-only to create the first Apple trust when you cannot bring the device to the
-Builder.
-
-A role is saved when you link two Macs on the **Initial device pairing** screen.
-Debagr listens for other Debagr Macs on your private network (TCP 49388 and
-49389, with Bonjour advertisements) only while that screen is open, while a
-role is saved on the Mac, or while you run `debagr --usbip discover` or
-`debagr --usbip advertise` yourself. Two Macs link without a code only when Tailscale
-reports that the same Tailscale user owns both. In every other case both Macs
-show a pairing code that you compare before accepting.
-
-### Experimental USB pairing
-
-**Initial device pairing** is the second option in the window's path picker and
-is labelled Experimental. It forwards USB from the Client so that the Builder
-can pair with a device plugged into the Client. It requires:
-
-- two Macs running Debagr 0.3.0;
-- a separately installed USB tool: a patched Longcable server plus usbip-macos,
-  or VirtualHere;
-- for USB/IP, an administrator password on both Macs and System Integrity
-  Protection turned off on the Builder, which lowers that Mac's protection.
-
-No USB path has passed hardware acceptance. See
-[USB setup prerequisites](docs/usbip.md) and the
-[connection design](docs/CONNECTION_DESIGN.md).
-
-</details>
+Authenticated connectivity and signed app installation were verified on one
+MacBook Pro cable host with phone Wi-Fi off. Launch, debugger attachment,
+automatic discovery and reconnect remain unverified or unimplemented.
 
 ## Preview limits
 
@@ -186,7 +158,7 @@ Not yet verified for 0.3.0:
 - Headscale, ZeroTier, NetBird and WireGuard;
 - macOS 13 to 15;
 - the Homebrew upgrade from 0.2.0 to 0.3.0;
-- all hardware use of USB/IP, VirtualHere and two-Mac Builder/Client linking.
+- cable bridge launch/debugger attachment and recovery.
 
 </details>
 

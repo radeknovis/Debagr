@@ -15,10 +15,6 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "USBIPProbe",
-            linkerSettings: [.linkedFramework("Foundation"), .linkedFramework("IOUSBHost")]
-        ),
-        .executableTarget(
             name: "Debagr"
         ),
         .testTarget(

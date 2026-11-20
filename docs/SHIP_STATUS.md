@@ -1,5 +1,7 @@
 # Debagr 0.3.0 shipping status
 
+> Historical evidence. Current USB sharing uses only the [Mac cable service bridge](CABLE_SHARING.md). Earlier raw-USB setup paths and role linking are removed from current source.
+
 Updated 12 November 2026. **0.3.0 build 5 is published** as a technical preview.
 The 0.2.0 record is retained below as history.
 

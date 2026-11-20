@@ -1,6 +1,6 @@
 import AppKit
 
-// Discovery, USB ownership, readiness, and a deployment receipt are different evidence.
+// Discovery, readiness and a deployment receipt are different evidence.
 enum MenuReadiness {
   case checking, ready
   case attention(String)
@@ -18,26 +18,13 @@ struct MenuConnectionPresentation {
   let iconState: MenuBarIconState
 
   init(
-    configured: ConfiguredDevice?, selection: MachineRoleSelection?, usbActive: Bool,
+    configured: ConfiguredDevice?,
     readiness: MenuReadiness, receipt: DeploymentReceipt?
   ) {
-    scope =
-      selection?.role == .client ? "Client" : selection?.role == .builder ? "Builder" : "This Mac"
-    title =
-      selection?.role == .client
-      ? "Your device, with you" : configured?.displayName ?? "Connect your iPhone"
+    scope = "This Mac"
+    title = configured?.displayName ?? "Connect your iPhone"
     actionTitle = "Open Debagr"
-    if usbActive {
-      iconState = .usb
-      status = selection?.role == .client ? "Temporary USB sharing" : "Temporary USB import"
-      detail = "Open Connections to check the device or stop this setup session."
-      tone = .neutral
-    } else if selection?.role == .client {
-      iconState = .idle
-      status = "Client Mac"
-      detail = "Builder: \(selection!.peerName). Open setup to share your plugged-in device."
-      tone = .neutral
-    } else if let configured {
+    if let configured {
       if !configured.enabled {
         iconState = .paused
         status = "Connection paused"
@@ -65,12 +52,10 @@ struct MenuConnectionPresentation {
     } else {
       iconState = .idle
       status = "No device configured"
-      detail = "Use an existing Apple pairing or create one with a nearby Mac."
+      detail = "Pair your device with this Mac in Xcode, then configure its connection."
       tone = .neutral
     }
-    if let receipt, receipt.deviceIdentifier == configured?.deviceIdentifier,
-      selection?.role != .client
-    {
+    if let receipt, receipt.deviceIdentifier == configured?.deviceIdentifier {
       history =
         "Last deploy · \(receipt.launched ? "Installed & launched" : "Installed") · \(receipt.completedAt.formatted(date: .omitted, time: .shortened))"
     } else {

@@ -138,6 +138,5 @@ Do not claim: cellular support, Apple endorsement, transparent cross-Mac Xcode,
 validated iPad or alternative VPN deployments, Intel/universal support, remote
 deployment on macOS 13 to 15, active funding pages, a clean-Mac or offline
 first-launch result, a tested Homebrew upgrade, a completed recovery matrix, or
-hardware acceptance of USB/IP, VirtualHere or two-Mac Builder and Client
-linking, until that specific result has been verified and recorded. Never name
+cable bridge launch, debugger or recovery acceptance, until that specific result has been verified and recorded. Never name
 the app used in a hardware test, its bundle identifier or an employer.

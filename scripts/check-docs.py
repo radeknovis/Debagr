@@ -34,7 +34,7 @@ for source in sorted((ROOT / "Marketing/site").glob("*.html")):
 # Everything build-macos-app.sh and package-plugins.py copy, plus the public site pages, the
 # release notes and README.
 shipped = [
-    "README.md", "Marketing/site/setup.html", "Marketing/site/preview-licence.txt", "docs/usbip.md",
+    "README.md", "Marketing/site/setup.html", "Marketing/site/preview-licence.txt", "docs/CABLE_SHARING.md",
     "Marketing/site/index.html", "Marketing/site/legal.html", "Marketing/release-notes.md",
     "docs/PLUGINS.md", "docs/AI_DEPLOYMENT.md", "docs/MCP.md", "docs/NETWORK_PROVIDERS.md",
     ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json",

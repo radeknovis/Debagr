@@ -34,10 +34,6 @@ enum AgentCLI {
 
   static func run(_ options: CommandLineOptions) throws {
     let command = options.agentCommand!
-    if command == "usb-services" || command == "usb-profile" {
-      try USBProfileTransfer.run(options)
-      return
-    }
     let store = ManagedDeviceStore()
     let configured = try? store.load()
     switch command {

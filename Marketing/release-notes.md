@@ -1,5 +1,7 @@
 Debagr turns the Mac already paired with your iPhone into a private deployment endpoint for Claude Code, Codex, and your terminal. 0.3.0 is the second public technical preview and replaces 0.2.0.
 
+> Published 0.3.0 release record. Current source has replaced the former USB setup paths with the cable service bridge; see [the current guide](../docs/CABLE_SHARING.md).
+
 ## What is new
 
 - **Reliability fixes from a full audit.** Readiness checks have working deadlines and fail fast when Apple reports an unknown device. Device errors carry Apple's code, domain and message. A deployment that times out is reported as an unknown outcome, not as a failed installation. The relay has TCP backpressure, keepalive and cancellation handling, bounded UDP flows, native in-process Bonjour registration, and rebuilds unhealthy listeners, including after wake.

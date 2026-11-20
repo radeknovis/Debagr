@@ -1,8 +1,8 @@
 {
   "kind": "Native AppKit/SwiftUI view captures with synthetic device data",
-  "captured_at": "2026-11-11T19:40:20.826601+00:00",
-  "source_commit": "97978e7f55192fb1f65a31954997bdca022b16c7",
-  "view_sha256": "44aacd18de858674b45cb813f04e71a2ff503d7fda6a91654a7256e1c4a65a3c",
+  "captured_at": "2026-11-13T18:18:51.110975+00:00",
+  "source_commit": "1f8c5ecdbff00824e0a227b1eda47758b606fe06",
+  "view_sha256": "6378ae0567774c3135cde20d1eb4de40aaeec8bf52166cb657be7e786b7febcf",
   "fixture": "Marketing/Capture.swift; automatic peer discovery disabled only in the temporary copy",
   "note": "Product UI illustrations, not hardware deployment evidence. No user profiles were read or changed."
 }

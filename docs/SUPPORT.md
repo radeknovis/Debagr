@@ -15,8 +15,7 @@
 7. In Debagr, choose **Copy Diagnostics** and review the report before sharing.
 
 Diagnostics include app/macOS versions, prerequisite status, visible device
-names, Bonjour hosts, and ports. The report from the **Initial device pairing**
-screen also lists the Macs it found with their names and private addresses.
+names, Bonjour hosts, and ports.
 Reports exclude TXT values and traffic contents.
 
 ## What the 0.3.0 preview supports
@@ -31,9 +30,7 @@ The following are in the app but have not passed hardware acceptance for
 
 | Area | Status in 0.3.0 |
 | --- | --- |
-| USB/IP initial pairing | Experimental. Needs a separately installed, locally patched Longcable server, usbip-macos, an administrator password, and System Integrity Protection turned off on the Builder. Not hardware-accepted. |
-| VirtualHere initial pairing | Experimental. Needs separately installed VirtualHere software and SSH access. Not hardware-accepted. |
-| Builder/Client linking of two Macs | Experimental. Not hardware-accepted. |
+| Mac cable service bridge | Experimental CLI; existing pairing, SSH and Tailscale required. One iPhone readiness/install verified; launch/debugger pending. |
 | iPad | Not verified. |
 | VPN providers other than Tailscale | Not verified. |
 | macOS 13 to 15 | Not verified. |
@@ -41,53 +38,20 @@ The following are in the app but have not passed hardware acceptance for
 | Recovery after restart, sleep and wake, network change, revoked trust, or denied Local Network permission | Not verified. |
 | Homebrew upgrade from 0.2.0 to 0.3.0 | Not verified. |
 
-## Network services to know about
+## Cable sharing and removal
 
-Debagr does not listen on the network for deployment commands. The
-**Initial device pairing** screen uses two services, peer discovery on TCP
-49388 and role pairing on TCP 49389. They run only while that screen is open,
-while a Builder or Client role is saved on the Mac, or while you run
-`debagr --usbip discover` or `debagr --usbip advertise` yourself. If Macs do not find each
-other, allow those ports, and TCP 3240 for USB/IP, between the two Macs in the
-firewall and in the VPN's access rules, and allow Debagr under Local Network in
-System Settings. To switch the services off, choose **Show Diagnostics**, then
-**Unpair This Mac**, and close the window. [Security](SECURITY.md) lists what
-other devices on the network can read while they run.
+See [the cable guide](CABLE_SHARING.md). Pair the phone directly with the Builder
+first, then connect it by USB to the cable Mac. Keep the phone unlocked and the
+cable attached. If the cable endpoint or port changes, stop the bridge and
+restart with newly verified values. Use `--status` against the explicit Apple
+identifier, then verify installation and launch separately.
 
-## Removing Debagr
-
-1. If a USB/IP setup connection is running, open **Initial device pairing**
-   and choose **Stop Setup Connection** on the Builder, then on the Client. It
-   keeps running after the app quits.
-2. If this Mac is linked as Builder or Client, choose **Show Diagnostics**,
-   then **Unpair This Mac**, on both Macs.
-3. Turn off **Launch at Login**, quit Debagr, and move `Debagr.app` to Trash.
-4. Delete the preferences. They hold the saved role, the other Mac's public
-   key, and the selected USB tools:
-
-   ```sh
-   defaults delete com.debagr.app
-   ```
-
-5. Remove the stored data if you want to discard all saved Debagr setup. Keep a
-   backup of any profile you need first.
-
-   ```sh
-   rm -rf ~/.config/debagr
-   rm -rf ~/Library/Application\ Support/Debagr
-   ```
-
-| Location | Contents |
-| --- | --- |
-| `~/.config/debagr/` | Private connection profiles, the managed remote device, and the last deployment receipt |
-| `~/Library/Application Support/Debagr/role-sync-key.raw` | This Mac's private signing key for role pairing |
-| `~/Library/Application Support/Debagr/USBIPSessions/` | Folders and logs of USB/IP setup connections |
-
-Removing Debagr does not revoke Apple pairing, uninstall the VPN, or uninstall
-deployed device apps. It also leaves the separately installed USB tools in
-place: Longcable with its `/Library/Application Support/Longcable/` settings,
-usbip-macos, and VirtualHere. If you turned System Integrity Protection off
-for USB/IP, turn it back on in macOS Recovery with `csrutil enable`.
+Stop a cable bridge with Ctrl-C before quitting. Disable Launch at Login,
+quit Debagr and remove the app. Back up profiles before removing
+`~/.config/debagr/` or clearing the `com.debagr.app` preferences. Older setup data
+under `~/Library/Application Support/Debagr/` is ignored; review before deleting.
+Removing the app does not revoke Apple trust or uninstall deployed device apps,
+VPNs or separately installed third-party tools. See [privacy](PRIVACY.md).
 
 ## Preview support promise
 

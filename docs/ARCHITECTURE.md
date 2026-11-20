@@ -1,8 +1,8 @@
 # Debagr architecture
 
 Debagr must keep the original Build Server's Apple pairing usable when the
-Target Device moves to another network. Tailscale runs directly on both
-endpoints. Remote invocation by a Caller alone does not satisfy this requirement.
+Target Device moves to another network. Wireless operation uses Tailscale on the Builder and phone. The cable route
+uses Tailscale between the Macs and a USB network link to the phone. Remote invocation by a Caller alone does not satisfy this requirement.
 The direct-device mode remains experimental; install and launch on a roaming
 iPhone were verified on 10 October 2026. Reconnection and cellular operation
 remain unverified. See [DIRECT_DEVICE.md](DIRECT_DEVICE.md) for test evidence.
@@ -130,17 +130,17 @@ cross-Mac Xcode access.
 
 ## Restored connection interface
 
-`DeviceSetupView` keeps one root view and window for both pairing paths.
-`DeviceSetupModel` and `InitialPairingPresentation` drive the shared sidebar,
-diagram, progress and footer. `InitialPairingCoordinator` provides native Mac and
-device controls, confirmation sheets and USB/IP actions. Existing-pairing setup
-uses the audited managed-device runtime, retaining explicit identity confirmation,
-saved profiles, asynchronous developer-tool checks and editable invalid addresses.
+`DeviceSetupView` keeps one root window for wireless setup and the cable guide.
+`DeviceSetupModel` preserves explicit identity confirmation, saved profiles,
+asynchronous developer-tool checks and editable invalid addresses. The cable
+bridge is started through its CLI; the guide does not create a pairing or start
+sharing. UI models and menu actions remain main-actor owned.
 
-UI models and menu actions are main-actor owned. Discovery and signed role-message
-state belong to their serial queues; inventory work uses its own worker queue.
-Temporary VirtualHere operations belong to the USB pairing serial queue; only
-command cancellation crosses from the UI. Mac role linking, Apple trust, USB
-process state, wireless readiness, installation and launch are separate evidence.
+`CableSharing` starts one SSH-owned host helper, and `CableHostControl` opens
+upstream TCP/UDP listeners before `DirectDeviceApplication` opens its matching
+local listeners. Saved tunnel ports are preopened to avoid Xcode's immediate
+connection race. The existing watcher learns additional tunnel ports. The host
+is restricted to one cable endpoint and one Builder VPN source address.
+
 See [the connection design](CONNECTION_DESIGN.md) for the workflows and hardware
 acceptance boundaries.
