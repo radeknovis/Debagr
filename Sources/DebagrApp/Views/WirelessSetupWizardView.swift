@@ -149,13 +149,12 @@ public struct WirelessSetupWizardView: View {
           }
           .padding(.vertical, 16)
         } else if model.setupDevices.isEmpty {
-          ContentUnavailableView {
-            Label("No Eligible Paired Device Found", systemImage: "cable.connector.slash")
-          } description: {
-            Text(
+          DebagrEmptyState(
+            symbolName: "cable.connector.slash",
+            title: "No Eligible Paired Device Found",
+            description:
               "Connect your iPhone or iPad to this Builder Mac with a USB cable, accept Trust This Computer, and enable Developer Mode."
-            )
-          } actions: {
+          ) {
             Button("Scan Again") {
               Task { await model.scanSetupDevices() }
             }
@@ -166,7 +165,6 @@ public struct WirelessSetupWizardView: View {
             }
             .buttonStyle(DebagrSecondaryButtonStyle())
           }
-          .padding(.vertical, 8)
         } else {
           VStack(spacing: 8) {
             ForEach(model.setupDevices) { dev in
@@ -398,19 +396,17 @@ public struct WirelessSetupWizardView: View {
           }
           .padding(.vertical, 14)
         } else if model.localWirelessCandidates.isEmpty {
-          ContentUnavailableView {
-            Label("No Local Wireless Service Found", systemImage: "wifi.exclamationmark")
-          } description: {
-            Text(
+          DebagrEmptyState(
+            symbolName: "wifi.exclamationmark",
+            title: "No Local Wireless Service Found",
+            description:
               "Wake and unlock \(selectedDevice?.name ?? "your device") on the same Wi-Fi as this Builder Mac, then scan again."
-            )
-          } actions: {
+          ) {
             Button("Scan Local Bonjour") {
               Task { await model.scanLocalWirelessIdentities() }
             }
             .buttonStyle(DebagrSecondaryButtonStyle())
           }
-          .padding(.vertical, 6)
         } else {
           VStack(spacing: 8) {
             ForEach(model.localWirelessCandidates) { record in

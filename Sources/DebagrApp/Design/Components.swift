@@ -25,6 +25,78 @@ public struct SurfaceCard<Content: View>: View {
   }
 }
 
+public struct DebagrEmptyState<Actions: View>: View {
+  public let symbolName: String
+  public let title: String
+  public let description: String
+  private let hasActions: Bool
+  private let actions: Actions
+
+  public init(
+    symbolName: String,
+    title: String,
+    description: String,
+    @ViewBuilder actions: () -> Actions
+  ) {
+    self.symbolName = symbolName
+    self.title = title
+    self.description = description
+    self.hasActions = true
+    self.actions = actions()
+  }
+
+  public var body: some View {
+    VStack(spacing: 12) {
+      Image(systemName: symbolName)
+        .font(.system(size: 22, weight: .medium))
+        .foregroundStyle(.secondary)
+        .frame(width: 48, height: 48)
+        .background(
+          Color.primary.opacity(0.06),
+          in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.75)
+        )
+
+      VStack(spacing: 5) {
+        Text(title)
+          .font(.headline)
+          .foregroundStyle(.primary)
+          .multilineTextAlignment(.center)
+
+        Text(description)
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: 460)
+      }
+
+      if hasActions {
+        HStack(spacing: 10) {
+          actions
+        }
+        .padding(.top, 4)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .center)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 20)
+  }
+}
+
+extension DebagrEmptyState where Actions == EmptyView {
+  public init(symbolName: String, title: String, description: String) {
+    self.symbolName = symbolName
+    self.title = title
+    self.description = description
+    self.hasActions = false
+    self.actions = EmptyView()
+  }
+}
+
 public struct RelativeTimeText: View {
   public let date: Date?
   public var prefix: String = ""

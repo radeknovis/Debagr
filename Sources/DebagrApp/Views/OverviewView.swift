@@ -270,15 +270,12 @@ public struct OverviewView: View {
 
       if model.recentReceipts.isEmpty {
         SurfaceCard {
-          ContentUnavailableView(
-            "No Deployment Receipts Yet",
-            systemImage: "doc.text.magnifyingglass",
-            description: Text(
+          DebagrEmptyState(
+            symbolName: "doc.text.magnifyingglass",
+            title: "No Deployment Receipts Yet",
+            description:
               "Install or deploy a signed iphoneos build via the Debagr CLI or MCP server to record verified outcomes here."
-            )
           )
-          .frame(maxWidth: .infinity)
-          .padding(.vertical, 8)
         }
       } else {
         VStack(spacing: 8) {
@@ -396,20 +393,17 @@ public struct OverviewView: View {
 
   private var unconfiguredHero: some View {
     SurfaceCard {
-      ContentUnavailableView {
-        Label("No Managed Device Configured", systemImage: "iphone.radiowaves.left.and.right")
-      } description: {
-        Text(
+      DebagrEmptyState(
+        symbolName: "iphone.radiowaves.left.and.right",
+        title: "No Managed Device Configured",
+        description:
           "Bring your already-paired iPhone or iPad nearby on the same Wi-Fi once and walk through Wireless Setup so Debagr can bridge it across your private VPN."
-        )
-      } actions: {
+      ) {
         Button("Start Wireless Setup") {
           model.navigate(to: .wirelessSetup)
         }
         .buttonStyle(DebagrPrimaryButtonStyle())
       }
-      .frame(maxWidth: .infinity)
-      .padding(.vertical, 12)
     }
   }
 
