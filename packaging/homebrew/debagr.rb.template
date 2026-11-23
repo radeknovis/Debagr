@@ -1,10 +1,12 @@
+# frozen_string_literal: true
+
 cask "debagr" do
   version "{{VERSION}}"
   sha256 "{{SHA256}}"
 
   url "https://github.com/radeknovis/homebrew-debagr/releases/download/v#{version}/Debagr-#{version}-arm64.dmg"
   name "Debagr"
-  desc "Remote iOS/iPadOS deployment through your paired Mac and private VPN"
+  desc "Remote device deployment through a private VPN"
   homepage "https://radeknovis.github.io/debagr-site/"
 
   depends_on arch: :arm64
