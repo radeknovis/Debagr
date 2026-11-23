@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy, Security &amp; Evaluation License — Debagr</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html">
+        <img src="assets/logo.svg" alt="Debagr icon">
+        <span>Debagr</span>
+      </a>
+      <nav class="nav-links">
+        <a href="index.html">Overview</a>
+        <a href="guide.html">Setup Guide</a>
+        <a class="active" href="legal.html">Privacy &amp; License</a>
+        <a data-config-href="supportUrl" href="#">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="eyebrow">Privacy, Security &amp; Licensing</div>
+      <h1>Local-first by design.</h1>
+      <p class="lead">
+        Debagr has no cloud backend, no accounts, no analytics, no telemetry, and no billing infrastructure.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>Privacy Policy</h2>
+      <div class="card">
+        <ul>
+          <li><strong>Zero collection:</strong> Debagr never transmits telemetry, usage metrics, crash reports, device identifiers, or app metadata to any Debagr server.</li>
+          <li><strong>Local restrictive storage:</strong> Configuration, deployment receipts, and bridge state are stored solely on your Builder Mac inside <code>~/Library/Application Support/Debagr</code> with POSIX <code>0700</code> directory and <code>0600</code> file permissions.</li>
+          <li><strong>Redacted diagnostics:</strong> Running <code>debagr doctor</code> or clicking <em>Copy Redacted Diagnostics</em> automatically redacts UDIDs, strips Bonjour wireless pairing instance names and TXT records, and masks VPN IP octets by default.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Security Boundaries</h2>
+      <div class="card">
+        <ul>
+          <li><strong>SSH remains the remote authentication boundary:</strong> Debagr does not open a network listener for deployment commands.</li>
+          <li><strong>Private VPN address validation:</strong> Wireless endpoints are validated against private VPN ranges (RFC 1918, <code>100.64.0.0/10</code>, IPv6 ULA <code>fc00::/7</code>). Public internet IPs, loopback, and link-local ranges are rejected.</li>
+          <li><strong>Experimental two-Mac security:</strong> Experimental USB/IP pairing uses ephemeral Curve25519 ECDH + 6-digit SAS mutual role authentication + ChaCha20-Poly1305 encrypted control frames, never bundles third-party drivers, and requires explicit user confirmation before launching external tools.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Evaluation Software License</h2>
+      <div class="card">
+        <p>
+          Debagr v<span data-config-text="version">0.1.0</span> is provided for local software development evaluation and testing on macOS Apple silicon systems.
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY.
+        </p>
+        <p style="margin-top:12px;">
+          Apple, Xcode, iPhone, iPad, macOS, and CoreDevice are trademarks of Apple Inc. Tailscale, Headscale, ZeroTier, NetBird, WireGuard, Claude Code, and Codex belong to their respective owners.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-row">
+      <div>Debagr v<span data-config-text="version">0.1.0</span></div>
+      <div><a href="index.html">Home</a> · <a href="guide.html">Setup Guide</a></div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

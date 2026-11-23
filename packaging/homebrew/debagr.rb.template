@@ -1,0 +1,20 @@
+cask "debagr" do
+  version "{{VERSION}}"
+  sha256 "{{SHA256}}"
+
+  url "https://github.com/debagr-dev/debagr/releases/download/v#{version}/Debagr-#{version}-arm64.dmg"
+  name "Debagr"
+  desc "Deploy and launch signed iPhone and iPad apps over separate Wi-Fi networks via your paired Builder Mac"
+  homepage "https://debagr.dev"
+
+  depends_on arch: :arm64
+  depends_on macos: ">= :sonoma"
+
+  app "Debagr.app"
+  binary "#{appdir}/Debagr.app/Contents/MacOS/Debagr", target: "debagr"
+
+  zap trash: [
+    "~/Library/Application Support/Debagr",
+    "~/Library/Preferences/dev.debagr.app.plist",
+  ]
+end

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Setup Guide — Debagr</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html">
+        <img src="assets/logo.svg" alt="Debagr icon">
+        <span>Debagr</span>
+      </a>
+      <nav class="nav-links">
+        <a href="index.html">Overview</a>
+        <a class="active" href="guide.html">Setup Guide</a>
+        <a href="legal.html">Privacy &amp; License</a>
+        <a data-config-href="supportUrl" href="#">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="eyebrow">Setup &amp; Operations Guide</div>
+      <h1>Configure Debagr in four steps.</h1>
+      <p class="lead">
+        Set up once while your already-paired iPhone or iPad is near your Builder Mac, then deploy from anywhere over SSH or MCP.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>1. Primary Workflow — Wireless Setup ("Use Existing Pairing")</h2>
+      <ol>
+        <li><strong>Pair normally once:</strong> Connect your iPhone or iPad to your Builder Mac with a cable in Xcode/Finder, accept <em>Trust This Computer</em>, and enable <em>Developer Mode</em> on the phone.</li>
+        <li><strong>Run Debagr Wireless Setup:</strong> Open <code>Debagr.app</code> from your menu bar while the phone is awake on the same Wi-Fi network.</li>
+        <li><strong>Select your Private VPN:</strong>
+          <div data-tab-group>
+            <div class="tabs" style="margin-top:10px;">
+              <button class="tab-btn active" type="button" data-tab="tailscale">Tailscale / Headscale</button>
+              <button class="tab-btn" type="button" data-tab="manual-vpn">ZeroTier / NetBird / WireGuard</button>
+            </div>
+            <div class="tab-panel active" data-panel="tailscale">
+              <p>Click <strong>Discover VPN Peers</strong>. Debagr queries the local <code>tailscale status --json</code> CLI, filters for your private CGNAT/ULA IP, and tracks peer IP changes automatically.</p>
+            </div>
+            <div class="tab-panel" data-panel="manual-vpn">
+              <p>Select your VPN provider and enter your phone's private VPN IPv4/IPv6 address (RFC 1918, <code>100.64.0.0/10</code>, or IPv6 ULA <code>fc00::/7</code>). Public IPs are rejected for safety.</p>
+            </div>
+          </div>
+        </li>
+        <li><strong>Confirm hardware &amp; save:</strong> Select the discovered <code>_apple-mobdev2._tcp</code> local identity, confirm it matches your physical device, and save. Debagr writes config locally with <code>0600</code> permissions.</li>
+      </ol>
+      <div class="callout">
+        <strong>Automatic Yield &amp; Sleep Recovery:</strong> Whenever the device is plugged in via USB or already connected on local Wi-Fi, Debagr steps aside into <em>Native Local Connection</em> standby. Across Mac sleep/wake or Wi-Fi changes, it automatically tears down stale mDNS records and re-probes your VPN.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>2. CLI, SSH &amp; Coding-Agent Onboarding</h2>
+      <p>Symlink the embedded binary so terminal scripts and SSH logins can invoke <code>debagr</code> directly:</p>
+      <div class="code-block"><pre>sudo ln -sf /Applications/Debagr.app/Contents/MacOS/Debagr /usr/local/bin/debagr</pre></div>
+      <p>Safe agent workflow (locally or over SSH):</p>
+      <div class="code-block"><pre>ssh dev@builder-mac debagr ready
+ssh dev@builder-mac xcodebuild -scheme MyApp -sdk iphoneos -destination 'generic/platform=iOS' build
+ssh dev@builder-mac debagr deploy --app /path/to/MyApp.app --terminate-existing</pre></div>
+
+      <h3>MCP Configuration (<code>debagr mcp</code>)</h3>
+      <div class="code-block"><pre>{
+  "mcpServers": {
+    "debagr": {
+      "command": "debagr",
+      "args": ["mcp"]
+    }
+  }
+}</pre></div>
+      <p>Packaged Claude Code (<code>plugins/claude-code</code>) and Codex (<code>plugins/codex</code>) plugins include this MCP config and the shared <code>debagr-deploy</code> skill.</p>
+    </section>
+
+    <section class="section">
+      <h2>3. Recoverable Error Codes</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Error Code</th>
+            <th>Exit</th>
+            <th>Recommended Recovery</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>DEVICE_LOCKED</code></td>
+            <td>3</td>
+            <td>Ask the user to unlock the device and run <code>debagr ready</code>, or pass <code>--no-launch</code> to install without launching.</td>
+          </tr>
+          <tr>
+            <td><code>INSTALL_SUCCEEDED_LAUNCH_FAILED</code></td>
+            <td>4</td>
+            <td>App is already installed &amp; verified. Do not rebuild or reinstall; unlock / trust profile on iOS, then run <code>debagr launch --bundle-id &lt;id&gt;</code>.</td>
+          </tr>
+          <tr>
+            <td><code>OPERATION_TIMEOUT_UNCERTAIN</code></td>
+            <td>5</td>
+            <td>Inspect post-timeout state via <code>debagr ready</code> and <code>debagr apps</code> before retrying.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>4. Experimental Fallback Routes</h2>
+      <div class="callout callout-exp">
+        <strong>Experimental:</strong> Both routes below are clearly marked experimental for situations where normal Wi-Fi + VPN deployment is not yet available.
+      </div>
+      <h3>Experimental A: USB via Mac (Cable Service Bridge)</h3>
+      <p>For an <em>already-paired</em> device plugged into a second Mac (even with Wi-Fi off). Forwards <code>usbmuxd</code> port <code>62078</code> strictly on <code>127.0.0.1</code> through SSH over your private VPN — zero raw USB sharing, zero root, zero SIP changes.</p>
+      <div class="code-block"><pre># On the Client Mac where the phone is plugged in:
+debagr experimental cable-bridge client --udid &lt;device-udid&gt; --port 22078
+
+# On the Builder Mac:
+ssh -N -L 127.0.0.1:22078:127.0.0.1:22078 &lt;user&gt;@&lt;client-vpn-ip&gt;
+debagr experimental cable-bridge builder --instance &lt;bonjour-instance&gt; --port 22078</pre></div>
+
+      <h3>Experimental B: Pair via USB/IP (Temporary Raw USB)</h3>
+      <p>Guided two-Mac helper for initial Apple pairing when an unpaired iPhone/iPad is physically away from the Builder Mac. Uses Curve25519 + 6-digit verification code and requires explicit user confirmation before supervising separately installed third-party <code>usbip</code> tools, then hands off to Wireless Setup.</p>
+      <div class="code-block"><pre>debagr experimental usbip check
+debagr experimental usbip guide</pre></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-row">
+      <div>Debagr v<span data-config-text="version">0.1.0</span></div>
+      <div><a href="index.html">Home</a> · <a href="legal.html">Privacy &amp; License</a></div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

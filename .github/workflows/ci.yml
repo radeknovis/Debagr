@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Swift formatting
+        run: ./scripts/format.sh --check
+
+      - name: Build with strict concurrency & warnings-as-errors
+        run: swift build -Xswiftc -warnings-as-errors
+
+      - name: Run unit & integration tests
+        run: swift test
+
+      - name: Bundle macOS application
+        run: ./scripts/bundle-app.sh
+
+      - name: Build ad-hoc DMG & Homebrew cask artifact
+        run: ./scripts/sign-notarize-dmg.sh --adhoc
+
+      - name: Package agent plugins
+        run: ./scripts/package-plugins.sh
+
+      - name: Smoke test bundled CLI & MCP server
+        run: ./scripts/smoke-test.sh dist/Debagr.app/Contents/MacOS/Debagr
+
+      - name: Verify docs, site & version consistency
+        run: ./scripts/check-consistency.sh

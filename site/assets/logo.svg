@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Debagr Logo">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1f2937"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#bg)"/>
+  <rect x="34" y="22" width="60" height="84" rx="12" fill="url(#screen)" stroke="#fde68a" stroke-width="3"/>
+  <rect x="52" y="28" width="24" height="4" rx="2" fill="#4b5563"/>
+  <path d="M51 54 L64 43 L77 54" fill="none" stroke="#fbbf24" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M44 65 Q64 49 84 65" fill="none" stroke="#fde68a" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="64" cy="76" r="6" fill="#f59e0b"/>
+  <rect x="54" y="96" width="20" height="3" rx="1.5" fill="#9ca3af"/>
+</svg>

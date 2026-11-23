@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Debagr — Deploy Signed iOS & iPadOS Apps Remotely Through Your Paired Builder Mac</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html">
+        <img src="assets/logo.svg" alt="Debagr icon">
+        <span>Debagr</span>
+      </a>
+      <nav class="nav-links">
+        <a class="active" href="index.html">Overview</a>
+        <a href="guide.html">Setup Guide</a>
+        <a href="legal.html">Privacy &amp; License</a>
+        <a data-config-href="supportUrl" href="#support">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="eyebrow">
+        <span>Native macOS Menu-Bar App + CLI + Local MCP</span>
+        <span>•</span>
+        <span>v<span data-config-text="version">0.1.0</span></span>
+      </div>
+      <h1>Deploy signed apps to your roaming iPhone or iPad over any Wi-Fi.</h1>
+      <p class="lead">
+        Keep Apple device pairing, trust, Xcode, and code signing on your paired <strong>Builder Mac</strong>.
+        Reach it locally or over your existing SSH connection while Debagr bridges your pocket device across your private VPN.
+      </p>
+
+      <div class="cta-row">
+        <a class="btn btn-primary" data-config-href="downloadUrl" href="#">Download DMG (v<span data-config-text="version">0.1.0</span>)</a>
+        <a class="btn" href="guide.html">Read Setup Guide</a>
+        <a class="btn" data-config-href="releasesUrl" href="#">All Releases</a>
+      </div>
+
+      <div class="meta-strip">
+        <span data-config-text="minMacOS">macOS 14 Sonoma (Apple silicon)</span>
+        <span>•</span>
+        <span>Zero cloud backend</span>
+        <span>•</span>
+        <span>Zero telemetry</span>
+        <span>•</span>
+        <span>SSH stays your auth boundary</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>How Debagr Works</h2>
+      <p class="section-sub">
+        Debagr never transfers Apple trust records, never signs apps, and opens no deployment network listener.
+        It uses your Mac's native <code>devicectl</code> and a supervised DNS-SD proxy over your private VPN.
+      </p>
+      <div class="diagram-box">
+        <svg viewBox="0 0 920 190" width="100%" height="auto" role="img" aria-label="Debagr Architecture Diagram">
+          <rect x="12" y="34" width="185" height="120" rx="12" fill="none" stroke="currentColor" stroke-opacity="0.28" stroke-width="1.5"/>
+          <text x="104" y="68" text-anchor="middle" fill="currentColor" font-size="13" font-weight="700">Developer / CI / AI Agent</text>
+          <text x="104" y="92" text-anchor="middle" fill="currentColor" opacity="0.72" font-size="11.5">Laptop or remote terminal</text>
+          <text x="104" y="114" text-anchor="middle" fill="currentColor" opacity="0.72" font-size="11.5">debagr CLI / debagr mcp</text>
+          <text x="104" y="136" text-anchor="middle" fill="currentColor" opacity="0.6" font-size="10.5">No custom network listener</text>
+
+          <line x1="197" y1="94" x2="262" y2="94" stroke="#d97706" stroke-width="2.5"/>
+          <polygon points="262,89 272,94 262,99" fill="#d97706"/>
+          <text x="234" y="82" text-anchor="middle" fill="#d97706" font-size="11" font-weight="700">SSH</text>
+
+          <rect x="272" y="22" width="260" height="144" rx="12" fill="none" stroke="#d97706" stroke-width="2"/>
+          <text x="402" y="54" text-anchor="middle" fill="currentColor" font-size="13.5" font-weight="700">Paired macOS Builder</text>
+          <text x="402" y="78" text-anchor="middle" fill="currentColor" opacity="0.75" font-size="11.5">Owns Apple Trust + Xcode + Signing</text>
+          <text x="402" y="102" text-anchor="middle" fill="currentColor" opacity="0.75" font-size="11.5">Debagr.app + xcrun devicectl</text>
+          <text x="402" y="126" text-anchor="middle" fill="currentColor" opacity="0.75" font-size="11.5">dns-sd -P Proxy &amp; Sleep/Wake Recovery</text>
+          <text x="402" y="148" text-anchor="middle" fill="#15803d" font-size="11" font-weight="600">Yields automatically if USB/local Wi-Fi active</text>
+
+          <line x1="532" y1="94" x2="652" y2="94" stroke="#d97706" stroke-width="2.5" stroke-dasharray="6,4"/>
+          <polygon points="652,89 662,94 652,99" fill="#d97706"/>
+          <text x="597" y="78" text-anchor="middle" fill="#d97706" font-size="11" font-weight="700">Private VPN</text>
+          <text x="597" y="114" text-anchor="middle" fill="currentColor" opacity="0.68" font-size="10.5">Tailscale / Headscale /</text>
+          <text x="597" y="129" text-anchor="middle" fill="currentColor" opacity="0.68" font-size="10.5">ZeroTier / NetBird / WireGuard</text>
+
+          <rect x="662" y="34" width="244" height="120" rx="12" fill="none" stroke="currentColor" stroke-opacity="0.28" stroke-width="1.5"/>
+          <text x="784" y="68" text-anchor="middle" fill="currentColor" font-size="13" font-weight="700">Roaming iPhone / iPad</text>
+          <text x="784" y="92" text-anchor="middle" fill="currentColor" opacity="0.72" font-size="11.5">Separate Wi-Fi + Private VPN</text>
+          <text x="784" y="114" text-anchor="middle" fill="currentColor" opacity="0.72" font-size="11.5">One managed physical device</text>
+          <text x="784" y="136" text-anchor="middle" fill="currentColor" opacity="0.6" font-size="10.5">Already paired to Builder Mac</text>
+        </svg>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Install via DMG or Homebrew Cask</h2>
+      <div class="card-grid">
+        <div class="card">
+          <h3>Homebrew Cask (Easy Updates)</h3>
+          <p>Installs both <code>/Applications/Debagr.app</code> and the <code>debagr</code> CLI on your PATH.</p>
+          <div class="code-block"><pre data-config-text="homebrewTapCommand">brew tap debagr-dev/tap</pre></div>
+          <div class="code-block"><pre data-config-text="homebrewCaskCommand">brew install --cask debagr-dev/tap/debagr</pre></div>
+        </div>
+        <div class="card">
+          <h3>AI Coding Agents Ready</h3>
+          <p>Includes structured JSON CLI, local stdio MCP server (<code>debagr mcp</code>), plus packaged Claude Code and Codex plugins sharing one safe workflow skill.</p>
+          <div class="code-block"><pre>debagr ready &amp;&amp; debagr deploy --app /path/to/MyApp.app</pre></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Verified vs. Experimental vs. Out of Scope</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Status</th>
+            <th>Notes &amp; Honest Requirements</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Wireless Deployment ("Use Existing Pairing")</strong></td>
+            <td><span class="badge badge-ok">Primary</span></td>
+            <td>Requires one already-paired physical iPhone/iPad on Wi-Fi + private VPN (Tailscale/Headscale auto-discovery; ZeroTier/NetBird/WireGuard manual private IP).</td>
+          </tr>
+          <tr>
+            <td><strong>Structured CLI &amp; Local Stdio MCP</strong></td>
+            <td><span class="badge badge-ok">Primary</span></td>
+            <td>Readiness, install, verification, launch, and redacted doctor diagnostics over local terminal or SSH. Recoverable exit codes for locked devices and partial install success.</td>
+          </tr>
+          <tr>
+            <td><strong>USB via Mac (Cable Service Bridge)</strong></td>
+            <td><span class="badge badge-exp">Experimental</span></td>
+            <td>Terminal-driven bridge for an <em>already-paired</em> device plugged via USB into a second Mac (even with Wi-Fi off). Forwards port 62078 over <code>127.0.0.1</code> + SSH + VPN. No root or SIP changes.</td>
+          </tr>
+          <tr>
+            <td><strong>Pair via USB/IP (Temporary Raw USB)</strong></td>
+            <td><span class="badge badge-exp">Experimental</span></td>
+            <td>Guided two-Mac coordination with Curve25519 + 6-digit SAS verification supervising separately installed USB/IP tools only after explicit user approval, then hands off to wireless.</td>
+          </tr>
+          <tr>
+            <td><strong>Trust Transfer, App Building/Signing, Simulators, Cellular-Only, Cloud</strong></td>
+            <td><span class="badge badge-neutral">Out of Scope</span></td>
+            <td>Debagr intentionally keeps Apple trust, Xcode, and signing on the Builder Mac. No companion iOS app, no user accounts, no telemetry, and no cloud servers.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer class="site-footer" id="support">
+    <div class="container footer-row">
+      <div>Debagr v<span data-config-text="version">0.1.0</span> — Native macOS toolset for remote physical iOS/iPadOS deployment.</div>
+      <div>
+        <a href="guide.html">Setup Guide</a> ·
+        <a href="legal.html">Privacy &amp; Evaluation License</a> ·
+        <a data-config-href="supportUrl" href="#">Issues &amp; Support</a> ·
+        <a data-config-href="supportEmail" href="mailto:support@debagr.example">Email Support</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify consistency & tests
+        run: |
+          ./scripts/check-consistency.sh
+          swift build -Xswiftc -warnings-as-errors
+          swift test
+
+      - name: Bundle app & plugins
+        run: |
+          ./scripts/bundle-app.sh
+          ./scripts/package-plugins.sh
+
+      - name: Import Developer ID & notarize DMG (when configured)
+        env:
+          DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+          APPLE_NOTARY_PROFILE: ${{ secrets.APPLE_NOTARY_PROFILE }}
+        run: |
+          if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
+            ./scripts/sign-notarize-dmg.sh
+          else
+            ./scripts/sign-notarize-dmg.sh --adhoc
+          fi
+
+      - name: Smoke test release binary
+        run: ./scripts/smoke-test.sh dist/Debagr.app/Contents/MacOS/Debagr
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: debagr-release-artifacts
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+            dist/debagr.rb
+            dist/plugins/*.zip
+            site/
