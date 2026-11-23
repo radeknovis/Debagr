@@ -68,4 +68,8 @@ public final class LaunchAtLoginManager {
     }
     return currentStatus()
   }
+
+  public func openSystemSettingsLoginItems() {
+    SMAppService.openSystemSettingsLoginItems()
+  }
 }

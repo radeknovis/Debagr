@@ -39,6 +39,46 @@ public enum AgentClientKind: String, CaseIterable, Identifiable, Sendable {
   public var id: String { rawValue }
 }
 
+public enum CLISymlinkStatus: Equatable, Sendable {
+  case linkedToCurrent(target: String)
+  case linkedElsewhere(target: String)
+  case notLinked
+}
+
+public struct StorageFileInspection: Identifiable, Equatable, Sendable {
+  public let id: String
+  public let title: String
+  public let iconName: String
+  public let url: URL
+  public let isDirectory: Bool
+  public let exists: Bool
+  public let octalPermissions: String?
+  public let permissionsOK: Bool
+  public let formattedSize: String?
+
+  public init(
+    id: String,
+    title: String,
+    iconName: String,
+    url: URL,
+    isDirectory: Bool,
+    exists: Bool,
+    octalPermissions: String?,
+    permissionsOK: Bool,
+    formattedSize: String?
+  ) {
+    self.id = id
+    self.title = title
+    self.iconName = iconName
+    self.url = url
+    self.isDirectory = isDirectory
+    self.exists = exists
+    self.octalPermissions = octalPermissions
+    self.permissionsOK = permissionsOK
+    self.formattedSize = formattedSize
+  }
+}
+
 public enum SSHDeployMode: String, CaseIterable, Identifiable, Sendable {
   case deployAndLaunch = "Deploy & Launch"
   case installOnly = "Install Only"
@@ -296,6 +336,61 @@ public final class AppModel: ObservableObject {
       && bridgeStateStore.verifyPermissions()
   }
 
+  public var cliSymlinkStatus: CLISymlinkStatus {
+    let linkPath = "/usr/local/bin/debagr"
+    let expectedTarget = URL(fileURLWithPath: binaryPathForAgents).standardizedFileURL.path
+    let fm = FileManager.default
+    if let dest = try? fm.destinationOfSymbolicLink(atPath: linkPath) {
+      let resolvedURL =
+        dest.hasPrefix("/")
+        ? URL(fileURLWithPath: dest)
+        : URL(fileURLWithPath: "/usr/local/bin").appendingPathComponent(dest)
+      let standardized = resolvedURL.standardizedFileURL.path
+      if standardized == expectedTarget {
+        return .linkedToCurrent(target: standardized)
+      }
+      return .linkedElsewhere(target: standardized)
+    }
+    if fm.fileExists(atPath: linkPath) {
+      return .linkedElsewhere(target: linkPath)
+    }
+    return .notLinked
+  }
+
+  public func inspectStorageFiles() -> [StorageFileInspection] {
+    let specs: [(id: String, title: String, icon: String, url: URL, isDir: Bool)] = [
+      ("dir", "Data Directory", "folder.fill", FileSecurity.dataDirectoryURL(), true),
+      ("cfg", "Configuration", "slider.horizontal.3", configStore.fileURL, false),
+      ("rec", "Deployment Receipts", "doc.text", receiptStore.fileURL, false),
+      ("brd", "Bridge State", "waveform.path.ecg", bridgeStateStore.fileURL, false),
+    ]
+    let fm = FileManager.default
+    return specs.map { spec in
+      let exists = fm.fileExists(atPath: spec.url.path)
+      let attrs = exists ? (try? fm.attributesOfItem(atPath: spec.url.path)) : nil
+      let posixMode = (attrs?[.posixPermissions] as? NSNumber)?.intValue
+      let octal = posixMode.map { String(format: "0%03o", $0 & 0o777) }
+      let permsOK = FileSecurity.verifyRestrictivePermissions(spec.url)
+      let formattedSize: String?
+      if exists && !spec.isDir, let byteCount = (attrs?[.size] as? NSNumber)?.int64Value {
+        formattedSize = ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)
+      } else {
+        formattedSize = nil
+      }
+      return StorageFileInspection(
+        id: spec.id,
+        title: spec.title,
+        iconName: spec.icon,
+        url: spec.url,
+        isDirectory: spec.isDir,
+        exists: exists,
+        octalPermissions: octal,
+        permissionsOK: permsOK,
+        formattedSize: formattedSize
+      )
+    }
+  }
+
   public func startBackgroundSupervision() {
     guard supervisionTask == nil else { return }
 
@@ -540,7 +635,10 @@ public final class AppModel: ObservableObject {
     guard loaded, let json = redactedDiagnosticsPreview else {
       return false
     }
-    copyToPasteboard(json)
+    guard copyToPasteboard(json) else {
+      showToast("Failed copying redacted diagnostics JSON to clipboard.")
+      return false
+    }
     showToast("Copied redacted diagnostics JSON (pairing secrets stripped).")
     return true
   }
@@ -568,11 +666,15 @@ public final class AppModel: ObservableObject {
     }
   }
 
-  public func copyToPasteboard(_ text: String) {
+  @discardableResult
+  public func copyToPasteboard(_ text: String) -> Bool {
     let pb = NSPasteboard.general
     pb.clearContents()
-    pb.setString(text, forType: .string)
-    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+    let wrote = pb.setString(text, forType: .string)
+    if wrote {
+      NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
+    }
+    return wrote
   }
 
   public func updatePreferences(_ mutate: @Sendable (inout DebagrPreferences) -> Void) {
@@ -586,6 +688,19 @@ public final class AppModel: ObservableObject {
       settingsErrorBanner = error.localizedDescription
       errorBanner = error.localizedDescription
     }
+  }
+
+  public func resetBridgePreferencesToDefaults() {
+    updatePreferences { prefs in
+      prefs.yieldWhenNativelyLocal = true
+      prefs.healthCheckIntervalSeconds = 15
+      prefs.defaultDeployTimeoutSeconds = 180
+    }
+    showToast("Restored default bridge preferences.")
+  }
+
+  public func openLoginItemsSettings() {
+    launchAtLoginManager.openSystemSettingsLoginItems()
   }
 
   public func setLaunchAtLogin(_ enabled: Bool) {
