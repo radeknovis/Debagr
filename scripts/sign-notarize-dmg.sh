@@ -30,6 +30,18 @@ else
     --entitlements "$ROOT_DIR/packaging/Debagr.entitlements" \
     "$APP_DIR"
   codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+
+  if [[ -n "${APPLE_NOTARY_PROFILE:-}" ]]; then
+    APP_ZIP="$DIST_DIR/Debagr-${VERSION}-app.zip"
+    rm -f "$APP_ZIP"
+    ditto -c -k --keepParent "$APP_DIR" "$APP_ZIP"
+    echo "Submitting Debagr.app archive for Apple notarization..."
+    xcrun notarytool submit "$APP_ZIP" --keychain-profile "$APPLE_NOTARY_PROFILE" --wait
+    xcrun stapler staple "$APP_DIR"
+    xcrun stapler validate "$APP_DIR"
+    spctl --assess --type execute --verbose "$APP_DIR"
+    rm -f "$APP_ZIP"
+  fi
 fi
 
 STAGE_DIR="$(mktemp -d)"
@@ -51,6 +63,7 @@ if [[ "$MODE" != "--adhoc" ]]; then
     echo "Submitting $DMG_PATH for Apple notarization..."
     xcrun notarytool submit "$DMG_PATH" --keychain-profile "$APPLE_NOTARY_PROFILE" --wait
     xcrun stapler staple "$DMG_PATH"
+    xcrun stapler validate "$DMG_PATH"
   else
     echo "APPLE_NOTARY_PROFILE not set; skipping notarization submission."
   fi

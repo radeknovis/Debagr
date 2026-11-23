@@ -16,7 +16,6 @@
   "lineLength": 100,
   "maximumBlankLines": 1,
   "multiElementCollectionTrailingCommas": true,
-  "multilineTrailingCommaBehavior": "keptAsWritten",
   "noAssignmentInExpressions": {
     "allowedFunctions": [
       "XCTAssertNoThrow"

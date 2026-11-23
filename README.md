@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://github.com/radeknovis/Debagr/actions/workflows/ci.yml"><img src="https://github.com/radeknovis/Debagr/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-  <a href="https://github.com/radeknovis/Debagr/releases"><img src="https://img.shields.io/badge/version-0.4.0-2563EB" alt="Debagr v0.4.0"></a>
+  <a href="https://github.com/radeknovis/homebrew-debagr/releases"><img src="https://img.shields.io/badge/version-0.4.0-2563EB" alt="Debagr v0.4.0"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/macOS-14%2B_Sonoma-111827" alt="macOS 14+ Sonoma"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/Mac-Apple_silicon-111827" alt="Apple silicon Mac"></a>
   <a href="skills/debagr-deploy/SKILL.md"><img src="https://img.shields.io/badge/CLI_%2B_MCP-local_stdio-0D9488" alt="CLI + MCP local stdio"></a>
