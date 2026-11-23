@@ -1,8 +1,38 @@
-<img src="assets/icon.svg" width="64" height="64" alt="Debagr icon">
+<p align="center">
+  <img src="assets/app-icon.png" width="96" height="96" alt="Debagr app icon">
+</p>
 
-# Debagr
+<h1 align="center">Debagr</h1>
 
-**Debagr** is a native Apple silicon macOS toolset (menu-bar app, structured JSON CLI, local stdio MCP server, agent plugins, and zero-dependency static site) that lets developers, CI jobs, and AI coding agents install and launch signed iOS and iPadOS apps onto a roaming physical iPhone or iPad over separate Wi-Fi networks.
+<p align="center">
+  <strong>Your Builder Mac stays home. Your next build comes with you.</strong>
+</p>
+
+<p align="center">
+  Native Apple silicon macOS menu-bar app, structured JSON CLI, and local stdio MCP server that let developers, CI jobs, and AI coding agents install and launch signed iOS &amp; iPadOS apps on a roaming physical device across separate Wi-Fi networks.
+</p>
+
+<p align="center">
+  <a href="https://github.com/radeknovis/Debagr/actions/workflows/ci.yml"><img src="https://github.com/radeknovis/Debagr/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/radeknovis/Debagr/releases"><img src="https://img.shields.io/badge/version-0.4.0-2563EB" alt="Debagr v0.4.0"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/macOS-14%2B_Sonoma-111827" alt="macOS 14+ Sonoma"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Mac-Apple_silicon-111827" alt="Apple silicon Mac"></a>
+  <a href="skills/debagr-deploy/SKILL.md"><img src="https://img.shields.io/badge/CLI_%2B_MCP-local_stdio-0D9488" alt="CLI + MCP local stdio"></a>
+  <a href="https://github.com/radeknovis/homebrew-debagr"><img src="https://img.shields.io/badge/install-Homebrew-F59E0B" alt="Install via Homebrew"></a>
+  <a href="site/legal.html"><img src="https://img.shields.io/badge/license-free_evaluation-64748B" alt="Free evaluation license"></a>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#core-premise--explicit-boundaries">Core Boundaries</a> ·
+  <a href="#components">Components</a> ·
+  <a href="#cli-reference--exit-codes">CLI &amp; Exit Codes</a> ·
+  <a href="#documentation">Documentation</a>
+</p>
+
+<p align="center">
+  <img src="assets/remote-deployment.svg" alt="Paired Builder Mac runs Xcode and Debagr on home or office Wi-Fi; a private VPN bridges signed app installs and launches to your roaming iPhone or iPad on another Wi-Fi network." width="1000">
+</p>
 
 ## Core Premise & Explicit Boundaries
 
@@ -19,7 +49,7 @@
 
 | Component | Location | Purpose |
 |---|---|---|
-| Native Menu-Bar App & UI | `Sources/DebagrApp` | Background wireless bridge supervision, 4-step Wireless Setup wizard, saved-connection verification, Launch at Login, agent onboarding, experimental routes |
+| Native Menu-Bar App & UI | `Sources/DebagrApp` | Background wireless bridge supervision, 4-step Wireless Setup wizard, live route topology, custom controls, redesigned Settings window, agent onboarding, experimental routes |
 | Core & Wireless Bridge | `Sources/DebagrCore`, `Sources/DebagrBridge` | `0600`/`0700` local stores, dual-schema `devicectl` client, bundle signature/platform validation, `NWConnection` VPN probe, `dns-sd -P` proxy, sleep/wake & path recovery |
 | Machine-Readable CLI | `Sources/DebagrCLI` | Same binary (`debagr`) outputs versioned JSON (`schemaVersion: "1.0"`) with recoverable exit codes |
 | Local Stdio MCP Server | `Sources/DebagrMCP` | `debagr mcp` exposes 7 tools (`debagr_list_devices`, `debagr_check_readiness`, `debagr_diagnose`, `debagr_list_apps`, `debagr_install_app`, `debagr_launch_app`, `debagr_deploy_app`) |
@@ -29,8 +59,14 @@
 
 ## Quick Start
 
-### 1. Build & Test from Source
-Requires macOS 14+ (Apple silicon), Xcode / `xcrun devicectl`:
+### 1. Install via Homebrew Cask (or Build from Source)
+
+```bash
+brew tap radeknovis/debagr
+brew install --cask radeknovis/debagr/debagr
+```
+
+Or build from source on macOS 14+ (Apple silicon) with Xcode / `xcrun devicectl`:
 
 ```bash
 swift build -Xswiftc -warnings-as-errors
