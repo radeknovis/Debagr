@@ -3,109 +3,174 @@ import SwiftUI
 
 public struct MainWindowView: View {
   @ObservedObject var model: AppModel
+  @ObservedObject var windowLifecycle: WindowLifecycleController
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var toolbarCopied = false
 
-  public init(model: AppModel) {
+  public init(model: AppModel, windowLifecycle: WindowLifecycleController) {
     self.model = model
+    self.windowLifecycle = windowLifecycle
   }
 
   public var body: some View {
+    let verdict = model.verdict
+
     NavigationSplitView {
-      List(SidebarDestination.allCases, selection: $model.selectedSection) { section in
-        Label {
-          HStack {
-            Text(section.title)
-            if section == .experimental {
-              Spacer()
-              Text("EXP")
-                .font(.caption2.bold())
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(Color.orange.opacity(0.2))
-                .foregroundStyle(.orange)
-                .clipShape(Capsule())
-            }
-          }
-        } icon: {
-          Image(systemName: section.systemImage)
+      List(selection: $model.selectedSection) {
+        Section("Device") {
+          sidebarRow(.overview)
+          sidebarRow(.wirelessSetup)
         }
-        .tag(section)
+
+        Section("Automation") {
+          sidebarRow(.agentOnboarding)
+        }
+
+        Section("Labs") {
+          sidebarRow(.experimental)
+        }
       }
-      .navigationSplitViewColumnWidth(min: 205, ideal: 220)
+      .navigationSplitViewColumnWidth(min: 210, ideal: 224)
       .safeAreaInset(edge: .bottom) {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
           Divider()
-          HStack(spacing: 6) {
-            Circle()
-              .fill(bridgePillColor)
-              .frame(width: 8, height: 8)
-            Text(model.bridgeSnapshot.state.displayTitle)
-              .font(.caption.weight(.medium))
+          HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 4) {
+              StatusPill(
+                tone: verdict.tone,
+                symbolName: verdict.heroSymbol,
+                label: verdict.pillLabel,
+                compact: true
+              )
+              Text(model.config.managedDevice?.displayName ?? "No device configured")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+            Spacer()
+            OpenSettingsButton {
+              windowLifecycle.activateForWindow()
+            } label: {
+              Image(systemName: "gearshape")
+                .font(.body)
+                .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help("Open Settings (⌘,)")
           }
-          Text(model.config.managedDevice?.displayName ?? "No device saved")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
       }
     } detail: {
-      VStack(spacing: 0) {
-        if let err = model.errorBanner {
-          banner(text: err, color: .red, icon: "exclamationmark.octagon.fill") {
-            model.errorBanner = nil
+      ZStack(alignment: .bottom) {
+        VStack(spacing: 0) {
+          if let err = model.errorBanner {
+            ExpandableErrorCard(message: err) {
+              model.errorBanner = nil
+            }
           }
-        } else if let status = model.statusBanner {
-          banner(text: status, color: .accentColor, icon: "info.circle.fill") {
-            model.statusBanner = nil
+
+          Group {
+            switch model.selectedSection {
+            case .overview:
+              OverviewView(model: model)
+            case .wirelessSetup:
+              WirelessSetupWizardView(model: model)
+            case .agentOnboarding:
+              AgentOnboardingView(model: model)
+            case .experimental:
+              ExperimentalView(model: model)
+            }
           }
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
 
-        Group {
-          switch model.selectedSection {
-          case .overview:
-            OverviewView(model: model)
-          case .wirelessSetup:
-            WirelessSetupWizardView(model: model)
-          case .agentOnboarding:
-            AgentOnboardingView(model: model)
-          case .experimental:
-            ExperimentalView(model: model)
-          case .preferences:
-            PreferencesView(model: model)
+        if let toast = model.toastMessage {
+          FloatingToastOverlay(message: toast)
+            .padding(.bottom, 18)
+            .transition(
+              reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
+            )
+        }
+      }
+      .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: model.toastMessage)
+    }
+    .navigationTitle(model.selectedSection.title)
+    .toolbar {
+      ToolbarItemGroup(placement: .primaryAction) {
+        Button {
+          Task { await model.refreshReadiness() }
+        } label: {
+          HStack(spacing: 6) {
+            ZStack {
+              if model.isCheckingReadiness {
+                ProgressView()
+                  .controlSize(.small)
+              } else {
+                Image(systemName: "checkmark.shield")
+              }
+            }
+            .frame(width: 16, height: 16)
+            Text("Verify")
           }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .disabled(model.config.managedDevice == nil || model.isCheckingReadiness)
+        .help("Verify saved connection & device readiness (⌘R)")
+
+        Button {
+          Task { await model.toggleBridgePaused() }
+        } label: {
+          Label(
+            model.isBridgePaused ? "Resume Bridge" : "Pause Bridge",
+            systemImage: model.isBridgePaused ? "play.circle" : "pause.circle"
+          )
+        }
+        .disabled(model.config.managedDevice == nil)
+        .help(model.isBridgePaused ? "Resume background VPN bridge" : "Pause background VPN bridge")
+
+        Button {
+          Task {
+            let ok = await model.copyRedactedDiagnostics()
+            guard ok else { return }
+            toolbarCopied = true
+            try? await Task.sleep(for: .seconds(1.5))
+            toolbarCopied = false
+          }
+        } label: {
+          Label(
+            toolbarCopied ? "Copied" : "Copy Diagnostics",
+            systemImage: toolbarCopied ? "checkmark" : "doc.on.doc"
+          )
+          .contentTransition(.symbolEffect(.replace))
+        }
+        .help("Copy redacted diagnostics JSON (⌘⇧C)")
       }
     }
   }
 
-  private var bridgePillColor: Color {
-    switch model.bridgeSnapshot.state {
-    case .bridgingActive, .nativeLocalStandby: .green
-    case .deviceOffline, .vpnUnavailable, .error: .orange
-    case .paused, .probingVPN, .unconfigured: .secondary
+  private func sidebarRow(_ section: SidebarDestination) -> some View {
+    Label {
+      HStack {
+        Text(section.title)
+        if section == .experimental {
+          Spacer()
+          HStack(spacing: 4) {
+            Circle()
+              .fill(Color.orange)
+              .frame(width: 5, height: 5)
+            Text("EXP")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.primary)
+          }
+          .padding(.horizontal, 6)
+          .padding(.vertical, 2)
+          .background(Color.orange.opacity(0.16), in: Capsule())
+        }
+      }
+    } icon: {
+      Image(systemName: section.systemImage)
     }
-  }
-
-  private func banner(
-    text: String,
-    color: Color,
-    icon: String,
-    onDismiss: @escaping () -> Void
-  ) -> some View {
-    HStack(spacing: 8) {
-      Image(systemName: icon)
-        .foregroundStyle(color)
-      Text(text)
-        .font(.callout)
-        .lineLimit(2)
-      Spacer()
-      Button("Dismiss", action: onDismiss)
-        .buttonStyle(.borderless)
-        .font(.caption)
-    }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 10)
-    .background(color.opacity(0.1))
+    .tag(section)
   }
 }

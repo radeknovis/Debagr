@@ -5,15 +5,6 @@ import SwiftUI
 public struct ExperimentalView: View {
   @ObservedObject var model: AppModel
 
-  @State private var clientSSHHost = "dev@100.64.x.y"
-  @State private var cablePort = "22078"
-  @State private var selectedUSBIPRole: USBIPRole = .builder
-  @State private var usbipCustomBinaryPath = ""
-  @State private var manualUSBIPPeerIP = ""
-  @State private var enteredSASCode = ""
-  @State private var showApprovalSheet = false
-  @State private var confirmedSecurityNotice = false
-
   public init(model: AppModel) {
     self.model = model
   }
@@ -21,246 +12,350 @@ public struct ExperimentalView: View {
   public var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
-        experimentalBanner
-        cableServiceBridgeSection
-        usbipPairingSection
+        DiagonalHatchBanner(
+          title: "Experimental Routes",
+          subtitle:
+            "Fallback tools for edge cases when normal Wi-Fi + VPN deployment is unavailable. For daily use, stick to Wireless Setup."
+        )
+
+        cableServiceBridgeCard
+        usbipPairingCard
       }
-      .padding(24)
-    }
-    .sheet(isPresented: $showApprovalSheet) {
-      usbipApprovalSheet
+      .frame(maxWidth: DesignTokens.maxContentWidth, alignment: .leading)
+      .frame(maxWidth: .infinity)
+      .padding(DesignTokens.pagePadding)
     }
   }
 
-  private var experimentalBanner: some View {
-    HStack(alignment: .top, spacing: 12) {
-      Image(systemName: "flask.fill")
-        .font(.title2)
-        .foregroundStyle(.orange)
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Experimental Routes")
-          .font(.headline)
-          .foregroundStyle(.orange)
-        Text(
-          "The workflows below are clearly labeled experimental fallback helpers for edge cases. For everyday remote deployment, use the primary Wireless Setup workflow."
-        )
-        .font(.callout)
-        .foregroundStyle(.secondary)
-      }
-    }
-    .padding(14)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color.orange.opacity(0.12))
-    .clipShape(RoundedRectangle(cornerRadius: 10))
-  }
-
-  private var cableServiceBridgeSection: some View {
-    GroupBox("Experimental: USB via Mac (Cable Service Bridge)") {
-      VStack(alignment: .leading, spacing: 10) {
-        Text(
-          "Terminal-driven service bridge for an ALREADY-PAIRED device plugged via USB into a second Mac (even with Wi-Fi turned off). Forwards usbmuxd port 62078 strictly over 127.0.0.1 + SSH + private VPN — no raw USB sharing, no root privileges, and no SIP changes."
-        )
-        .font(.callout)
-        .foregroundStyle(.secondary)
-
-        HStack {
-          TextField("Client Mac SSH target (user@vpn-ip)", text: $clientSSHHost)
-            .textFieldStyle(.roundedBorder)
-          TextField("Port", text: $cablePort)
-            .textFieldStyle(.roundedBorder)
-            .frame(width: 80)
-        }
-
-        let portNum = UInt16(cablePort) ?? 22078
-        let udid = model.config.managedDevice?.udid ?? "<device-udid>"
-        let guide = CableBridgeGuide(
-          clientHost: clientSSHHost,
-          deviceUDID: udid,
-          bonjourInstance: "<captured-bonjour-instance>",
-          port: portNum
-        )
-
-        VStack(alignment: .leading, spacing: 6) {
-          commandLine("1. On Client Mac (phone plugged in):", guide.clientCommand)
-          commandLine("2. SSH tunnel from Builder Mac:", guide.sshTunnelCommand)
-          commandLine("3. On Builder Mac:", guide.builderCommand)
-        }
-
-        HStack(spacing: 12) {
-          Link(
-            "Open Cable Bridge Guide",
-            destination: URL(
-              string: "https://github.com/debagr-dev/debagr/blob/main/docs/cable-bridge.md"
-            )!
-          )
-          .font(.caption)
-
-          Button("Copy Guide CLI Command") {
-            model.copyToPasteboard(
-              "debagr experimental cable-bridge guide --client-host \(clientSSHHost)"
-            )
-            model.statusBanner = "Copied cable-bridge guide CLI command."
-          }
-          .font(.caption)
-        }
-      }
-      .padding(8)
-    }
-  }
-
-  private var usbipPairingSection: some View {
-    GroupBox("Experimental: Pair via USB/IP (Temporary Raw USB for Initial Pairing)") {
+  private var cableServiceBridgeCard: some View {
+    SurfaceCard {
       VStack(alignment: .leading, spacing: 12) {
-        Text(
-          "Guided two-Mac helper for performing Apple's initial USB pairing when your device is not yet paired with the Builder Mac. Supervises separately installed third-party USB/IP tools only after explicit approval, then tears down immediately for normal wireless handoff."
-        )
-        .font(.callout)
-        .foregroundStyle(.secondary)
+        HStack(alignment: .top) {
+          VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+              Text("USB via Mac (Cable Service Bridge)")
+                .font(.headline)
+              ExperimentalBadge()
+            }
+            Text(
+              "Use when an already-paired iPhone/iPad has Wi-Fi off and is plugged via USB into a second Mac."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          }
+          Spacer()
+        }
 
-        HStack {
-          TextField("Optional custom usbip binary path", text: $usbipCustomBinaryPath)
-            .textFieldStyle(.roundedBorder)
-          Button("Check Prerequisites") {
-            Task {
-              await model.checkUSBIPPrerequisites(
-                customPath: usbipCustomBinaryPath.isEmpty ? nil : usbipCustomBinaryPath
+        DisclosureGroup(
+          "When would I need this? & Terminal Setup",
+          isExpanded: $model.experimentalDraft.showCableBridge
+        ) {
+          VStack(alignment: .leading, spacing: 12) {
+            InlineNotice(
+              symbolName: "cable.connector",
+              color: .secondary,
+              title: "Service Forwarding Only — No Root, No Raw USB, No SIP Changes",
+              message:
+                "Forwards Apple usbmuxd port 62078 strictly on 127.0.0.1 over SSH + your private VPN. Requires the device to already be paired with this Builder Mac."
+            )
+
+            let trimmedPort = model.experimentalDraft.cablePort.trimmingCharacters(
+              in: .whitespacesAndNewlines
+            )
+            let resolvedPort: UInt16? =
+              trimmedPort.isEmpty ? 22078 : DebagrFormatters.parseTCPPort(trimmedPort)
+            let isPortInvalid = !trimmedPort.isEmpty && resolvedPort == nil
+
+            HStack(alignment: .top, spacing: 12) {
+              DebagrTextField(
+                label: "Client Mac SSH Target",
+                text: $model.experimentalDraft.clientSSHHost,
+                prompt: "user@100.64.x.y",
+                leadingIcon: "network",
+                showClearButton: true
+              )
+
+              DebagrTextField(
+                label: "Loopback Port",
+                text: $model.experimentalDraft.cablePort,
+                prompt: "22078",
+                leadingIcon: "number",
+                numericOnly: true,
+                maxLength: 5,
+                validation: isPortInvalid ? .invalid("") : .none
+              )
+              .frame(width: 145)
+            }
+
+            let trimmedHost = model.experimentalDraft.clientSSHHost.trimmingCharacters(
+              in: .whitespacesAndNewlines
+            )
+            let effectiveHost = trimmedHost.isEmpty ? "<user>@<client-vpn-ip>" : trimmedHost
+            let udid = model.config.managedDevice?.udid ?? "<device-udid>"
+
+            if let validPort = resolvedPort {
+              let guide = CableBridgeGuide(
+                clientHost: effectiveHost,
+                deviceUDID: udid,
+                bonjourInstance: "<captured-bonjour-instance>",
+                port: validPort
+              )
+
+              TerminalCommandField(
+                code: guide.clientCommand,
+                contextTag: "1. Run on Client Mac (Phone Plugged In)",
+                syntax: .shell
+              )
+              TerminalCommandField(
+                code: guide.sshTunnelCommand,
+                contextTag: "2. Open SSH Tunnel from Builder Mac",
+                syntax: .shell
+              )
+              TerminalCommandField(
+                code: guide.builderCommand,
+                contextTag: "3. Run on Builder Mac",
+                syntax: .shell
+              )
+            } else {
+              InlineNotice(
+                symbolName: "xmark.octagon.fill",
+                color: .red,
+                title: "Invalid Loopback Port",
+                message:
+                  "Enter a loopback TCP port between 1 and 65535 (or leave blank to use 22078)."
               )
             }
+
+            Link(
+              "Read Cable Service Bridge Guide (docs/cable-bridge.md)",
+              destination: URL(
+                string: "https://github.com/debagr-dev/debagr/blob/main/docs/cable-bridge.md"
+              )!
+            )
+            .font(.caption)
           }
+          .padding(.top, 10)
+        }
+        .font(.callout.weight(.medium))
+      }
+    }
+  }
+
+  private var usbipPairingCard: some View {
+    SurfaceCard {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top) {
+          VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+              Text("Pair via USB/IP (Temporary Raw USB)")
+                .font(.headline)
+              ExperimentalBadge()
+            }
+            Text(
+              "Use only for initial Apple USB pairing when an unpaired device is away from your Builder Mac."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          }
+          Spacer()
         }
 
-        if let prereq = model.usbipPrerequisites {
-          VStack(alignment: .leading, spacing: 4) {
-            Label(
-              prereq.summary,
-              systemImage: prereq.usbipAvailable
-                ? "checkmark.circle.fill" : "exclamationmark.triangle"
+        DisclosureGroup(
+          "When would I need this? & Guided Prerequisites",
+          isExpanded: $model.experimentalDraft.showUSBIP
+        ) {
+          VStack(alignment: .leading, spacing: 14) {
+            InlineNotice(
+              symbolName: "lock.shield",
+              color: .orange,
+              title: "Explicit Security Policy & Terminal Execution",
+              message:
+                "Debagr never bundles third-party USB drivers or weakens SIP. Interactive two-Mac USB/IP bind/attach commands run in Terminal (CLI only for now) after you explicitly review and confirm them."
             )
-            .foregroundStyle(prereq.usbipAvailable ? .green : .orange)
-            .font(.callout)
-            Text(prereq.installNotice)
+
+            VStack(alignment: .leading, spacing: 8) {
+              Text("1. Check Separately Installed USB/IP Tools")
+                .font(.callout.weight(.semibold))
+              HStack(alignment: .center, spacing: 10) {
+                DebagrTextField(
+                  text: $model.experimentalDraft.usbipCustomBinaryPath,
+                  prompt: "Optional custom usbip binary path",
+                  leadingIcon: "terminal",
+                  showClearButton: true,
+                  trailingActionIcon: "folder",
+                  trailingActionHelp: "Choose usbip binary on this Mac…"
+                ) {
+                  Task {
+                    switch await DebagrFilePicker.pickExecutable(
+                      title: "Select usbip Binary",
+                      initialPath: model.experimentalDraft.usbipCustomBinaryPath
+                    ) {
+                    case .picked(let path):
+                      model.experimentalDraft.usbipCustomBinaryPath = path
+                    case .notExecutable(let path):
+                      model.showToast(
+                        "Selected file is not executable: \(URL(fileURLWithPath: path).lastPathComponent)"
+                      )
+                    case .cancelled:
+                      break
+                    }
+                  }
+                }
+                Button("Check Prerequisites") {
+                  let custom = model.experimentalDraft.usbipCustomBinaryPath
+                  Task {
+                    await model.checkUSBIPPrerequisites(
+                      customPath: custom.isEmpty ? nil : custom
+                    )
+                  }
+                }
+                .buttonStyle(DebagrSecondaryButtonStyle())
+              }
+
+              if let prereq = model.usbipPrerequisites {
+                InlineNotice(
+                  symbolName: prereq.usbipAvailable
+                    ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                  color: prereq.usbipAvailable ? .green : .orange,
+                  title: prereq.usbipAvailable ? "USB/IP Tool Found" : "USB/IP Binary Not Found",
+                  message: "\(prereq.summary) \(prereq.installNotice)"
+                )
+              }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+              Text("2. Discover Nearby Debagr Peers (On Demand)")
+                .font(.callout.weight(.semibold))
+              HStack {
+                Button {
+                  Task { await model.discoverUSBIPPeersOnDemand() }
+                } label: {
+                  DebagrButtonLabel(
+                    title: model.isScanningUSBIPPeers ? "Scanning…" : "Discover Nearby Macs",
+                    systemImage: "bonjour",
+                    isLoading: model.isScanningUSBIPPeers
+                  )
+                }
+                .buttonStyle(DebagrSecondaryButtonStyle(isLoading: model.isScanningUSBIPPeers))
+
+                Text(
+                  model.usbipDiscoveredPeers.isEmpty
+                    ? "Runs only when clicked; zero always-on listeners."
+                    : "Found \(model.usbipDiscoveredPeers.count) peer(s)"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              }
+
+              if !model.usbipDiscoveredPeers.isEmpty {
+                ForEach(model.usbipDiscoveredPeers) { peer in
+                  HStack {
+                    Image(systemName: "desktopcomputer")
+                    Text(peer.name).font(.caption.weight(.semibold))
+                    Spacer()
+                    Text("\(peer.host):\(peer.port)").font(.caption.monospaced())
+                  }
+                  .padding(8)
+                  .background(
+                    Color.primary.opacity(0.04),
+                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                  )
+                }
+              }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+              Text("3. Continue in Terminal (CLI)")
+                .font(.callout.weight(.semibold))
+
+              DebagrSegmentedControl(
+                "This Mac's Role",
+                selection: $model.experimentalDraft.selectedUSBIPRole,
+                options: USBIPRole.allCases,
+                title: { role in
+                  switch role {
+                  case .builder: "Builder Mac"
+                  case .client: "Client Mac"
+                  }
+                },
+                systemImage: { role in
+                  switch role {
+                  case .builder: "macstudio"
+                  case .client: "iphone.and.arrow.forward"
+                  }
+                }
+              )
+
+              Text(
+                model.experimentalDraft.selectedUSBIPRole == .builder
+                  ? "Builder Mac runs Xcode, Apple Trust & remote install."
+                  : "Client Mac holds the physical iPhone or iPad over USB."
+              )
               .font(.caption)
               .foregroundStyle(.secondary)
-          }
-        }
 
-        Divider()
+              let customPath = model.experimentalDraft.usbipCustomBinaryPath.trimmingCharacters(
+                in: .whitespacesAndNewlines
+              )
+              let checkCmd =
+                customPath.isEmpty
+                ? "debagr experimental usbip check"
+                : "debagr experimental usbip check --usbip-path \(DebagrFormatters.shellSingleQuote(customPath))"
 
-        Picker("This Mac's Role", selection: $selectedUSBIPRole) {
-          Text("Builder Mac (Xcode / Apple Trust)").tag(USBIPRole.builder)
-          Text("Client Mac (Phone Attached via USB)").tag(USBIPRole.client)
-        }
-        .pickerStyle(.segmented)
-
-        HStack {
-          Button("Start Guided Session & Generate 6-Digit Code") {
-            Task { await model.startUSBIPRole(role: selectedUSBIPRole) }
-          }
-          if let sas = model.usbipGeneratedSAS {
-            Text("Session Code: \(sas)")
-              .font(.headline.monospacedDigit())
-              .padding(.horizontal, 10)
-              .padding(.vertical, 4)
-              .background(Color.accentColor.opacity(0.15))
-              .clipShape(RoundedRectangle(cornerRadius: 6))
-          }
-        }
-
-        HStack {
-          Button("Discover On-Demand Peers") {
-            Task { await model.discoverUSBIPPeersOnDemand() }
-          }
-          TextField("Or private VPN peer IP", text: $manualUSBIPPeerIP)
-            .textFieldStyle(.roundedBorder)
-          TextField("Peer 6-digit code", text: $enteredSASCode)
-            .textFieldStyle(.roundedBorder)
-            .frame(width: 140)
-        }
-
-        if !model.usbipDiscoveredPeers.isEmpty {
-          ForEach(model.usbipDiscoveredPeers) { peer in
-            Text("• Discovered peer: \(peer.name) (\(peer.host):\(peer.port))")
-              .font(.caption)
-          }
-        }
-
-        HStack {
-          Button("Review Security Notice & Approve USB/IP Step...") {
-            confirmedSecurityNotice = false
-            showApprovalSheet = true
-          }
-          .disabled(model.usbipSessionID == nil || model.usbipPrerequisites?.usbipAvailable != true)
-
-          Spacer()
-
-          if let handoff = model.usbipHandoff {
-            Button("Continue to Wireless Setup") {
-              model.handoffUSBIPToWirelessSetup(device: handoff.pairedDevice)
+              TerminalCommandField(
+                code: """
+                  \(checkCmd)
+                  debagr experimental usbip guide
+                  """,
+                contextTag: model.experimentalDraft.selectedUSBIPRole == .builder
+                  ? "Run on Builder Mac Terminal (CLI only for now)"
+                  : "Run on Client Mac Terminal (CLI only for now)",
+                syntax: .shell
+              )
             }
-            .buttonStyle(.borderedProminent)
+
+            Divider()
+
+            HStack {
+              Button {
+                Task { await model.checkNewlyPairedDeviceForHandoff() }
+              } label: {
+                DebagrButtonLabel(
+                  title: model.isScanningDevices
+                    ? "Checking…"
+                    : "Check for Newly Paired Device",
+                  systemImage: "arrow.triangle.2.circlepath",
+                  isLoading: model.isScanningDevices
+                )
+              }
+              .buttonStyle(DebagrSecondaryButtonStyle(isLoading: model.isScanningDevices))
+
+              Spacer()
+
+              if let handoff = model.usbipHandoff {
+                Button("Continue to Wireless Setup") {
+                  model.handoffUSBIPToWirelessSetup(device: handoff.pairedDevice)
+                }
+                .buttonStyle(DebagrPrimaryButtonStyle())
+              }
+            }
+
+            Link(
+              "Read Pair via USB/IP Security & Walkthrough (docs/usbip-pairing.md)",
+              destination: URL(
+                string: "https://github.com/debagr-dev/debagr/blob/main/docs/usbip-pairing.md"
+              )!
+            )
+            .font(.caption)
           }
+          .padding(.top, 10)
         }
-      }
-      .padding(8)
-    }
-  }
-
-  private var usbipApprovalSheet: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      Label("Explicit Security Approval Required", systemImage: "exclamationmark.shield.fill")
-        .font(.title3.bold())
-        .foregroundStyle(.orange)
-
-      Text(
-        "Debagr is about to supervise your separately installed third-party `usbip` binary to temporarily attach a USB device over the private VPN for initial Apple pairing only."
-      )
-      .font(.callout)
-
-      Text(
-        "• Debagr does NOT bundle USB/IP drivers or weaken macOS SIP.\n• Pairing coordination is authenticated with Curve25519 + your 6-digit SAS code.\n• Debagr tears down the USB/IP link immediately once Apple pairing finishes."
-      )
-      .font(.caption)
-      .foregroundStyle(.secondary)
-
-      Toggle(
-        "I have reviewed the third-party `usbip` tool and explicitly approve running this temporary pairing session.",
-        isOn: $confirmedSecurityNotice
-      )
-
-      HStack {
-        Button("Cancel", role: .cancel) {
-          showApprovalSheet = false
-        }
-        Spacer()
-        Button("Confirm") {
-          showApprovalSheet = false
-          model.statusBanner =
-            "Approval recorded for session \(model.usbipSessionID ?? ""). Complete attach/pair via CLI or active peer session."
-        }
-        .buttonStyle(.borderedProminent)
-        .disabled(!confirmedSecurityNotice)
+        .font(.callout.weight(.medium))
       }
     }
-    .padding(22)
-    .frame(width: 480)
-  }
-
-  private func commandLine(_ label: String, _ command: String) -> some View {
-    HStack {
-      VStack(alignment: .leading, spacing: 2) {
-        Text(label).font(.caption.bold())
-        Text(command)
-          .font(.system(.caption, design: .monospaced))
-          .textSelection(.enabled)
-      }
-      Spacer()
-      Button("Copy") {
-        model.copyToPasteboard(command)
-        model.statusBanner = "Copied experimental command."
-      }
-    }
-    .padding(8)
-    .background(Color.secondary.opacity(0.08))
-    .clipShape(RoundedRectangle(cornerRadius: 6))
   }
 }

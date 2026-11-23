@@ -9,7 +9,6 @@ public enum SidebarDestination: String, CaseIterable, Identifiable, Hashable {
   case wirelessSetup
   case agentOnboarding
   case experimental
-  case preferences
 
   public var id: String { rawValue }
 
@@ -17,9 +16,8 @@ public enum SidebarDestination: String, CaseIterable, Identifiable, Hashable {
     switch self {
     case .overview: "Overview"
     case .wirelessSetup: "Wireless Setup"
-    case .agentOnboarding: "Agent & SSH Setup"
+    case .agentOnboarding: "Agent & SSH"
     case .experimental: "Experimental"
-    case .preferences: "Preferences"
     }
   }
 
@@ -29,40 +27,197 @@ public enum SidebarDestination: String, CaseIterable, Identifiable, Hashable {
     case .wirelessSetup: "iphone.radiowaves.left.and.right"
     case .agentOnboarding: "terminal"
     case .experimental: "flask"
-    case .preferences: "gearshape"
     }
+  }
+}
+
+public enum AgentClientKind: String, CaseIterable, Identifiable, Sendable {
+  case sshCLI = "SSH CLI"
+  case claudeCode = "Claude Code"
+  case codex = "Codex"
+
+  public var id: String { rawValue }
+}
+
+public enum SSHDeployMode: String, CaseIterable, Identifiable, Sendable {
+  case deployAndLaunch = "Deploy & Launch"
+  case installOnly = "Install Only"
+
+  public var id: String { rawValue }
+
+  public var flagSuffix: String {
+    switch self {
+    case .deployAndLaunch: "--terminate-existing"
+    case .installOnly: "--no-launch"
+    }
+  }
+
+  public var commandContextTag: String {
+    switch self {
+    case .deployAndLaunch: "Run on Remote Machine (Install, Verify & Launch)"
+    case .installOnly: "Run on Remote Machine (Install Only, Skip Launch)"
+    }
+  }
+}
+
+public struct AgentOnboardingDraft: Equatable {
+  public var builderSSHHost: String
+  public var builderAppPath: String
+  public var selectedClient: AgentClientKind = .sshCLI
+  public var sshDeployMode: SSHDeployMode = .deployAndLaunch
+
+  public init(defaultHost: String) {
+    self.builderSSHHost = defaultHost
+    self.builderAppPath = "/Users/\(NSUserName())/Build/Products/Debug-iphoneos/MyApp.app"
+  }
+}
+
+public struct ExperimentalDraft: Equatable {
+  public var showCableBridge = false
+  public var showUSBIP = false
+  public var clientSSHHost = ""
+  public var cablePort = "22078"
+  public var selectedUSBIPRole: USBIPRole = .builder
+  public var usbipCustomBinaryPath = ""
+}
+
+public enum WirelessSetupStep: Int, CaseIterable, Sendable {
+  case pickDevice = 1
+  case chooseVPN = 2
+  case captureIdentity = 3
+  case review = 4
+  case completed = 5
+
+  public var title: String {
+    switch self {
+    case .pickDevice: "Paired Device"
+    case .chooseVPN: "Private VPN"
+    case .captureIdentity: "Wireless ID"
+    case .review: "Confirm"
+    case .completed: "Saved"
+    }
+  }
+}
+
+public struct WirelessSetupDraft: Equatable {
+  public var step: WirelessSetupStep = .pickDevice
+  public var selectedDeviceID: String?
+  public var selectedVPNProvider: VPNProvider = .tailscale
+  public var manualVPNAddress = ""
+  public var selectedPeerName: String?
+  public var selectedPeerMatchedIP: String?
+  public var selectedTailscaleNodeID: String?
+  public var lockdownPortString = "62078"
+  public var selectedBonjourID: String?
+  public var confirmedDeviceID: String?
+  public var confirmedBonjourID: String?
+  public var savedProfile: ManagedDeviceProfile?
+  public var savedNotes: [String] = []
+
+  public var isHardwareConfirmedForSelection: Bool {
+    guard let selectedDeviceID, let selectedBonjourID else { return false }
+    return confirmedDeviceID == selectedDeviceID && confirmedBonjourID == selectedBonjourID
+  }
+
+  public mutating func selectDevice(_ id: String?) {
+    if selectedDeviceID != id {
+      selectedDeviceID = id
+      confirmedDeviceID = nil
+      confirmedBonjourID = nil
+    }
+  }
+
+  public mutating func selectBonjour(_ id: String?) {
+    if selectedBonjourID != id {
+      selectedBonjourID = id
+      confirmedDeviceID = nil
+      confirmedBonjourID = nil
+    }
+  }
+
+  public mutating func setHardwareConfirmed(_ confirmed: Bool) {
+    if confirmed, let selectedDeviceID, let selectedBonjourID {
+      confirmedDeviceID = selectedDeviceID
+      confirmedBonjourID = selectedBonjourID
+    } else {
+      confirmedDeviceID = nil
+      confirmedBonjourID = nil
+    }
+  }
+
+  public mutating func applyDiscoveredPeer(_ peer: VPNPeer) {
+    guard let ip = peer.preferredPrivateIP else { return }
+    manualVPNAddress = ip
+    selectedPeerName = peer.name
+    selectedPeerMatchedIP = ip
+    selectedTailscaleNodeID = peer.id
+  }
+
+  public mutating func updateManualAddress(_ next: String) {
+    manualVPNAddress = next
+    if next.trimmingCharacters(in: .whitespacesAndNewlines) != selectedPeerMatchedIP {
+      selectedPeerName = nil
+      selectedPeerMatchedIP = nil
+      selectedTailscaleNodeID = nil
+    }
+  }
+
+  public mutating func resetForNewSetup() {
+    self = WirelessSetupDraft()
   }
 }
 
 @MainActor
 public final class AppModel: ObservableObject {
+  private static let cachedDefaultSSHHost = "\(NSUserName())@\(ProcessInfo.processInfo.hostName)"
+
   @Published public var selectedSection: SidebarDestination = .overview
   @Published public var config: DebagrConfig = DebagrConfig()
   @Published public var bridgeSnapshot = BridgeStateSnapshot(
     state: .unconfigured,
-    lastTransitionReason: "Starting..."
+    lastTransitionReason: "Initializing bridge..."
   )
   @Published public var readiness: ReadinessReport?
+  @Published public var lastReadinessCheckedAt: Date?
   @Published public var recentReceipts: [DeploymentReceipt] = []
   @Published public var isBridgePaused = false
-  @Published public var isBusy = false
-  @Published public var statusBanner: String?
+
+  // Granular loading flags
+  @Published public var isCheckingReadiness = false
+  @Published public var isScanningDevices = false
+  @Published public var isScanningVPN = false
+  @Published public var isScanningBonjour = false
+  @Published public var isSavingProfile = false
+  @Published public var isRunningOnboardingTest = false
+  @Published public var isScanningUSBIPPeers = false
+  @Published public var isLoadingDiagnostics = false
+
+  // Feedback surfaces
+  @Published public var toastMessage: String?
   @Published public var errorBanner: String?
+  @Published public var settingsErrorBanner: String?
   @Published public var launchAtLoginStatus: LaunchAtLoginStatus = .disabled
 
-  // Setup Wizard State
+  // Persistent Drafts & Diagnostics
+  @Published public var setupDraft = WirelessSetupDraft()
+  @Published public var agentDraft = AgentOnboardingDraft(defaultHost: cachedDefaultSSHHost)
+  @Published public var experimentalDraft = ExperimentalDraft()
+
   @Published public var setupDevices: [PhysicalDevice] = []
   @Published public var setupIneligibleDevices: [PhysicalDevice] = []
   @Published public var vpnEnvironment: VPNEnvironmentStatus?
   @Published public var localWirelessCandidates: [BonjourServiceRecord] = []
-  @Published public var pendingHandoffDevice: PhysicalDevice?
+
+  @Published public var redactedDiagnosticsPreview: String?
+  @Published public var redactedDiagnosticsError: String?
+
+  @Published public var onboardingTestJSON: String?
+  @Published public var onboardingTestReady: Bool?
+  @Published public var onboardingTestError: String?
 
   // Experimental USB/IP State
   @Published public var usbipPrerequisites: USBIPToolPrerequisites?
   @Published public var usbipDiscoveredPeers: [DiscoveredUSBIPPeer] = []
-  @Published public var usbipPhase: USBIPSessionPhase = .idle
-  @Published public var usbipSessionID: String?
-  @Published public var usbipGeneratedSAS: String?
   @Published public var usbipHandoff: WirelessHandoffPayload?
 
   public let configStore: FileConfigStore
@@ -76,6 +231,7 @@ public final class AppModel: ObservableObject {
 
   private var supervisionTask: Task<Void, Never>?
   private var eventTask: Task<Void, Never>?
+  private var toastDismissTask: Task<Void, Never>?
   private let systemMonitor = MacOSNetworkAndSleepMonitor()
 
   public init() {
@@ -121,30 +277,23 @@ public final class AppModel: ObservableObject {
     startBackgroundSupervision()
   }
 
-  public var menuBarIconName: String {
-    if config.managedDevice == nil {
-      return "iphone.slash"
-    }
-    if readiness?.lockState.blocksForegroundLaunch == true {
-      return "lock.iphone"
-    }
-    switch bridgeSnapshot.state {
-    case .bridgingActive:
-      return "antenna.radiowaves.left.and.right"
-    case .nativeLocalStandby:
-      return "cable.connector"
-    case .paused:
-      return "pause.circle"
-    case .deviceOffline, .vpnUnavailable, .error:
-      return "exclamationmark.triangle"
-    case .unconfigured, .probingVPN:
-      return "iphone.radiowaves.left.and.right"
-    }
+  public var verdict: DeviceStatusVerdict {
+    DeviceStatusVerdict.resolve(
+      config: config,
+      snapshot: bridgeSnapshot,
+      readiness: readiness,
+      isChecking: isCheckingReadiness
+    )
   }
 
   public var binaryPathForAgents: String {
-    let current = Bundle.main.executablePath ?? ProcessInfo.processInfo.arguments.first ?? "debagr"
-    return current
+    Bundle.main.executablePath ?? ProcessInfo.processInfo.arguments.first ?? "debagr"
+  }
+
+  public var storagePermissionsOK: Bool {
+    configStore.verifyPermissions()
+      && receiptStore.verifyPermissions()
+      && bridgeStateStore.verifyPermissions()
   }
 
   public func startBackgroundSupervision() {
@@ -155,7 +304,7 @@ public final class AppModel: ObservableObject {
       for await event in self.systemMonitor.events() {
         if Task.isCancelled { break }
         let snap = await self.supervisor.handleSystemEvent(event)
-        self.bridgeSnapshot = snap
+        self.applyBridgeSnapshot(snap)
         self.reloadLocalStores()
       }
     }
@@ -163,10 +312,20 @@ public final class AppModel: ObservableObject {
     supervisionTask = Task { [weak self] in
       while !Task.isCancelled {
         guard let self else { break }
+        let previousState = self.bridgeSnapshot.state
         let snap = await self.supervisor.reconcileOnce()
-        self.bridgeSnapshot = snap
+        self.applyBridgeSnapshot(snap)
         self.isBridgePaused = await self.supervisor.isPaused()
         self.reloadLocalStores()
+        if previousState != snap.state,
+          snap.state == .bridgingActive || snap.state == .nativeLocalStandby,
+          self.config.managedDevice != nil
+        {
+          if let latest = try? await self.coordinator.checkReadiness() {
+            self.readiness = latest
+            self.lastReadinessCheckedAt = Date()
+          }
+        }
         let interval = max(5, self.config.preferences.healthCheckIntervalSeconds)
         try? await Task.sleep(for: .seconds(interval))
       }
@@ -187,136 +346,225 @@ public final class AppModel: ObservableObject {
     launchAtLoginStatus = launchAtLoginManager.currentStatus()
   }
 
-  public func refreshReadiness() async {
-    isBusy = true
+  public func showToast(_ message: String) {
+    toastDismissTask?.cancel()
+    toastMessage = message
+    toastDismissTask = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(3.5))
+      guard !Task.isCancelled else { return }
+      self?.toastMessage = nil
+    }
+  }
+
+  public func navigate(to destination: SidebarDestination) {
+    selectedSection = destination
+  }
+
+  public func refreshReadiness(announce: Bool = true) async {
+    guard !isCheckingReadiness else { return }
+    isCheckingReadiness = true
     errorBanner = nil
-    defer { isBusy = false }
+    defer { isCheckingReadiness = false }
     do {
-      bridgeSnapshot = await supervisor.reconcileOnce()
-      readiness = try await coordinator.checkReadiness()
+      let snap = await supervisor.reconcileOnce()
+      applyBridgeSnapshot(snap)
+      let report = try await coordinator.checkReadiness()
+      readiness = report
+      lastReadinessCheckedAt = Date()
       reloadLocalStores()
-      statusBanner =
-        readiness?.ready == true
-        ? "Device is unlocked and ready for deployment."
-        : "Readiness check completed with blockers."
+
+      if announce {
+        let spoken =
+          report.ready
+          ? "Device is unlocked and ready for deployment."
+          : (report.blockers.first?.message ?? "Readiness check found blockers.")
+        NSAccessibility.post(
+          element: NSApp as Any,
+          notification: .announcementRequested,
+          userInfo: [
+            .announcement: spoken, .priority: NSAccessibilityPriorityLevel.medium.rawValue,
+          ]
+        )
+        if report.ready {
+          showToast("Ready to deploy to \(report.deviceName ?? "device").")
+        }
+      }
     } catch {
+      readiness = nil
+      lastReadinessCheckedAt = nil
       errorBanner = error.localizedDescription
     }
   }
 
   public func toggleBridgePaused() async {
-    isBusy = true
-    defer { isBusy = false }
+    errorBanner = nil
     let pausedNow = await supervisor.isPaused()
-    bridgeSnapshot = await supervisor.setPaused(!pausedNow)
+    let snap = await supervisor.setPaused(!pausedNow)
     isBridgePaused = await supervisor.isPaused()
-    statusBanner = isBridgePaused ? "Wireless bridge paused." : "Wireless bridge resumed."
+    applyBridgeSnapshot(snap)
+    if isBridgePaused {
+      readiness = nil
+      lastReadinessCheckedAt = nil
+    }
+    showToast(isBridgePaused ? "Wireless bridge paused." : "Wireless bridge resumed.")
   }
 
   public func scanSetupDevices() async {
-    isBusy = true
+    isScanningDevices = true
     errorBanner = nil
-    defer { isBusy = false }
+    defer { isScanningDevices = false }
     do {
       let all = try await coordinator.listDevices(includeIneligible: true)
       setupDevices = all.filter(\.isEligibleForDebagr)
       setupIneligibleDevices = all.filter { !$0.isEligibleForDebagr }
+      if let selected = setupDraft.selectedDeviceID,
+        !setupDevices.contains(where: { ($0.udid ?? $0.coreDeviceID) == selected })
+      {
+        setupDraft.selectDevice(nil)
+      }
     } catch {
       errorBanner = error.localizedDescription
     }
   }
 
   public func scanVPNPeers(provider: VPNProvider) async {
-    isBusy = true
-    defer { isBusy = false }
+    isScanningVPN = true
+    defer { isScanningVPN = false }
     vpnEnvironment = await vpnDiscovery.discoverPeers(provider: provider)
   }
 
   public func scanLocalWirelessIdentities() async {
-    isBusy = true
+    isScanningBonjour = true
     errorBanner = nil
-    defer { isBusy = false }
+    defer { isScanningBonjour = false }
     do {
       localWirelessCandidates = try await supervisor.discoverLocalWirelessCandidates(
         timeoutSeconds: 3.0
       )
-      if localWirelessCandidates.isEmpty {
-        statusBanner =
-          "No local _apple-mobdev2._tcp ads found right now. Ensure Wi-Fi is on and the device is unlocked nearby."
+      if let selected = setupDraft.selectedBonjourID,
+        !localWirelessCandidates.contains(where: { $0.id == selected })
+      {
+        setupDraft.selectBonjour(nil)
       }
     } catch {
       errorBanner = error.localizedDescription
     }
   }
 
-  public func verifyAndSaveProfile(
+  public func verifyAndSaveSetupDraft(
     device: PhysicalDevice,
-    vpnProvider: VPNProvider,
-    vpnAddress: String,
-    peerName: String?,
-    tailscaleNodeID: String?,
-    lockdownPort: UInt16,
     bonjourRecord: BonjourServiceRecord
-  ) async -> Bool {
-    isBusy = true
+  ) async {
+    guard let port = DebagrFormatters.parseTCPPort(setupDraft.lockdownPortString) else {
+      errorBanner = "Invalid lockdown port."
+      return
+    }
+    isSavingProfile = true
     errorBanner = nil
-    defer { isBusy = false }
+    defer { isSavingProfile = false }
     do {
       let result = try await supervisor.verifyAndBuildProfile(
         device: device,
-        vpnProvider: vpnProvider,
-        vpnAddress: vpnAddress,
-        peerName: peerName,
-        tailscaleNodeID: tailscaleNodeID,
-        lockdownPort: lockdownPort,
+        vpnProvider: setupDraft.selectedVPNProvider,
+        vpnAddress: setupDraft.manualVPNAddress,
+        peerName: setupDraft.selectedPeerName,
+        tailscaleNodeID: setupDraft.selectedTailscaleNodeID,
+        lockdownPort: port,
         bonjourRecord: bonjourRecord
       )
       _ = try configStore.update { cfg in
         cfg.managedDevice = result.profile
       }
-      pendingHandoffDevice = nil
       reloadLocalStores()
-      bridgeSnapshot = await supervisor.reconcileOnce()
-      readiness = try? await coordinator.checkReadiness()
-      statusBanner = result.notes.joined(separator: " ")
-      selectedSection = .overview
-      return true
+      let snap = await supervisor.reconcileOnce()
+      applyBridgeSnapshot(snap)
+      if let report = try? await coordinator.checkReadiness() {
+        readiness = report
+        lastReadinessCheckedAt = Date()
+      } else {
+        readiness = nil
+        lastReadinessCheckedAt = nil
+      }
+      setupDraft.savedProfile = result.profile
+      setupDraft.savedNotes = result.notes
+      setupDraft.step = .completed
+      showToast("Saved \(result.profile.displayName) wireless profile.")
     } catch {
       errorBanner = error.localizedDescription
-      return false
     }
   }
 
   public func forgetManagedDevice() async {
-    isBusy = true
-    defer { isBusy = false }
+    errorBanner = nil
     do {
       _ = try configStore.update { cfg in
         cfg.managedDevice = nil
       }
       readiness = nil
-      bridgeSnapshot = await supervisor.reconcileOnce()
+      lastReadinessCheckedAt = nil
+      let snap = await supervisor.reconcileOnce()
+      applyBridgeSnapshot(snap)
       reloadLocalStores()
-      statusBanner = "Managed device removed from local configuration."
+      setupDraft.resetForNewSetup()
       selectedSection = .wirelessSetup
+      showToast("Managed device removed from local Debagr config.")
     } catch {
       errorBanner = error.localizedDescription
     }
   }
 
-  public func copyRedactedDiagnostics() async {
-    isBusy = true
-    defer { isBusy = false }
+  @discardableResult
+  public func loadRedactedDiagnosticsPreview() async -> Bool {
+    isLoadingDiagnostics = true
+    redactedDiagnosticsPreview = nil
+    redactedDiagnosticsError = nil
+    defer { isLoadingDiagnostics = false }
     do {
       let report = try await coordinator.doctor(strictRedaction: true)
       let encoder = JSONEncoder()
       encoder.dateEncodingStrategy = .iso8601
       encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
       let data = try encoder.encode(report)
-      copyToPasteboard(String(decoding: data, as: UTF8.self))
-      statusBanner = "Copied redacted diagnostics JSON (pairing metadata stripped)."
+      redactedDiagnosticsPreview = String(decoding: data, as: UTF8.self)
+      return true
     } catch {
+      redactedDiagnosticsError = error.localizedDescription
       errorBanner = error.localizedDescription
+      return false
+    }
+  }
+
+  @discardableResult
+  public func copyRedactedDiagnostics() async -> Bool {
+    let loaded = await loadRedactedDiagnosticsPreview()
+    guard loaded, let json = redactedDiagnosticsPreview else {
+      return false
+    }
+    copyToPasteboard(json)
+    showToast("Copied redacted diagnostics JSON (pairing secrets stripped).")
+    return true
+  }
+
+  public func runOnboardingReadinessTest() async {
+    isRunningOnboardingTest = true
+    onboardingTestJSON = nil
+    onboardingTestReady = nil
+    onboardingTestError = nil
+    errorBanner = nil
+    defer { isRunningOnboardingTest = false }
+    do {
+      let report = try await coordinator.checkReadiness()
+      readiness = report
+      lastReadinessCheckedAt = Date()
+      onboardingTestReady = report.ready
+      let encoder = JSONEncoder()
+      encoder.dateEncodingStrategy = .iso8601
+      encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+      let data = try encoder.encode(report)
+      onboardingTestJSON = String(decoding: data, as: UTF8.self)
+    } catch {
+      onboardingTestReady = false
+      onboardingTestError = error.localizedDescription
     }
   }
 
@@ -324,6 +572,7 @@ public final class AppModel: ObservableObject {
     let pb = NSPasteboard.general
     pb.clearContents()
     pb.setString(text, forType: .string)
+    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
   }
 
   public func updatePreferences(_ mutate: @Sendable (inout DebagrPreferences) -> Void) {
@@ -332,7 +581,9 @@ public final class AppModel: ObservableObject {
         mutate(&cfg.preferences)
       }
       config = updated
+      settingsErrorBanner = nil
     } catch {
+      settingsErrorBanner = error.localizedDescription
       errorBanner = error.localizedDescription
     }
   }
@@ -340,39 +591,96 @@ public final class AppModel: ObservableObject {
   public func setLaunchAtLogin(_ enabled: Bool) {
     do {
       launchAtLoginStatus = try launchAtLoginManager.setEnabled(enabled)
+      settingsErrorBanner = nil
       updatePreferences { prefs in
         prefs.launchAtLoginRequested = enabled
+      }
+    } catch {
+      launchAtLoginStatus = launchAtLoginManager.currentStatus()
+      settingsErrorBanner = error.localizedDescription
+      errorBanner = error.localizedDescription
+    }
+  }
+
+  public func fixStoragePermissions() {
+    do {
+      try FileSecurity.ensureSecureDirectory(FileSecurity.dataDirectoryURL())
+      if FileManager.default.fileExists(atPath: configStore.fileURL.path) {
+        try configStore.save(config)
+      }
+      if FileManager.default.fileExists(atPath: receiptStore.fileURL.path) {
+        _ = chmod(receiptStore.fileURL.path, mode_t(FileSecurity.filePermissions))
+      }
+      if let snap = try bridgeStateStore.load() {
+        try bridgeStateStore.save(snap)
+      }
+      settingsErrorBanner = nil
+      objectWillChange.send()
+      showToast("Restored 0700/0600 permissions on Debagr storage files.")
+    } catch {
+      settingsErrorBanner = error.localizedDescription
+      errorBanner = error.localizedDescription
+    }
+  }
+
+  public func revealInFinder(_ url: URL) {
+    if FileManager.default.fileExists(atPath: url.path) {
+      NSWorkspace.shared.activateFileViewerSelecting([url])
+    } else {
+      NSWorkspace.shared.activateFileViewerSelecting([url.deletingLastPathComponent()])
+    }
+  }
+
+  public func resetAgentSSHHostToDefault() {
+    agentDraft.builderSSHHost = Self.cachedDefaultSSHHost
+  }
+
+  // MARK: - Experimental Helpers
+
+  public func checkUSBIPPrerequisites(customPath: String? = nil) async {
+    usbipPrerequisites = await usbipCoordinator.checkPrerequisites(customBinaryPath: customPath)
+  }
+
+  public func discoverUSBIPPeersOnDemand() async {
+    isScanningUSBIPPeers = true
+    defer { isScanningUSBIPPeers = false }
+    usbipDiscoveredPeers = await usbipCoordinator.discoverPeersOnDemand()
+  }
+
+  public func checkNewlyPairedDeviceForHandoff() async {
+    isScanningDevices = true
+    errorBanner = nil
+    defer { isScanningDevices = false }
+    do {
+      let paired = try await coordinator.listDevices(includeIneligible: false)
+      if let candidate = paired.first {
+        usbipHandoff = WirelessHandoffPayload(pairedDevice: candidate)
+        showToast("Found paired device '\(candidate.name)' ready for Wireless Setup.")
+      } else {
+        usbipHandoff = nil
+        showToast("No paired physical iPhone or iPad found yet.")
       }
     } catch {
       errorBanner = error.localizedDescription
     }
   }
 
-  // MARK: - Experimental USB/IP Actions
-
-  public func checkUSBIPPrerequisites(customPath: String? = nil) async {
-    usbipPrerequisites = await usbipCoordinator.checkPrerequisites(customBinaryPath: customPath)
-    usbipPhase = await usbipCoordinator.phase
-  }
-
-  public func discoverUSBIPPeersOnDemand() async {
-    isBusy = true
-    defer { isBusy = false }
-    usbipDiscoveredPeers = await usbipCoordinator.discoverPeersOnDemand()
-  }
-
-  public func startUSBIPRole(role: USBIPRole) async {
-    let (_, sas) = await usbipCoordinator.beginSession(role: role)
-    usbipSessionID = await usbipCoordinator.sessionID
-    usbipGeneratedSAS = sas
-    usbipPhase = await usbipCoordinator.phase
-  }
-
   public func handoffUSBIPToWirelessSetup(device: PhysicalDevice) {
-    pendingHandoffDevice = device
+    setupDraft.resetForNewSetup()
+    setupDraft.selectDevice(device.udid ?? device.coreDeviceID)
     setupDevices = [device]
     selectedSection = .wirelessSetup
-    statusBanner =
-      "Apple pairing confirmed. Complete Wireless Setup to save VPN and Bonjour identity."
+    showToast("Selected '\(device.name)' — choose its private VPN next.")
+  }
+
+  private func applyBridgeSnapshot(_ next: BridgeStateSnapshot) {
+    bridgeSnapshot = next
+    switch next.state {
+    case .unconfigured, .paused, .deviceOffline, .vpnUnavailable, .error:
+      readiness = nil
+      lastReadinessCheckedAt = nil
+    case .nativeLocalStandby, .bridgingActive, .probingVPN:
+      break
+    }
   }
 }
