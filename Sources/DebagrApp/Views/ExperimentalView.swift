@@ -129,7 +129,7 @@ public struct ExperimentalView: View {
             Link(
               "Read Cable Service Bridge Guide (docs/cable-bridge.md)",
               destination: URL(
-                string: "https://github.com/debagr-dev/debagr/blob/main/docs/cable-bridge.md"
+                string: "https://github.com/radeknovis/Debagr/blob/main/docs/cable-bridge.md"
               )!
             )
             .font(.caption)
@@ -347,7 +347,7 @@ public struct ExperimentalView: View {
             Link(
               "Read Pair via USB/IP Security & Walkthrough (docs/usbip-pairing.md)",
               destination: URL(
-                string: "https://github.com/debagr-dev/debagr/blob/main/docs/usbip-pairing.md"
+                string: "https://github.com/radeknovis/Debagr/blob/main/docs/usbip-pairing.md"
               )!
             )
             .font(.caption)

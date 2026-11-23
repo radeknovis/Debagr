@@ -1,6 +1,6 @@
 {
   "name": "debagr",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Deploy and launch signed iPhone and iPad apps onto a remote physical device through your paired macOS Builder.",
   "author": {
     "name": "Debagr"

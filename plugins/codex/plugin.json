@@ -1,6 +1,6 @@
 {
   "name": "debagr",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Codex plugin and skill for deploying signed iOS/iPadOS apps to a remote physical device via Debagr on a paired macOS Builder.",
   "skills": [
     "skills/debagr-deploy/SKILL.md"
