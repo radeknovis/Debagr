@@ -9,6 +9,9 @@ public enum SidebarDestination: String, CaseIterable, Identifiable, Hashable {
   case wirelessSetup
   case agentOnboarding
   case experimental
+  case settingsGeneral
+  case settingsBridge
+  case settingsPrivacy
 
   public var id: String { rawValue }
 
@@ -18,6 +21,9 @@ public enum SidebarDestination: String, CaseIterable, Identifiable, Hashable {
     case .wirelessSetup: "Wireless Setup"
     case .agentOnboarding: "Agent & SSH"
     case .experimental: "Experimental"
+    case .settingsGeneral: "General"
+    case .settingsBridge: "Bridge"
+    case .settingsPrivacy: "Privacy & Storage"
     }
   }
 
@@ -27,6 +33,9 @@ public enum SidebarDestination: String, CaseIterable, Identifiable, Hashable {
     case .wirelessSetup: "iphone.radiowaves.left.and.right"
     case .agentOnboarding: "terminal"
     case .experimental: "flask"
+    case .settingsGeneral: "gearshape"
+    case .settingsBridge: "slider.horizontal.3"
+    case .settingsPrivacy: "lock.shield"
     }
   }
 }
@@ -235,7 +244,6 @@ public final class AppModel: ObservableObject {
   // Feedback surfaces
   @Published public var toastMessage: String?
   @Published public var errorBanner: String?
-  @Published public var settingsErrorBanner: String?
   @Published public var launchAtLoginStatus: LaunchAtLoginStatus = .disabled
 
   // Persistent Drafts & Diagnostics
@@ -246,6 +254,10 @@ public final class AppModel: ObservableObject {
   @Published public var setupDevices: [PhysicalDevice] = []
   @Published public var setupIneligibleDevices: [PhysicalDevice] = []
   @Published public var vpnEnvironment: VPNEnvironmentStatus?
+  @Published public var peerLockdownIdentities: [String: LockdownDeviceIdentity] = [:]
+  @Published public var isIdentifyingVPNPeers = false
+  @Published public var isIdentifyingManualVPNAddress = false
+  @Published public var manualVPNIdentifyMessage: String?
   @Published public var localWirelessCandidates: [BonjourServiceRecord] = []
 
   @Published public var redactedDiagnosticsPreview: String?
@@ -266,12 +278,15 @@ public final class AppModel: ObservableObject {
   public let supervisor: WirelessBridgeSupervisor
   public let coordinator: DeploymentCoordinator
   public let vpnDiscovery: SystemVPNPeerDiscovery
+  public let lockdownProbe: any LockdownIdentityProbing = NWConnectionLockdownProbe()
   public let usbipCoordinator: USBIPSessionCoordinator
   public let launchAtLoginManager = LaunchAtLoginManager()
 
   private var supervisionTask: Task<Void, Never>?
   private var eventTask: Task<Void, Never>?
   private var toastDismissTask: Task<Void, Never>?
+  private var peerIdentifyTask: Task<Void, Never>?
+  private var peerIdentifyGeneration: UInt64 = 0
   private let systemMonitor = MacOSNetworkAndSleepMonitor()
 
   public init() {
@@ -427,10 +442,22 @@ public final class AppModel: ObservableObject {
     }
   }
 
-  public func shutdownBridge() async {
+  public func prepareShutdown() -> @Sendable () async -> Void {
     supervisionTask?.cancel()
+    supervisionTask = nil
     eventTask?.cancel()
-    await supervisor.stop()
+    eventTask = nil
+    peerIdentifyTask?.cancel()
+    peerIdentifyTask = nil
+    let supervisor = self.supervisor
+    return {
+      await supervisor.stop()
+    }
+  }
+
+  public func shutdownBridge() async {
+    let stopBridge = prepareShutdown()
+    await stopBridge()
   }
 
   public func reloadLocalStores() {
@@ -523,9 +550,93 @@ public final class AppModel: ObservableObject {
   }
 
   public func scanVPNPeers(provider: VPNProvider) async {
+    peerIdentifyTask?.cancel()
+    peerIdentifyTask = nil
+    isIdentifyingVPNPeers = false
+    manualVPNIdentifyMessage = nil
     isScanningVPN = true
-    defer { isScanningVPN = false }
-    vpnEnvironment = await vpnDiscovery.discoverPeers(provider: provider)
+    let env = await vpnDiscovery.discoverPeers(provider: provider)
+    vpnEnvironment = env
+    isScanningVPN = false
+
+    let port =
+      DebagrFormatters.parseTCPPort(setupDraft.lockdownPortString)
+      ?? VPNEndpoint.defaultLockdownPort
+
+    var seenIPs = Set<String>()
+    let candidateTargets: [(ip: String, online: Bool)] =
+      env.peers
+      .filter { $0.isLikelyAppleMobileDevice || $0.isUnknownOS }
+      .compactMap { peer in
+        guard let ip = peer.preferredPrivateIP, IPValidation.isPrivateVPNAddress(ip) else {
+          return nil
+        }
+        guard seenIPs.insert(ip).inserted else { return nil }
+        return (ip: ip, online: peer.online || peer.active)
+      }
+      .sorted { lhs, rhs in
+        if lhs.online != rhs.online { return lhs.online }
+        return false
+      }
+      .prefix(8)
+      .map { $0 }
+
+    guard !candidateTargets.isEmpty else { return }
+
+    peerIdentifyGeneration &+= 1
+    let generation = peerIdentifyGeneration
+    isIdentifyingVPNPeers = true
+    let probe = self.lockdownProbe
+
+    peerIdentifyTask = Task { [weak self] in
+      defer {
+        if let self, self.peerIdentifyGeneration == generation {
+          self.isIdentifyingVPNPeers = false
+        }
+      }
+      await withTaskGroup(of: (String, LockdownDeviceIdentity?).self) { group in
+        for target in candidateTargets {
+          group.addTask {
+            let identity = await probe.probeIdentity(
+              host: target.ip,
+              port: port,
+              timeoutSeconds: 2.0
+            )
+            return (target.ip, identity)
+          }
+        }
+        for await (ip, identity) in group {
+          if Task.isCancelled { break }
+          guard let self, let identity else { continue }
+          self.peerLockdownIdentities[ip] = identity
+        }
+      }
+    }
+  }
+
+  public func identifyManualVPNDevice() async {
+    let ip = setupDraft.manualVPNAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard IPValidation.isPrivateVPNAddress(ip),
+      let port = DebagrFormatters.parseTCPPort(setupDraft.lockdownPortString)
+    else {
+      return
+    }
+
+    isIdentifyingManualVPNAddress = true
+    manualVPNIdentifyMessage = nil
+    defer { isIdentifyingManualVPNAddress = false }
+
+    if let identity = await lockdownProbe.probeIdentity(
+      host: ip,
+      port: port,
+      timeoutSeconds: 2.5
+    ) {
+      peerLockdownIdentities[ip] = identity
+    } else {
+      peerLockdownIdentities.removeValue(forKey: ip)
+      manualVPNIdentifyMessage =
+        "No iOS/iPadOS lockdown service answered at \(DebagrFormatters.formatHostPort(host: ip, port: port)). The device may be asleep, locked, or its VPN may be off."
+    }
   }
 
   public func scanLocalWirelessIdentities() async {
@@ -683,9 +794,8 @@ public final class AppModel: ObservableObject {
         mutate(&cfg.preferences)
       }
       config = updated
-      settingsErrorBanner = nil
+      errorBanner = nil
     } catch {
-      settingsErrorBanner = error.localizedDescription
       errorBanner = error.localizedDescription
     }
   }
@@ -706,13 +816,12 @@ public final class AppModel: ObservableObject {
   public func setLaunchAtLogin(_ enabled: Bool) {
     do {
       launchAtLoginStatus = try launchAtLoginManager.setEnabled(enabled)
-      settingsErrorBanner = nil
+      errorBanner = nil
       updatePreferences { prefs in
         prefs.launchAtLoginRequested = enabled
       }
     } catch {
       launchAtLoginStatus = launchAtLoginManager.currentStatus()
-      settingsErrorBanner = error.localizedDescription
       errorBanner = error.localizedDescription
     }
   }
@@ -729,11 +838,10 @@ public final class AppModel: ObservableObject {
       if let snap = try bridgeStateStore.load() {
         try bridgeStateStore.save(snap)
       }
-      settingsErrorBanner = nil
+      errorBanner = nil
       objectWillChange.send()
       showToast("Restored 0700/0600 permissions on Debagr storage files.")
     } catch {
-      settingsErrorBanner = error.localizedDescription
       errorBanner = error.localizedDescription
     }
   }

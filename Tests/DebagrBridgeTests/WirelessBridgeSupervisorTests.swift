@@ -151,6 +151,60 @@ struct WirelessBridgeSupervisorTests {
     let persistedAfter = try stateStore.load()
     #expect(persistedAfter?.state == .bridgingActive)
   }
+
+  @Test(
+    "stop() tears down in-flight proxy registration and makes subsequent reconciles no-ops"
+  )
+  func stopCancelsInFlightProxyAndPreventsRestart() async throws {
+    let tempDir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("debagr-bridge-stop-test-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let cfgStore = FileConfigStore(directoryURL: tempDir)
+    let stateStore = FileBridgeStateStore(directoryURL: tempDir)
+    try cfgStore.save(DebagrConfig(managedDevice: makeProfile()))
+
+    let devicectl = BridgeMockDeviceCtl(devices: [
+      makeDevice(transport: .localNetwork, tunnel: .disconnected)
+    ])
+    let dnssd = GatedMockDNSSDController()
+    let probe = MockTCPProbe(reachable: true)
+    let vpn = BridgeMockVPNDiscovery(ip: "100.64.10.20")
+
+    let supervisor = WirelessBridgeSupervisor(
+      configStore: cfgStore,
+      bridgeStateStore: stateStore,
+      devicectl: devicectl,
+      dnssd: dnssd,
+      tcpProbe: probe,
+      vpnDiscovery: vpn
+    )
+
+    let reconcileTask = Task {
+      await supervisor.reconcileOnce()
+    }
+
+    await dnssd.waitUntilStartProxyEntered()
+    await supervisor.stop()
+    await dnssd.releaseStartProxy()
+
+    let reconcileSnap = await reconcileTask.value
+    #expect(reconcileSnap.state == .paused)
+    #expect(reconcileSnap.lastTransitionReason == "Bridge stopped")
+    #expect(await dnssd.activeProxyCount == 0)
+
+    let persistedAfterStop = try stateStore.load()
+    #expect(persistedAfterStop?.state == .paused)
+    #expect(persistedAfterStop?.lastTransitionReason == "Bridge stopped")
+
+    let startsAtStop = await dnssd.startCount
+    let postStopReconcile = await supervisor.reconcileOnce()
+    let postStopWake = await supervisor.handleSystemEvent(.systemDidWake)
+    #expect(postStopReconcile.state == .paused)
+    #expect(postStopWake.state == .paused)
+    #expect(await dnssd.startCount == startsAtStop)
+    #expect(await dnssd.activeProxyCount == 0)
+  }
 }
 
 actor BridgeMockDeviceCtl: DeviceControlling {
@@ -200,6 +254,53 @@ actor MockDNSSDController: DNSSDControlling {
 
   func startProxy(_ spec: ProxyRegistrationSpec) async throws -> ProxyHandle {
     startCount += 1
+    let handle = ProxyHandle(spec: spec)
+    activeProxies[handle.id] = handle
+    return handle
+  }
+
+  func stopProxy(_ handle: ProxyHandle) async {
+    activeProxies.removeValue(forKey: handle.id)
+  }
+
+  func stopAllProxies() async {
+    activeProxies.removeAll()
+  }
+}
+
+actor GatedMockDNSSDController: DNSSDControlling {
+  private(set) var activeProxies: [UUID: ProxyHandle] = [:]
+  private(set) var startCount = 0
+  private var entered = false
+  private var enteredWaiter: CheckedContinuation<Void, Never>?
+  private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+  var activeProxyCount: Int { activeProxies.count }
+
+  func browseMobdevServices(timeoutSeconds: TimeInterval) async throws -> [BonjourServiceRecord] {
+    []
+  }
+
+  func waitUntilStartProxyEntered() async {
+    if entered { return }
+    await withCheckedContinuation { continuation in
+      enteredWaiter = continuation
+    }
+  }
+
+  func releaseStartProxy() {
+    releaseContinuation?.resume()
+    releaseContinuation = nil
+  }
+
+  func startProxy(_ spec: ProxyRegistrationSpec) async throws -> ProxyHandle {
+    startCount += 1
+    entered = true
+    enteredWaiter?.resume()
+    enteredWaiter = nil
+    await withCheckedContinuation { continuation in
+      releaseContinuation = continuation
+    }
     let handle = ProxyHandle(spec: spec)
     activeProxies[handle.id] = handle
     return handle

@@ -67,19 +67,16 @@ public struct MenuBarView: View {
           onOpenMainWindow()
         }
 
-        OpenSettingsButton {
-          onOpenSettings()
-        } afterOpen: {
+        menuRow(
+          id: "settings",
+          title: "Settings…",
+          systemImage: "gearshape",
+          shortcut: "⌘,"
+        ) {
           dismiss()
-        } label: {
-          menuRowLabel(
-            id: "settings",
-            title: "Settings…",
-            systemImage: "gearshape",
-            shortcut: "⌘,"
-          )
+          onOpenSettings()
         }
-        .buttonStyle(.plain)
+        .keyboardShortcut(",", modifiers: .command)
 
         Divider()
           .padding(.vertical, 4)
@@ -90,10 +87,8 @@ public struct MenuBarView: View {
           systemImage: "power",
           shortcut: "⌘Q"
         ) {
-          Task {
-            await model.shutdownBridge()
-            NSApplication.shared.terminate(nil)
-          }
+          dismiss()
+          NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q", modifiers: .command)
       }

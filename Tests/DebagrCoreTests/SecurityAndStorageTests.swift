@@ -137,4 +137,124 @@ struct SecurityAndStorageTests {
     #expect(peers[0].preferredPrivateIP == "100.64.9.9")
     #expect(peers[1].name == "build-mac")
   }
+
+  @Test(
+    "SystemVPNPeerDiscovery prefers Tailscale machine name over localhost and extracts status, lastSeen, owner, tags, and relay"
+  )
+  func tailscaleRichPeerMetadataAndSorting() {
+    let json = #"""
+      {
+        "BackendState": "Running",
+        "User": {
+          "1001": {
+            "ID": 1001,
+            "LoginName": "radek@example.com",
+            "DisplayName": "Radek Novak"
+          },
+          "1002": {
+            "ID": 1002,
+            "LoginName": "ci-bot@example.com",
+            "DisplayName": ""
+          }
+        },
+        "Peer": {
+          "node-linux-active": {
+            "ID": "n-linux",
+            "HostName": "minipc",
+            "DNSName": "minipc.tail680579.ts.net.",
+            "OS": "linux",
+            "TailscaleIPs": ["100.64.2.10"],
+            "Online": true,
+            "Active": true,
+            "LastSeen": "0001-01-01T00:00:00Z",
+            "Tags": ["tag:permanent"],
+            "UserID": 1002,
+            "Relay": "fra"
+          },
+          "node-mac": {
+            "ID": "n-mac",
+            "HostName": "Radek’s MacBook Pro",
+            "DNSName": "radeks-macbook-pro.tail680579.ts.net.",
+            "OS": "macOS",
+            "TailscaleIPs": ["100.64.1.10"],
+            "Online": true,
+            "Active": false,
+            "LastSeen": "2026-11-23T16:20:00.1Z",
+            "UserID": 1001,
+            "Relay": "prg"
+          },
+          "node-ipad-older": {
+            "ID": "n-ipad",
+            "HostName": "localhost",
+            "DNSName": "ipad171.tail680579.ts.net.",
+            "OS": "iOS",
+            "TailscaleIPs": ["100.78.0.10"],
+            "Online": false,
+            "Active": false,
+            "LastSeen": "2026-11-23T15:00:00.123456Z",
+            "UserID": 1001,
+            "Relay": "nue"
+          },
+          "node-iphone-newer": {
+            "ID": "n-iphone",
+            "HostName": "localhost",
+            "DNSName": "iphone171.tail680579.ts.net.",
+            "OS": "iOS",
+            "TailscaleIPs": ["100.118.0.20", "fd7a:115c:a1e0::20"],
+            "Online": false,
+            "Active": false,
+            "LastSeen": "2026-11-23T16:10:00.1Z",
+            "UserID": 1001,
+            "Relay": "ams"
+          },
+          "node-no-dns": {
+            "ID": "n-host-fallback",
+            "HostName": "work-mac-mini",
+            "OS": "macOS",
+            "TailscaleIPs": ["100.64.3.30"],
+            "Online": false,
+            "Active": false,
+            "LastSeen": "2026-11-20T10:00:00Z"
+          }
+        }
+      }
+      """#
+
+    let peers = SystemVPNPeerDiscovery.parseTailscaleStatusJSON(
+      Data(json.utf8), provider: .tailscale)
+    #expect(peers.count == 5)
+
+    // 1. iOS peers first, sorted by newer LastSeen
+    #expect(peers[0].name == "iphone171")
+    #expect(peers[0].meaningfulHostName == nil)
+    #expect(peers[0].isLikelyIPhone)
+    #expect(!peers[0].isLikelyIPad)
+    #expect(peers[0].ownerName == "Radek Novak")
+    #expect(peers[0].relay == "ams")
+    #expect(peers[0].lastSeen != nil)
+
+    #expect(peers[1].name == "ipad171")
+    #expect(peers[1].meaningfulHostName == nil)
+    #expect(peers[1].isLikelyIPad)
+    #expect(!peers[1].isLikelyIPhone)
+    #expect(peers[1].relay == "nue")
+
+    // 2. macOS peers next (online before offline), showing meaningful HostName
+    #expect(peers[2].name == "radeks-macbook-pro")
+    #expect(peers[2].meaningfulHostName == "Radek’s MacBook Pro")
+    #expect(peers[2].isLikelyMacOSDevice)
+
+    #expect(peers[3].name == "work-mac-mini")
+    #expect(peers[3].meaningfulHostName == nil)
+    #expect(peers[3].isLikelyMacOSDevice)
+
+    // 3. Non-Apple peer last; zero Go time.Time ignored, LoginName fallback, tags decoded
+    #expect(peers[4].name == "minipc")
+    #expect(peers[4].active)
+    #expect(peers[4].lastSeen == nil)
+    #expect(peers[4].tags == ["tag:permanent"])
+    #expect(peers[4].ownerName == "ci-bot@example.com")
+    #expect(!peers[4].isLikelyAppleMobileDevice)
+    #expect(!peers[4].isLikelyMacOSDevice)
+  }
 }

@@ -2,14 +2,14 @@ import AppKit
 import DebagrCore
 import SwiftUI
 
-private enum SettingsTab: String, CaseIterable, Identifiable {
+public enum SettingsPane: String, CaseIterable, Identifiable {
   case general
   case bridge
   case privacy
 
-  var id: String { rawValue }
+  public var id: String { rawValue }
 
-  var title: String {
+  public var title: String {
     switch self {
     case .general: "General"
     case .bridge: "Bridge"
@@ -17,7 +17,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     }
   }
 
-  var subtitle: String {
+  public var subtitle: String {
     switch self {
     case .general: "Startup behavior, CLI symlink status, and app metadata."
     case .bridge: "Native transport yielding, probe cadence, and deployment timeouts."
@@ -25,7 +25,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     }
   }
 
-  var systemImage: String {
+  public var systemImage: String {
     switch self {
     case .general: "gearshape.fill"
     case .bridge: "antenna.radiowaves.left.and.right"
@@ -33,7 +33,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     }
   }
 
-  var badgeColor: Color {
+  public var badgeColor: Color {
     switch self {
     case .general: .blue
     case .bridge: .teal
@@ -44,24 +44,38 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
 
 public struct PreferencesView: View {
   @ObservedObject var model: AppModel
-  @State private var selectedTab: SettingsTab = .general
-  @State private var hoveredTab: SettingsTab?
+  public let pane: SettingsPane
   @State private var inspectionRefreshTick = 0
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.colorScheme) private var colorScheme
 
-  public init(model: AppModel) {
+  public init(model: AppModel, pane: SettingsPane) {
     self.model = model
+    self.pane = pane
   }
 
   public var body: some View {
-    HStack(spacing: 0) {
-      sidebar
-      Divider()
-      detailPane
+    ScrollView {
+      VStack(alignment: .leading, spacing: 18) {
+        paneHeader(for: pane)
+
+        switch pane {
+        case .general:
+          generalPane
+        case .bridge:
+          bridgePane
+        case .privacy:
+          privacyPane
+        }
+      }
+      .frame(maxWidth: DesignTokens.maxContentWidth, alignment: .leading)
+      .frame(maxWidth: .infinity)
+      .padding(DesignTokens.pagePadding)
     }
-    .frame(width: 700, height: 500)
     .onAppear {
+      model.reloadLocalStores()
+      inspectionRefreshTick &+= 1
+    }
+    .onChange(of: pane) { _, _ in
       model.reloadLocalStores()
       inspectionRefreshTick &+= 1
     }
@@ -74,234 +88,7 @@ public struct PreferencesView: View {
     }
   }
 
-  // MARK: - Sidebar
-
-  private var sidebar: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      HStack(spacing: 10) {
-        ZStack {
-          RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(
-              LinearGradient(
-                colors: [Color.accentColor, Color.teal],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-              )
-            )
-          Image(systemName: "antenna.radiowaves.left.and.right")
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(Color.white)
-        }
-        .frame(width: 30, height: 30)
-
-        VStack(alignment: .leading, spacing: 1) {
-          Text("Debagr")
-            .font(.headline)
-          Text("v\(DebagrVersion.current)")
-            .font(.caption2.monospaced())
-            .foregroundStyle(.secondary)
-        }
-      }
-      .padding(.horizontal, 6)
-      .padding(.top, 4)
-
-      VStack(spacing: 4) {
-        ForEach(SettingsTab.allCases) { tab in
-          sidebarButton(for: tab)
-        }
-      }
-      .focusable()
-      .focusEffectDisabled(false)
-      .contentShape(
-        .focusEffect,
-        RoundedRectangle(cornerRadius: DesignTokens.controlRadius, style: .continuous)
-      )
-      .onKeyPress(.upArrow) {
-        moveTab(by: -1)
-      }
-      .onKeyPress(.downArrow) {
-        moveTab(by: 1)
-      }
-      .onKeyPress(.home) {
-        selectedTab = .general
-        return .handled
-      }
-      .onKeyPress(.end) {
-        selectedTab = .privacy
-        return .handled
-      }
-      .accessibilityRepresentation {
-        Picker("Settings Sections", selection: $selectedTab) {
-          ForEach(SettingsTab.allCases) { tab in
-            Text(tab.title).tag(tab)
-          }
-        }
-      }
-
-      Spacer()
-
-      sidebarBridgeFooter
-    }
-    .padding(12)
-    .frame(width: 196)
-    .frame(maxHeight: .infinity)
-    .background(.ultraThinMaterial)
-  }
-
-  private func sidebarButton(for tab: SettingsTab) -> some View {
-    let isSelected = selectedTab == tab
-    let isHovered = hoveredTab == tab && !isSelected
-    let showsAttentionDot = (tab == .privacy && !model.storagePermissionsOK)
-
-    return Button {
-      if reduceMotion {
-        selectedTab = tab
-      } else {
-        withAnimation(.easeOut(duration: 0.14)) {
-          selectedTab = tab
-        }
-      }
-    } label: {
-      HStack(spacing: 9) {
-        ZStack {
-          RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(tab.badgeColor.gradient)
-          Image(systemName: tab.systemImage)
-            .font(.system(size: 11.5, weight: .semibold))
-            .foregroundStyle(Color.white)
-        }
-        .frame(width: 24, height: 24)
-
-        Text(tab.title)
-          .font(.subheadline.weight(isSelected ? .semibold : .medium))
-          .foregroundStyle(isSelected ? .primary : .secondary)
-          .lineLimit(1)
-
-        Spacer(minLength: 4)
-
-        if showsAttentionDot {
-          Circle()
-            .fill(StatusTone.offline.color)
-            .frame(width: 7, height: 7)
-            .help("Storage file permissions need attention")
-        }
-      }
-      .padding(.horizontal, 8)
-      .padding(.vertical, 6)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: DesignTokens.controlRadius, style: .continuous)
-          .fill(sidebarRowBackground(isSelected: isSelected, isHovered: isHovered))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: DesignTokens.controlRadius, style: .continuous)
-          .strokeBorder(
-            isSelected
-              ? Color.primary.opacity(colorScheme == .dark ? 0.16 : 0.08)
-              : Color.clear,
-            lineWidth: 1
-          )
-      )
-      .contentShape(RoundedRectangle(cornerRadius: DesignTokens.controlRadius, style: .continuous))
-    }
-    .buttonStyle(.plain)
-    .focusable(false)
-    .onHover { hovering in
-      hoveredTab = hovering ? tab : (hoveredTab == tab ? nil : hoveredTab)
-    }
-    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-  }
-
-  private func sidebarRowBackground(isSelected: Bool, isHovered: Bool) -> Color {
-    if isSelected {
-      return Color(nsColor: .controlColor)
-    }
-    if isHovered {
-      return Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05)
-    }
-    return .clear
-  }
-
-  private var sidebarBridgeFooter: some View {
-    let verdict = model.verdict
-    let deviceLabel = model.config.managedDevice?.displayName ?? "No device configured"
-
-    return VStack(alignment: .leading, spacing: 3) {
-      HStack(spacing: 6) {
-        Circle()
-          .fill(verdict.tone.color)
-          .frame(width: 7, height: 7)
-        Text(verdict.pillLabel)
-          .font(.caption2.weight(.semibold))
-          .lineLimit(1)
-      }
-      Text(deviceLabel)
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-    }
-    .padding(10)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(
-      RoundedRectangle(cornerRadius: DesignTokens.controlRadius, style: .continuous)
-        .fill(Color.primary.opacity(colorScheme == .dark ? 0.07 : 0.045))
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: DesignTokens.controlRadius, style: .continuous)
-        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-    )
-  }
-
-  private func moveTab(by delta: Int) -> KeyPress.Result {
-    let all = SettingsTab.allCases
-    guard let current = all.firstIndex(of: selectedTab) else { return .ignored }
-    let next = (current + delta + all.count) % all.count
-    selectedTab = all[next]
-    return .handled
-  }
-
-  // MARK: - Detail Pane
-
-  private var detailPane: some View {
-    ZStack(alignment: .bottom) {
-      VStack(spacing: 0) {
-        if let settingsErr = model.settingsErrorBanner {
-          ExpandableErrorCard(message: settingsErr) {
-            model.settingsErrorBanner = nil
-          }
-        }
-
-        ScrollView {
-          VStack(alignment: .leading, spacing: 16) {
-            paneHeader(for: selectedTab)
-
-            switch selectedTab {
-            case .general:
-              generalPane
-            case .bridge:
-              bridgePane
-            case .privacy:
-              privacyPane
-            }
-          }
-          .padding(22)
-          .frame(maxWidth: .infinity, alignment: .leading)
-        }
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-      if let toast = model.toastMessage {
-        FloatingToastOverlay(message: toast)
-          .padding(.bottom, 14)
-          .transition(
-            reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
-          )
-      }
-    }
-    .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: model.toastMessage)
-  }
-
-  private func paneHeader(for tab: SettingsTab) -> some View {
+  private func paneHeader(for tab: SettingsPane) -> some View {
     HStack(spacing: 12) {
       ZStack {
         RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -360,7 +147,9 @@ public struct PreferencesView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            if model.launchAtLoginStatus == .requiresApproval {
+            if model.launchAtLoginStatus == .requiresApproval
+              || model.launchAtLoginStatus.isUnavailable
+            {
               Button("Open Login Items…") {
                 model.openLoginItemsSettings()
               }

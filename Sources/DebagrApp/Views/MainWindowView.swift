@@ -3,13 +3,11 @@ import SwiftUI
 
 public struct MainWindowView: View {
   @ObservedObject var model: AppModel
-  @ObservedObject var windowLifecycle: WindowLifecycleController
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var toolbarCopied = false
 
-  public init(model: AppModel, windowLifecycle: WindowLifecycleController) {
+  public init(model: AppModel) {
     self.model = model
-    self.windowLifecycle = windowLifecycle
   }
 
   public var body: some View {
@@ -29,8 +27,14 @@ public struct MainWindowView: View {
         Section("Labs") {
           sidebarRow(.experimental)
         }
+
+        Section("Settings") {
+          sidebarRow(.settingsGeneral)
+          sidebarRow(.settingsBridge)
+          sidebarRow(.settingsPrivacy)
+        }
       }
-      .navigationSplitViewColumnWidth(min: 210, ideal: 224)
+      .navigationSplitViewColumnWidth(min: 220, ideal: 236)
       .safeAreaInset(edge: .bottom) {
         VStack(alignment: .leading, spacing: 8) {
           Divider()
@@ -48,15 +52,9 @@ public struct MainWindowView: View {
                 .lineLimit(1)
             }
             Spacer()
-            OpenSettingsButton {
-              windowLifecycle.activateForWindow()
-            } label: {
-              Image(systemName: "gearshape")
-                .font(.body)
-                .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .help("Open Settings (⌘,)")
+            Text("v\(DebagrVersion.current)")
+              .font(.caption2.monospaced())
+              .foregroundStyle(.tertiary)
           }
         }
         .padding(12)
@@ -81,6 +79,12 @@ public struct MainWindowView: View {
               AgentOnboardingView(model: model)
             case .experimental:
               ExperimentalView(model: model)
+            case .settingsGeneral:
+              PreferencesView(model: model, pane: .general)
+            case .settingsBridge:
+              PreferencesView(model: model, pane: .bridge)
+            case .settingsPrivacy:
+              PreferencesView(model: model, pane: .privacy)
             }
           }
           .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -150,27 +154,40 @@ public struct MainWindowView: View {
   }
 
   private func sidebarRow(_ section: SidebarDestination) -> some View {
-    Label {
-      HStack {
-        Text(section.title)
-        if section == .experimental {
-          Spacer()
-          HStack(spacing: 4) {
-            Circle()
-              .fill(Color.orange)
-              .frame(width: 5, height: 5)
-            Text("EXP")
-              .font(.caption2.weight(.semibold))
-              .foregroundStyle(.primary)
-          }
-          .padding(.horizontal, 6)
-          .padding(.vertical, 2)
-          .background(Color.orange.opacity(0.16), in: Capsule())
-        }
-      }
-    } icon: {
+    let isSelected = model.selectedSection == section
+
+    return HStack(spacing: 10) {
       Image(systemName: section.systemImage)
+        .font(.system(size: 13.5, weight: .medium))
+        .foregroundStyle(isSelected ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
+        .frame(width: 18, alignment: .center)
+
+      Text(section.title)
+        .lineLimit(1)
+
+      if section == .experimental {
+        Spacer()
+        HStack(spacing: 4) {
+          Circle()
+            .fill(Color.orange)
+            .frame(width: 5, height: 5)
+          Text("EXP")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.orange.opacity(0.16), in: Capsule())
+      } else if section == .settingsPrivacy && !model.storagePermissionsOK {
+        Spacer()
+        Circle()
+          .fill(StatusTone.offline.color)
+          .frame(width: 7, height: 7)
+          .help("Storage file permissions need attention")
+      }
     }
+    .padding(.vertical, 4)
+    .padding(.horizontal, 4)
     .tag(section)
   }
 }

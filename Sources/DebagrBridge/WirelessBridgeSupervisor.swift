@@ -23,6 +23,7 @@ public actor WirelessBridgeSupervisor: BridgeEnsuring {
 
   private var activeProxy: ProxyHandle?
   private var paused = false
+  private var isStopped = false
   private var networkSatisfied = true
   private var latestSnapshot = BridgeStateSnapshot(
     state: .unconfigured,
@@ -74,7 +75,9 @@ public actor WirelessBridgeSupervisor: BridgeEnsuring {
   }
 
   public func stop(persistState: Bool = true) async {
+    isStopped = true
     await teardownActiveProxy()
+    await dnssd.stopAllProxies()
     guard persistState else { return }
     let config = try? configStore.load()
     let nextState: BridgeRuntimeState = config?.managedDevice == nil ? .unconfigured : .paused
@@ -87,6 +90,7 @@ public actor WirelessBridgeSupervisor: BridgeEnsuring {
   }
 
   public func handleSystemEvent(_ event: SystemBridgeEvent) async -> BridgeStateSnapshot {
+    if isStopped { return latestSnapshot }
     switch event {
     case .systemWillSleep:
       await teardownActiveProxy()
@@ -116,6 +120,7 @@ public actor WirelessBridgeSupervisor: BridgeEnsuring {
   }
 
   public func reconcileOnce() async -> BridgeStateSnapshot {
+    if isStopped { return latestSnapshot }
     var config: DebagrConfig
     do {
       config = try configStore.load()
@@ -164,7 +169,9 @@ public actor WirelessBridgeSupervisor: BridgeEnsuring {
 
     // Check native CoreDevice state first so Debagr yields when device is connected natively.
     if config.preferences.yieldWhenNativelyLocal {
-      if let devices = try? await devicectl.listDevices(timeout: 10),
+      let devices = try? await devicectl.listDevices(timeout: 10)
+      if isStopped { return latestSnapshot }
+      if let devices,
         let matching = devices.first(where: { $0.matches(identifier: managed.udid) })
       {
         if matching.transportType == .wired {
@@ -198,6 +205,7 @@ public actor WirelessBridgeSupervisor: BridgeEnsuring {
     // Refresh Tailscale/Headscale dynamic peer IP if node ID or peer name is tracked.
     if managed.vpn.provider.supportsAutomaticDiscovery {
       let vpnEnv = await vpnDiscovery.discoverPeers(provider: managed.vpn.provider)
+      if isStopped { return latestSnapshot }
       if let updatedPeer = matchPeer(in: vpnEnv.peers, against: managed.vpn),
         let nextIP = updatedPeer.preferredPrivateIP,
         nextIP != managed.vpn.address
@@ -230,6 +238,7 @@ public actor WirelessBridgeSupervisor: BridgeEnsuring {
       port: managed.vpn.lockdownPort,
       timeoutSeconds: 3.0
     )
+    if isStopped { return latestSnapshot }
 
     guard reachable else {
       await teardownActiveProxy()
@@ -267,9 +276,14 @@ public actor WirelessBridgeSupervisor: BridgeEnsuring {
     }
 
     await teardownActiveProxy()
+    if isStopped || Task.isCancelled { return latestSnapshot }
 
     do {
       let handle = try await dnssd.startProxy(desiredSpec)
+      if isStopped || Task.isCancelled {
+        await dnssd.stopProxy(handle)
+        return latestSnapshot
+      }
       activeProxy = handle
       managed.lastVerifiedAt = Date()
       config.managedDevice = managed
@@ -409,10 +423,17 @@ public actor WirelessBridgeSupervisor: BridgeEnsuring {
     {
       return byID
     }
-    if let peerName = vpn.peerName,
-      let byName = peers.first(where: { $0.name.caseInsensitiveCompare(peerName) == .orderedSame })
-    {
-      return byName
+    if let peerName = vpn.peerName {
+      if let byName = peers.first(where: {
+        $0.name.caseInsensitiveCompare(peerName) == .orderedSame
+      }) {
+        return byName
+      }
+      if let byHost = peers.first(where: {
+        $0.meaningfulHostName?.caseInsensitiveCompare(peerName) == .orderedSame
+      }) {
+        return byHost
+      }
     }
     return nil
   }
